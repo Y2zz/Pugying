@@ -9,11 +9,11 @@ export class Tenant {
 
   @ApiProperty({ example: '示例公司', description: '租户名称' })
   @Column()
-  name: string;
+  displayName: string;
 
   @ApiProperty({ example: 'example-corp', description: '租户标识（唯一）' })
   @Column({ unique: true })
-  slug: string;
+  name: string;
 
   @ApiProperty({ example: true, description: '是否启用' })
   @Column({ default: true })

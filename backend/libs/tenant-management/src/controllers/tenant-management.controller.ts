@@ -12,8 +12,8 @@ export class TenantManagementController {
   @Post()
   @ApiOperation({ summary: '创建租户' })
   @ApiResponse({ status: 201, description: '租户创建成功', type: Tenant })
-  create(@Body() dto: CreateTenantDto): Promise<Tenant> {
-    return this.tenantService.create(dto);
+  create(@Body() input: CreateTenantDto): Promise<Tenant> {
+    return this.tenantService.create(input);
   }
 
   @Get()

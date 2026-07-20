@@ -38,7 +38,7 @@ export class TenantManagementRepository implements ITenantManagementRepository {
   }
 
   async findBySlug(slug: string): Promise<Tenant | null> {
-    return this.repository.findOne({ where: { slug } });
+    return this.repository.findOne({ where: { name: slug } });
   }
 
   async save(tenant: Tenant): Promise<Tenant> {
