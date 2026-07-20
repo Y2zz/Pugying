@@ -1,9 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AccountService } from '../services/account.service';
 import { Account } from '../entities/account.entity';
-import { CreateAccountDto } from "../dtos/createAccountDto";
-import { UpdateAccountDto } from '../dtos/updateAccountDto';
+import { CreateAccountDto, UpdateAccountDto } from '@pugying/account/dtos';
 
 @ApiTags('accounts')
 @Controller('accounts')

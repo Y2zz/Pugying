@@ -76,7 +76,8 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "@pugying/tenant-management(.*)": "<rootDir>/../libs/tenant-management/src$1"
+      "@pugying/tenant-management(.*)": "<rootDir>/../libs/tenant-management/src$1",
+      "@pugying/account(.*)": "<rootDir>/../libs/account/src$1"
     }
   }
 }

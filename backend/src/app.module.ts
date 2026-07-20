@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TenantManagementModule } from '@pugying/tenant-management';
-import { AccountModule } from './account';
+import { AccountModule } from '@pugying/account';
 
 @Module({
   imports: [

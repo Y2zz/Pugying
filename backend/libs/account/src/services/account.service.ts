@@ -1,10 +1,9 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { IAccountRepository } from '../repositories/account.repository';
 import { ACCOUNT_REPOSITORY } from '../repositories/account.repository';
 import { Account } from '../entities/account.entity';
-import { CreateAccountDto } from "../dtos/createAccountDto";
-import { UpdateAccountDto } from '../dtos/updateAccountDto';
+import { CreateAccountDto, UpdateAccountDto } from '@pugying/account/dtos';
 
 @Injectable()
 export class AccountService {

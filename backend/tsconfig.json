@@ -18,7 +18,9 @@
     "baseUrl": "./",
     "paths": {
       "@pugying/tenant-management": ["./libs/tenant-management/src"],
-      "@pugying/tenant-management/*": ["./libs/tenant-management/src/*"]
+      "@pugying/tenant-management/*": ["./libs/tenant-management/src/*"],
+      "@pugying/account": ["./libs/account/src"],
+      "@pugying/account/*": ["./libs/account/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
