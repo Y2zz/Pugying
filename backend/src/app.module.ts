@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { TenantManagementModule } from './tenant-management';
+import { AccountModule } from './account';
 
 @Module({
   imports: [
@@ -11,6 +13,8 @@ import { AppService } from './app.service';
       autoLoadEntities: true,
       synchronize: true,
     }),
+    TenantManagementModule,
+    AccountModule,
   ],
   controllers: [AppController],
   providers: [AppService],
