@@ -6,3 +6,6 @@ package-lock.json
 pnpm-lock.yaml
 yarn.lock
 src/components/ui/
+
+tsconfig.json
+tsconfig.*.json

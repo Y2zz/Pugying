@@ -1,1 +1,9 @@
 src/database/migrations
+
+tsconfig.json
+tsconfig.*.json
+
+dist/
+node_modules/
+
+package-lock.json
