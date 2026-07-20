@@ -14,8 +14,12 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "baseUrl": "./",
+    "paths": {
+      "@pugying/tenant-management": ["./libs/tenant-management/src"],
+      "@pugying/tenant-management/*": ["./libs/tenant-management/src/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "types": ["node"],

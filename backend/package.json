@@ -54,7 +54,10 @@
     "ts-node": "10.9.2",
     "tsconfig-paths": "4.2.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.64.0"
+    "typescript-eslint": "8.64.0",
+    "webpack": "5.108.4",
+    "webpack-cli": "7.2.1",
+    "webpack-node-externals": "3.0.0"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -71,6 +74,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "@pugying/tenant-management(.*)": "<rootDir>/../libs/tenant-management/src$1"
+    }
   }
 }
