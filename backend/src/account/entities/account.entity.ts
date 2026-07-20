@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { Tenant } from '../../tenant-management/entities/tenant.entity';
+import { Tenant } from '@pugying/tenant-management/entities/tenant.entity';
 
 @Entity()
 export class Account {
