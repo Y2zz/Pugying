@@ -3,6 +3,12 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+declare global {
+  interface ImportMeta {
+    readonly dirname: string;
+  }
+}
+
 export default tseslint.config(
   {
     ignores: ['eslint.config.ts', 'dist', 'src/database/migrations/**/*'],
