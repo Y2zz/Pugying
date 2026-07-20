@@ -5,5 +5,9 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "@pugying/tenant-management(.*)": "<rootDir>/../libs/tenant-management/src$1",
+    "@pugying/account(.*)": "<rootDir>/../libs/account/src$1"
   }
 }
