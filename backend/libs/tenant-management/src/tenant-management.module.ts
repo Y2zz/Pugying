@@ -1,20 +1,22 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Tenant } from './entities/tenant.entity';
-import { TENANT_REPOSITORY, TenantManagementRepository } from './repositories/tenant-management.repository';
-import { TenantManagementService } from './services/tenant-management.service';
-import { TenantManagementController } from './controllers/tenant-management.controller';
+import { Module, OnModuleInit } from '@nestjs/common';
+import { PermissionRegistry } from '@pugying/core';
+import { TenantManagementService } from './application/services/tenant-management.service';
+import { TenantManagementController } from './http/controllers/tenant-management.controller';
+import { tenantManagementPermissionList } from './tenant-management.permissions';
 
+/**
+ * Tenant management business module — application / http only.
+ * TypeORM mapping lives in TenantManagementTypeOrmModule (host imports both).
+ */
 @Module({
-  imports: [TypeOrmModule.forFeature([Tenant])],
   controllers: [TenantManagementController],
-  providers: [
-    TenantManagementService,
-    {
-      provide: TENANT_REPOSITORY,
-      useClass: TenantManagementRepository,
-    },
-  ],
+  providers: [TenantManagementService],
   exports: [TenantManagementService],
 })
-export class TenantManagementModule {}
+export class TenantManagementModule implements OnModuleInit {
+  constructor(private readonly permissionRegistry: PermissionRegistry) {}
+
+  onModuleInit(): void {
+    this.permissionRegistry.register(...tenantManagementPermissionList);
+  }
+}

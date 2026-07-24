@@ -1,0 +1,15 @@
+{
+  "name": "@pugying/core",
+  "version": "0.0.1",
+  "description": "Pugying framework core — multi-tenancy, permissions, module contracts",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "peerDependencies": {
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
+    "@nestjs/swagger": "11.4.6",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  }
+}

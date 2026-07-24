@@ -17,10 +17,14 @@
     "rootDir": ".",
     "baseUrl": "./",
     "paths": {
+      "@pugying/core": ["./libs/core/src"],
+      "@pugying/core/*": ["./libs/core/src/*"],
       "@pugying/tenant-management": ["./libs/tenant-management/src"],
       "@pugying/tenant-management/*": ["./libs/tenant-management/src/*"],
-      "@pugying/account": ["./libs/account/src"],
-      "@pugying/account/*": ["./libs/account/src/*"]
+      "@pugying/identity": ["./libs/identity/src"],
+      "@pugying/identity/*": ["./libs/identity/src/*"],
+      "@pugying/typeorm": ["./libs/typeorm/src"],
+      "@pugying/typeorm/*": ["./libs/typeorm/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

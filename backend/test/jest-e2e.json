@@ -7,7 +7,9 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "moduleNameMapper": {
+    "@pugying/core(.*)": "<rootDir>/../libs/core/src$1",
     "@pugying/tenant-management(.*)": "<rootDir>/../libs/tenant-management/src$1",
-    "@pugying/account(.*)": "<rootDir>/../libs/account/src$1"
+    "@pugying/identity(.*)": "<rootDir>/../libs/identity/src$1",
+    "@pugying/typeorm(.*)": "<rootDir>/../libs/typeorm/src$1"
   }
 }

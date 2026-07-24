@@ -1,25 +1,49 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { TenantManagementModule } from '@pugying/tenant-management';
-import { AccountModule } from '@pugying/account';
+import { APP_GUARD } from '@nestjs/core';
+import { CoreModule, PermissionGuard } from '@pugying/core';
+import {
+  TenantManagementModule,
+  TenantManagementTypeOrmModule,
+} from '@pugying/tenant-management';
+import {
+  IdentityModule,
+  IdentityTypeOrmModule,
+  JwtAuthGuard,
+} from '@pugying/identity';
+import { PugyingTypeOrmSqliteModule } from '@pugying/typeorm';
 
 import { resolve } from 'path';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'better-sqlite3',
+    CoreModule,
+    PugyingTypeOrmSqliteModule.forRoot({
       database: 'pugying.db',
-      autoLoadEntities: true,
       migrations: [resolve(__dirname, 'database/migrations/*.js')],
       migrationsRun: true,
     }),
+    TenantManagementTypeOrmModule,
+    IdentityTypeOrmModule,
     TenantManagementModule,
-    AccountModule,
+    IdentityModule.forRoot({
+      jwtSecret: process.env.JWT_SECRET ?? 'pugying-dev-secret-change-me',
+      jwtExpiresIn: '7d',
+      seed: true,
+    }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -7,6 +7,45 @@
     "tsConfigPath": "tsconfig.build.json",
     "assets": [
       { "include": "src/database/migrations/**/*", "outDir": "dist" }
-    ]
+    ],
+    "webpack": false
+  },
+  "projects": {
+    "core": {
+      "type": "library",
+      "root": "libs/core",
+      "entryFile": "index",
+      "sourceRoot": "libs/core/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/core/tsconfig.lib.json"
+      }
+    },
+    "tenant-management": {
+      "type": "library",
+      "root": "libs/tenant-management",
+      "entryFile": "index",
+      "sourceRoot": "libs/tenant-management/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/tenant-management/tsconfig.lib.json"
+      }
+    },
+    "identity": {
+      "type": "library",
+      "root": "libs/identity",
+      "entryFile": "index",
+      "sourceRoot": "libs/identity/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/identity/tsconfig.lib.json"
+      }
+    },
+    "typeorm": {
+      "type": "library",
+      "root": "libs/typeorm",
+      "entryFile": "index",
+      "sourceRoot": "libs/typeorm/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/typeorm/tsconfig.lib.json"
+      }
+    }
   }
 }
