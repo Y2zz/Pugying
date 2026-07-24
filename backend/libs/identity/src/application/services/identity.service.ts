@@ -9,10 +9,10 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { CurrentTenant } from '@pugying/core';
 import { TenantManagementService } from '@pugying/tenant-management';
-import type { IUserRepository } from '../../domain/repositories/user.repository';
-import { USER_REPOSITORY } from '../../domain/repositories/user.repository';
-import { User } from '../../domain/entities/user.entity';
-import { CreateUserDto, LoginDto, UpdateUserDto } from '../dtos';
+import type { IUserRepository } from '@pugying/identity/domain/repositories/user.repository';
+import { USER_REPOSITORY } from '@pugying/identity/domain/repositories/user.repository';
+import { User } from '@pugying/identity/domain/entities/user.entity';
+import { CreateUserDto, LoginDto, UpdateUserDto } from '@pugying/identity/application/dtos';
 
 export interface LoginResult {
   accessToken: string;

@@ -1,8 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { ITenantManagementRepository } from '../../domain/repositories/tenant-management.repository';
-import { TENANT_REPOSITORY } from '../../domain/repositories/tenant-management.repository';
-import { Tenant } from '../../domain/entities/tenant.entity';
-import { CreateTenantDto, UpdateTenantDto } from '../dtos';
+import type { ITenantManagementRepository } from '@pugying/tenant-management/domain/repositories/tenant-management.repository';
+import { TENANT_REPOSITORY } from '@pugying/tenant-management/domain/repositories/tenant-management.repository';
+import { Tenant } from '@pugying/tenant-management/domain/entities/tenant.entity';
+import { CreateTenantDto, UpdateTenantDto } from '@pugying/tenant-management/application/dtos';
 
 @Injectable()
 export class TenantManagementService {

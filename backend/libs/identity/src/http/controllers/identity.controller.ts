@@ -15,10 +15,10 @@ import {
   RequirePermission,
   type AuthenticatedUser,
 } from '@pugying/core';
-import { IdentityService } from '../../application/services/identity.service';
-import { User } from '../../domain/entities/user.entity';
-import { CreateUserDto, LoginDto, UpdateUserDto } from '../../application/dtos';
-import { IdentityPermissions } from '../../identity.permissions';
+import { IdentityService } from '@pugying/identity/application/services/identity.service';
+import { User } from '@pugying/identity/domain/entities/user.entity';
+import { CreateUserDto, LoginDto, UpdateUserDto } from '@pugying/identity/application/dtos';
+import { IdentityPermissions } from '@pugying/identity/identity.permissions';
 
 @ApiTags('identity')
 @Controller('identity')

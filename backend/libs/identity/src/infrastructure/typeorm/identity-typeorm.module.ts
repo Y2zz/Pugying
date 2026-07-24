@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { USER_REPOSITORY } from '../../domain/repositories/user.repository';
+import { USER_REPOSITORY } from '@pugying/identity/domain/repositories/user.repository';
 import { UserEntitySchema } from './user.entity-schema';
 import { TypeOrmUserRepository } from './user.repository';
 

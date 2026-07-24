@@ -1,4 +1,4 @@
-import { User } from '../entities/user.entity';
+import { User } from '@pugying/identity/domain/entities/user.entity';
 
 export interface IUserRepository {
   create(data: Partial<User>): User;

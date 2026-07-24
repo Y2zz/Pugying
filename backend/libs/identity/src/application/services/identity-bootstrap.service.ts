@@ -2,9 +2,9 @@ import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/comm
 import * as bcrypt from 'bcrypt';
 import { PermissionRegistry } from '@pugying/core';
 import { TenantManagementService } from '@pugying/tenant-management';
-import type { IUserRepository } from '../../domain/repositories/user.repository';
-import { USER_REPOSITORY } from '../../domain/repositories/user.repository';
-import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '../../identity.constants';
+import type { IUserRepository } from '@pugying/identity/domain/repositories/user.repository';
+import { USER_REPOSITORY } from '@pugying/identity/domain/repositories/user.repository';
+import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '@pugying/identity/identity.constants';
 
 @Injectable()
 export class IdentityBootstrapService implements OnApplicationBootstrap {

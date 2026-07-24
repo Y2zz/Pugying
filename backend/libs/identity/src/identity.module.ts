@@ -3,13 +3,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { PermissionRegistry } from '@pugying/core';
 import { TenantManagementModule } from '@pugying/tenant-management';
-import { JwtStrategy } from './infrastructure/jwt.strategy';
-import { JwtAuthGuard } from './infrastructure/jwt-auth.guard';
-import { IdentityService } from './application/services/identity.service';
-import { IdentityBootstrapService } from './application/services/identity-bootstrap.service';
-import { IdentityController } from './http/controllers/identity.controller';
-import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from './identity.constants';
-import { identityPermissionList } from './identity.permissions';
+import { JwtStrategy } from '@pugying/identity/infrastructure/jwt.strategy';
+import { JwtAuthGuard } from '@pugying/identity/infrastructure/jwt-auth.guard';
+import { IdentityService } from '@pugying/identity/application/services/identity.service';
+import { IdentityBootstrapService } from '@pugying/identity/application/services/identity-bootstrap.service';
+import { IdentityController } from '@pugying/identity/http/controllers/identity.controller';
+import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '@pugying/identity/identity.constants';
+import { identityPermissionList } from '@pugying/identity/identity.permissions';
 
 function parseExpiresIn(value?: string): number {
   if (!value) {

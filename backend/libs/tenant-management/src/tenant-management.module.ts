@@ -1,8 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PermissionRegistry } from '@pugying/core';
-import { TenantManagementService } from './application/services/tenant-management.service';
-import { TenantManagementController } from './http/controllers/tenant-management.controller';
-import { tenantManagementPermissionList } from './tenant-management.permissions';
+import { TenantManagementService } from '@pugying/tenant-management/application/services/tenant-management.service';
+import { TenantManagementController } from '@pugying/tenant-management/http/controllers/tenant-management.controller';
+import { tenantManagementPermissionList } from '@pugying/tenant-management/tenant-management.permissions';
 
 /**
  * Tenant management business module — application / http only.

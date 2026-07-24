@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Entity } from './entity.base';
+import { Entity } from '@pugying/core/domain/entity.base';
 
 /**
  * Audited entity base: UUID id + createdAt / updatedAt (ABP-style AuditedEntity).

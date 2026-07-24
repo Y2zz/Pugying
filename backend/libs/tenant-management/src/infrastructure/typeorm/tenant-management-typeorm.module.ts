@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TENANT_REPOSITORY } from '../../domain/repositories/tenant-management.repository';
+import { TENANT_REPOSITORY } from '@pugying/tenant-management/domain/repositories/tenant-management.repository';
 import { TenantEntitySchema } from './tenant.entity-schema';
 import { TypeOrmTenantManagementRepository } from './tenant-management.repository';
 

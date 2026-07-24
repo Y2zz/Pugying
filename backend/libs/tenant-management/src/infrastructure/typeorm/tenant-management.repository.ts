@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Tenant } from '../../domain/entities/tenant.entity';
-import type { ITenantManagementRepository } from '../../domain/repositories/tenant-management.repository';
+import { Tenant } from '@pugying/tenant-management/domain/entities/tenant.entity';
+import type { ITenantManagementRepository } from '@pugying/tenant-management/domain/repositories/tenant-management.repository';
 
 @Injectable()
 export class TypeOrmTenantManagementRepository

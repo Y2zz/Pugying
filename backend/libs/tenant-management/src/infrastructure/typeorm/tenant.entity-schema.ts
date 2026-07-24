@@ -1,5 +1,5 @@
 import { EntitySchema } from 'typeorm';
-import { Tenant } from '../../domain/entities/tenant.entity';
+import { Tenant } from '@pugying/tenant-management/domain/entities/tenant.entity';
 
 export const TenantEntitySchema = new EntitySchema<Tenant>({
   name: 'Tenant',

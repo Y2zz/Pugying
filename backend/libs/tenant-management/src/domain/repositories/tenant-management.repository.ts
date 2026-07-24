@@ -1,4 +1,4 @@
-import { Tenant } from '../entities/tenant.entity';
+import { Tenant } from '@pugying/tenant-management/domain/entities/tenant.entity';
 
 export interface ITenantManagementRepository {
   create(data: Partial<Tenant>): Tenant;

@@ -1,4 +1,4 @@
 export {
   PugyingTypeOrmSqliteModule,
   type PugyingTypeOrmSqliteOptions,
-} from './sqlite/pugying-typeorm-sqlite.module';
+} from '@pugying/typeorm/sqlite/pugying-typeorm-sqlite.module';

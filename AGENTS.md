@@ -190,7 +190,8 @@ Pugying/
 - **表命名**: 单数形式，如 `account`、`tenant`。
 - **鉴权**: JWT Bearer；开发环境种子账号 `admin@pugying.local` / `Admin123!`
 - **API 文档**: Swagger UI 挂载在 `/api` 路径（支持 Bearer Auth）。
-- **路径别名**: Backend 使用 `@pugying/core`、`@pugying/identity`、`@pugying/tenant-management`、`@pugying/typeorm`；Frontend 使用 `@/` 映射到 `src/`。
+- **路径别名**: Backend 使用 `@pugying/core`、`@pugying/identity`、`@pugying/tenant-management`、`@pugying/typeorm`（及对应 `@pugying/<pkg>/*` 深路径）；Frontend 使用 `@/` 映射到 `src/`。
+- **Import 约定**: 跨目录引用优先用别名（如 `@pugying/identity/domain/entities/user.entity`、`@/components/ui/button`）；同目录 `./` 相对路径可保留。`index.ts` 桶文件对外导出可用相对路径。
 - **ORM 边界**: `@pugying/core` 与 Application 层不依赖 TypeORM；映射/仓储与业务模块同包的 `infrastructure/typeorm` 捆绑开发；`@pugying/typeorm` 只提供连接（Sqlite 等）。
 
 ## 支撑服务

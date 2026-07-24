@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@pugying/core';
-import { TenantManagementService } from '../../application/services/tenant-management.service';
-import { Tenant } from '../../domain/entities/tenant.entity';
-import { CreateTenantDto, UpdateTenantDto } from '../../application/dtos';
-import { TenantManagementPermissions } from '../../tenant-management.permissions';
+import { TenantManagementService } from '@pugying/tenant-management/application/services/tenant-management.service';
+import { Tenant } from '@pugying/tenant-management/domain/entities/tenant.entity';
+import { CreateTenantDto, UpdateTenantDto } from '@pugying/tenant-management/application/dtos';
+import { TenantManagementPermissions } from '@pugying/tenant-management/tenant-management.permissions';
 
 @ApiTags('tenant-management')
 @ApiBearerAuth()

@@ -2,8 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
-import './globals.css';
-import { router } from './router.tsx';
+import '@/globals.css';
+import { router } from '@/router.tsx';
 import { ThemeProvider } from '@/components/ThemeProvider.tsx';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 

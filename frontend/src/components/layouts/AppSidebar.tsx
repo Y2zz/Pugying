@@ -9,9 +9,10 @@ import {
   SquareTerminal,
 } from 'lucide-react';
 
-import { NavMain } from './NavMain';
-import { NavSecondary } from './NavSecondary';
-import { NavUser } from './NavUser';
+import { NavMain } from '@/components/layouts/NavMain';
+import { NavSecondary } from '@/components/layouts/NavSecondary';
+import { NavUser } from '@/components/layouts/NavUser';
+
 import { Logo } from '@/components/Logo';
 import {
   Sidebar,

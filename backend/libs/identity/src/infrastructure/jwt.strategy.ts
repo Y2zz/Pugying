@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { AuthenticatedUser } from '@pugying/core';
-import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '../identity.constants';
+import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '@pugying/identity/identity.constants';
 
 export interface JwtPayload {
   sub: string;
