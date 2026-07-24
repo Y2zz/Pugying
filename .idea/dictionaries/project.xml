@@ -2,6 +2,9 @@
   <dictionary name="project">
     <words>
       <w>Pugying</w>
+      <w>lucide</w>
+      <w>shadcn</w>
+      <w>tseslint</w>
     </words>
   </dictionary>
 </component>
