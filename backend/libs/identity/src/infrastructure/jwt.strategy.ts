@@ -2,13 +2,16 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { AuthenticatedUser } from '@pugying/core';
-import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '@pugying/identity/identity.constants';
+import {
+  IDENTITY_MODULE_OPTIONS,
+  type IdentityModuleOptions,
+} from '@pugying/identity/identity.constants';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   username: string;
-  tenantId: string;
+  teamId: string | null;
   permissions: string[];
 }
 
@@ -30,7 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.sub,
       email: payload.email,
       username: payload.username,
-      tenantId: payload.tenantId,
+      teamId: payload.teamId ?? null,
       permissions: payload.permissions ?? [],
     };
   }

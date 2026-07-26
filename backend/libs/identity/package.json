@@ -13,7 +13,7 @@
     "@nestjs/swagger": "11.4.6",
     "@nestjs/typeorm": "11.0.3",
     "@pugying/core": "0.0.1",
-    "@pugying/tenant-management": "0.0.1",
+    "@pugying/team-management": "0.0.1",
     "passport": "0.7.0",
     "passport-jwt": "4.0.1",
     "reflect-metadata": "0.2.2",

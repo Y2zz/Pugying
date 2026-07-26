@@ -2,13 +2,16 @@ import { DynamicModule, Module, OnModuleInit } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { PermissionRegistry } from '@pugying/core';
-import { TenantManagementModule } from '@pugying/tenant-management';
+import { TeamManagementModule } from '@pugying/team-management';
 import { JwtStrategy } from '@pugying/identity/infrastructure/jwt.strategy';
 import { JwtAuthGuard } from '@pugying/identity/infrastructure/jwt-auth.guard';
 import { IdentityService } from '@pugying/identity/application/services/identity.service';
 import { IdentityBootstrapService } from '@pugying/identity/application/services/identity-bootstrap.service';
 import { IdentityController } from '@pugying/identity/http/controllers/identity.controller';
-import { IDENTITY_MODULE_OPTIONS, type IdentityModuleOptions } from '@pugying/identity/identity.constants';
+import {
+  IDENTITY_MODULE_OPTIONS,
+  type IdentityModuleOptions,
+} from '@pugying/identity/identity.constants';
 import { identityPermissionList } from '@pugying/identity/identity.permissions';
 
 function parseExpiresIn(value?: string): number {
@@ -34,6 +37,7 @@ function parseExpiresIn(value?: string): number {
 /**
  * Identity business module — application / http only.
  * TypeORM mapping lives in IdentityTypeOrmModule (host imports both).
+ * Login / shared-account flows live in @pugying/account-pro.
  */
 @Module({})
 export class IdentityModule implements OnModuleInit {
@@ -46,8 +50,9 @@ export class IdentityModule implements OnModuleInit {
   static forRoot(options: IdentityModuleOptions): DynamicModule {
     return {
       module: IdentityModule,
+      global: true,
       imports: [
-        TenantManagementModule,
+        TeamManagementModule,
         PassportModule.register({ defaultStrategy: 'jwt' }),
         JwtModule.register({
           secret: options.jwtSecret,

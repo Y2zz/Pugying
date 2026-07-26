@@ -17,6 +17,7 @@ export const UserEntitySchema = new EntitySchema<User>({
     },
     username: {
       type: String,
+      unique: true,
     },
     passwordHash: {
       type: String,
@@ -25,13 +26,6 @@ export const UserEntitySchema = new EntitySchema<User>({
       type: Boolean,
       default: true,
     },
-    tenantId: {
-      type: 'uuid',
-    },
-    permissions: {
-      type: 'simple-json',
-      default: [],
-    },
     createdAt: {
       type: Date,
       createDate: true,
@@ -39,6 +33,11 @@ export const UserEntitySchema = new EntitySchema<User>({
     updatedAt: {
       type: Date,
       updateDate: true,
+    },
+    deletedAt: {
+      type: Date,
+      deleteDate: true,
+      nullable: true,
     },
   },
 });

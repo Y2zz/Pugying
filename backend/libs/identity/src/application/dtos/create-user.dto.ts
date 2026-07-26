@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'user@example.com', description: '邮箱地址' })
@@ -18,14 +25,10 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: '550e8400-e29b-41d4-a716-446655440000',
-    description: '所属租户 UUID',
+    description: '可选：创建后由调用方邀请加入该团队',
+    required: false,
   })
-  @IsUUID()
-  tenantId: string;
-
-  @ApiProperty({ example: ['Identity.Users.View'], required: false, description: '权限列表' })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  permissions?: string[];
+  @IsUUID()
+  teamId?: string;
 }
