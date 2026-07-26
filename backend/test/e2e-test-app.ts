@@ -2,23 +2,10 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CoreModule, PermissionGuard, TeamConsistencyGuard } from '@pugying/core';
-import {
-  TeamManagementModule,
-  TeamManagementTypeOrmModule,
-} from '@pugying/team-management';
-import {
-  IdentityModule,
-  IdentityTypeOrmModule,
-  JwtAuthGuard,
-} from '@pugying/identity';
-import {
-  AccountProModule,
-  AccountProTypeOrmModule,
-} from '@pugying/account-pro';
-import {
-  PlatformAccountModule,
-  PlatformAccountTypeOrmModule,
-} from '@pugying/platform-account';
+import { TeamManagementModule, TeamManagementTypeOrmModule } from '@pugying/team-management';
+import { IdentityModule, IdentityTypeOrmModule, JwtAuthGuard } from '@pugying/identity';
+import { AccountProModule, AccountProTypeOrmModule } from '@pugying/account-pro';
+import { PlatformAccountModule, PlatformAccountTypeOrmModule } from '@pugying/platform-account';
 import { ContentModule, ContentTypeOrmModule } from '@pugying/content';
 import { PugyingTypeOrmSqliteModule } from '@pugying/typeorm';
 import { randomUUID } from 'crypto';
@@ -93,15 +80,10 @@ async function waitForSeed(app: INestApplication<App>): Promise<void> {
   let lastState = 'no response yet';
 
   for (let attempt = 1; attempt <= SEED_WAIT_MAX_ATTEMPTS; attempt += 1) {
-    const admin = await request(app.getHttpServer())
-      .post('/account/login')
-      .send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password });
-    const editor = await request(app.getHttpServer())
-      .post('/account/login')
-      .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password });
+    const admin = await request(app.getHttpServer()).post('/account/login').send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password });
+    const editor = await request(app.getHttpServer()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password });
 
-    const adminReady =
-      admin.status === 201 && admin.body.requiresTeamSelection === true;
+    const adminReady = admin.status === 201 && admin.body.requiresTeamSelection === true;
     const editorReady = editor.status === 201;
     if (adminReady && editorReady) {
       return;
@@ -111,9 +93,7 @@ async function waitForSeed(app: INestApplication<App>): Promise<void> {
     await delay(SEED_WAIT_DELAY_MS);
   }
 
-  throw new Error(
-    `Seed accounts not ready after ${SEED_WAIT_MAX_ATTEMPTS} attempts (${lastState})`,
-  );
+  throw new Error(`Seed accounts not ready after ${SEED_WAIT_MAX_ATTEMPTS} attempts (${lastState})`);
 }
 
 /**
@@ -190,15 +170,8 @@ export async function createE2eApp(): Promise<E2eTestApp> {
   };
 }
 
-export async function login(
-  app: INestApplication<App>,
-  credentials: { email: string; password: string },
-  teamName?: string,
-): Promise<AuthSession> {
-  const step1 = await request(app.getHttpServer())
-    .post('/account/login')
-    .send({ email: credentials.email, password: credentials.password })
-    .expect(201);
+export async function login(app: INestApplication<App>, credentials: { email: string; password: string }, teamName?: string): Promise<AuthSession> {
+  const step1 = await request(app.getHttpServer()).post('/account/login').send({ email: credentials.email, password: credentials.password }).expect(201);
 
   if (!step1.body.requiresTeamSelection) {
     return {
@@ -210,13 +183,9 @@ export async function login(
   }
 
   const teams = step1.body.teams as TeamOptionLike[];
-  const target = teamName
-    ? teams.find((team) => team.name === teamName)
-    : teams[0];
+  const target = teamName ? teams.find((team) => team.name === teamName) : teams[0];
   if (!target) {
-    throw new Error(
-      `Team ${teamName ?? '<first>'} not available for ${credentials.email}`,
-    );
+    throw new Error(`Team ${teamName ?? '<first>'} not available for ${credentials.email}`);
   }
 
   const selected = await request(app.getHttpServer())
@@ -232,16 +201,10 @@ export async function login(
   };
 }
 
-export function loginAsAdmin(
-  app: INestApplication<App>,
-  teamName = 'default',
-): Promise<AuthSession> {
+export function loginAsAdmin(app: INestApplication<App>, teamName = 'default'): Promise<AuthSession> {
   return login(app, SEED_ADMIN, teamName);
 }
 
-export function loginAsEditor(
-  app: INestApplication<App>,
-  teamName?: string,
-): Promise<AuthSession> {
+export function loginAsEditor(app: INestApplication<App>, teamName?: string): Promise<AuthSession> {
   return login(app, SEED_EDITOR, teamName);
 }

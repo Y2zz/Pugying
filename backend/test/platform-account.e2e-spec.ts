@@ -1,12 +1,6 @@
 import Database from 'better-sqlite3';
 import request from 'supertest';
-import {
-  createE2eApp,
-  loginAsAdmin,
-  loginAsEditor,
-  type AuthSession,
-  type E2eTestApp,
-} from './e2e-test-app';
+import { createE2eApp, loginAsAdmin, loginAsEditor, type AuthSession, type E2eTestApp } from './e2e-test-app';
 
 const SECRET_COOKIE_VALUE = 'e2e-super-secret-cookie-9f2c41';
 const ROTATED_COOKIE_VALUE = 'e2e-rotated-cookie-77aa02';
@@ -39,21 +33,13 @@ describe('Platform accounts (e2e)', () => {
       .expect(200);
 
     const ids = (res.body as Array<{ id: string }>).map((p) => p.id);
-    expect(ids).toEqual(
-      expect.arrayContaining(['douyin', 'toutiao', 'channels', 'bilibili', 'xiaohongshu']),
-    );
-    const douyin = (res.body as Array<{ id: string; loginUrl: string }>).find(
-      (p) => p.id === 'douyin',
-    );
+    expect(ids).toEqual(expect.arrayContaining(['douyin', 'toutiao', 'channels', 'bilibili', 'xiaohongshu']));
+    const douyin = (res.body as Array<{ id: string; loginUrl: string }>).find((p) => p.id === 'douyin');
     expect(douyin!.loginUrl).toContain('creator.douyin.com');
   });
 
   it('editor without PlatformAccount permissions gets 403', async () => {
-    await request(server())
-      .get('/platform-accounts')
-      .set('Authorization', `Bearer ${editor.accessToken}`)
-      .set('X-Team-Id', editor.teamId)
-      .expect(403);
+    await request(server()).get('/platform-accounts').set('Authorization', `Bearer ${editor.accessToken}`).set('X-Team-Id', editor.teamId).expect(403);
   });
 
   it('requests without a token get 401', async () => {
@@ -117,9 +103,7 @@ describe('Platform accounts (e2e)', () => {
         platform: 'douyin',
         displayName: '抖音主号',
         platformUserId: 'dy-1001',
-        cookies: [
-          { name: 'sessionid', value: SECRET_COOKIE_VALUE, domain: '.douyin.com' },
-        ],
+        cookies: [{ name: 'sessionid', value: SECRET_COOKIE_VALUE, domain: '.douyin.com' }],
         finalUrl: 'https://creator.douyin.com/creator-micro/home',
       })
       .expect(201);
@@ -149,16 +133,12 @@ describe('Platform accounts (e2e)', () => {
   it('stores the cookie payload AES-GCM encrypted at rest', () => {
     const db = new Database(ctx.dbPath, { readonly: true });
     try {
-      const row = db
-        .prepare('SELECT * FROM platform_account WHERE id = ?')
-        .get(douyinAccountId) as Record<string, unknown>;
+      const row = db.prepare('SELECT * FROM platform_account WHERE id = ?').get(douyinAccountId) as Record<string, unknown>;
 
       expect(row).toBeDefined();
       expect(JSON.stringify(row)).not.toContain(SECRET_COOKIE_VALUE);
       // iv.tag.payload — the credential-crypto wire format
-      expect(row.credentialCipher).toMatch(
-        /^[A-Za-z0-9+/]+=*\.[A-Za-z0-9+/]+=*\.[A-Za-z0-9+/]+=*$/,
-      );
+      expect(row.credentialCipher).toMatch(/^[A-Za-z0-9+/]+=*\.[A-Za-z0-9+/]+=*\.[A-Za-z0-9+/]+=*$/);
     } finally {
       db.close();
     }

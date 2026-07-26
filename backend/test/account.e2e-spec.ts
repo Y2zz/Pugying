@@ -1,13 +1,6 @@
 import { randomUUID } from 'crypto';
 import request from 'supertest';
-import {
-  createE2eApp,
-  loginAsAdmin,
-  SEED_ADMIN,
-  SEED_EDITOR,
-  type AuthSession,
-  type E2eTestApp,
-} from './e2e-test-app';
+import { createE2eApp, loginAsAdmin, SEED_ADMIN, SEED_EDITOR, type AuthSession, type E2eTestApp } from './e2e-test-app';
 
 describe('Account login / team membership flows (e2e)', () => {
   let ctx: E2eTestApp;
@@ -30,47 +23,29 @@ describe('Account login / team membership flows (e2e)', () => {
 
   describe('login validation & failures', () => {
     it('wrong password yields 401', async () => {
-      await request(server())
-        .post('/account/login')
-        .send({ email: SEED_ADMIN.email, password: 'WrongPass123!' })
-        .expect(401);
+      await request(server()).post('/account/login').send({ email: SEED_ADMIN.email, password: 'WrongPass123!' }).expect(401);
     });
 
     it('unknown email yields 401', async () => {
-      await request(server())
-        .post('/account/login')
-        .send({ email: 'ghost@pugying.local', password: 'Whatever123!' })
-        .expect(401);
+      await request(server()).post('/account/login').send({ email: 'ghost@pugying.local', password: 'Whatever123!' }).expect(401);
     });
 
     it('malformed email yields 400', async () => {
-      await request(server())
-        .post('/account/login')
-        .send({ email: 'not-an-email', password: 'Whatever123!' })
-        .expect(400);
+      await request(server()).post('/account/login').send({ email: 'not-an-email', password: 'Whatever123!' }).expect(400);
     });
 
     it('too-short password yields 400', async () => {
-      await request(server())
-        .post('/account/login')
-        .send({ email: SEED_ADMIN.email, password: '123' })
-        .expect(400);
+      await request(server()).post('/account/login').send({ email: SEED_ADMIN.email, password: '123' }).expect(400);
     });
 
     it('extra properties are rejected (400)', async () => {
-      await request(server())
-        .post('/account/login')
-        .send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password, rememberMe: true })
-        .expect(400);
+      await request(server()).post('/account/login').send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password, rememberMe: true }).expect(400);
     });
   });
 
   describe('team selection tickets', () => {
     it('single-team editor logs in directly with demo-scoped permissions', async () => {
-      const res = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const res = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
 
       expect(res.body.requiresTeamSelection).toBeUndefined();
       expect(res.body.accessToken).toBeDefined();
@@ -81,48 +56,27 @@ describe('Account login / team membership flows (e2e)', () => {
     });
 
     it('select-team with an invalid ticket yields 401', async () => {
-      await request(server())
-        .post('/account/login/select-team')
-        .send({ loginTicket: 'definitely-not-a-ticket', teamId: defaultTeamId })
-        .expect(401);
+      await request(server()).post('/account/login/select-team').send({ loginTicket: 'definitely-not-a-ticket', teamId: defaultTeamId }).expect(401);
     });
 
     it('select-team for a team the user does not belong to yields 403', async () => {
-      const step1 = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password })
-        .expect(201);
+      const step1 = await request(server()).post('/account/login').send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password }).expect(201);
 
-      await request(server())
-        .post('/account/login/select-team')
-        .send({ loginTicket: step1.body.loginTicket, teamId: randomUUID() })
-        .expect(403);
+      await request(server()).post('/account/login/select-team').send({ loginTicket: step1.body.loginTicket, teamId: randomUUID() }).expect(403);
     });
 
     it('a login ticket is single-use', async () => {
-      const step1 = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password })
-        .expect(201);
+      const step1 = await request(server()).post('/account/login').send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password }).expect(201);
 
-      await request(server())
-        .post('/account/login/select-team')
-        .send({ loginTicket: step1.body.loginTicket, teamId: defaultTeamId })
-        .expect(201);
+      await request(server()).post('/account/login/select-team').send({ loginTicket: step1.body.loginTicket, teamId: defaultTeamId }).expect(201);
 
-      await request(server())
-        .post('/account/login/select-team')
-        .send({ loginTicket: step1.body.loginTicket, teamId: demoTeamId })
-        .expect(401);
+      await request(server()).post('/account/login/select-team').send({ loginTicket: step1.body.loginTicket, teamId: demoTeamId }).expect(401);
     });
   });
 
   describe('switch-team & my-teams', () => {
     it('editor cannot switch to a team they are not a member of (403)', async () => {
-      const editorLogin = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const editorLogin = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
 
       await request(server())
         .post('/account/switch-team')
@@ -133,10 +87,7 @@ describe('Account login / team membership flows (e2e)', () => {
     });
 
     it('switch-team without a token yields 401', async () => {
-      await request(server())
-        .post('/account/switch-team')
-        .send({ teamId: demoTeamId })
-        .expect(401);
+      await request(server()).post('/account/switch-team').send({ teamId: demoTeamId }).expect(401);
     });
 
     it('my-teams lists both seeded memberships for admin', async () => {
@@ -171,10 +122,7 @@ describe('Account login / team membership flows (e2e)', () => {
     });
 
     it('editor without Account.Users.Invite cannot invite (403)', async () => {
-      const editorLogin = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const editorLogin = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
 
       await request(server())
         .post('/account/invite')
@@ -209,10 +157,7 @@ describe('Account login / team membership flows (e2e)', () => {
     });
 
     it('editor now gets the team picker and the extraPermissions land in the JWT', async () => {
-      const step1 = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const step1 = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
 
       expect(step1.body.requiresTeamSelection).toBe(true);
       expect((step1.body.teams as Array<unknown>).length).toBe(2);
@@ -230,10 +175,7 @@ describe('Account login / team membership flows (e2e)', () => {
     });
 
     it('editor leaves default again and is back to direct single-team login', async () => {
-      const step1 = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const step1 = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
       const selected = await request(server())
         .post('/account/login/select-team')
         .send({ loginTicket: step1.body.loginTicket, teamId: defaultTeamId })
@@ -246,19 +188,13 @@ describe('Account login / team membership flows (e2e)', () => {
         .send({ teamId: defaultTeamId })
         .expect(201);
 
-      const relogin = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const relogin = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
       expect(relogin.body.requiresTeamSelection).toBeUndefined();
       expect(relogin.body.user.teamId).toBe(demoTeamId);
     });
 
     it('leaving the last team is rejected (400)', async () => {
-      const editorLogin = await request(server())
-        .post('/account/login')
-        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
-        .expect(201);
+      const editorLogin = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
 
       await request(server())
         .post('/account/leave')

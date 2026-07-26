@@ -1,12 +1,6 @@
 import { randomUUID } from 'crypto';
 import request from 'supertest';
-import {
-  createE2eApp,
-  loginAsAdmin,
-  loginAsEditor,
-  type AuthSession,
-  type E2eTestApp,
-} from './e2e-test-app';
+import { createE2eApp, loginAsAdmin, loginAsEditor, type AuthSession, type E2eTestApp } from './e2e-test-app';
 
 describe('Team management (e2e)', () => {
   let ctx: E2eTestApp;
@@ -27,11 +21,7 @@ describe('Team management (e2e)', () => {
   });
 
   it('lists the seeded teams (200)', async () => {
-    const list = await request(server())
-      .get('/team-management')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(200);
+    const list = await request(server()).get('/team-management').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(200);
 
     const names = (list.body as Array<{ name: string }>).map((t) => t.name);
     expect(names).toContain('default');
@@ -39,11 +29,7 @@ describe('Team management (e2e)', () => {
   });
 
   it('editor without TeamManagement.Teams.View gets 403', async () => {
-    await request(server())
-      .get('/team-management')
-      .set('Authorization', `Bearer ${editor.accessToken}`)
-      .set('X-Team-Id', editor.teamId)
-      .expect(403);
+    await request(server()).get('/team-management').set('Authorization', `Bearer ${editor.accessToken}`).set('X-Team-Id', editor.teamId).expect(403);
   });
 
   it('listing teams without a token gets 401', async () => {
@@ -110,11 +96,7 @@ describe('Team management (e2e)', () => {
       .set('X-Team-Id', admin.teamId)
       .expect(404);
 
-    await request(server())
-      .get('/team-management/not-a-uuid')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(400);
+    await request(server()).get('/team-management/not-a-uuid').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(400);
   });
 
   it('updates the display name (200)', async () => {
@@ -146,11 +128,7 @@ describe('Team management (e2e)', () => {
       .expect(200);
     expect(updated.body.active).toBe(false);
 
-    const res = await request(server())
-      .get('/identity/me')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', e2eTeamId)
-      .expect(403);
+    const res = await request(server()).get('/identity/me').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', e2eTeamId).expect(403);
     expect(JSON.stringify(res.body.message)).toContain('inactive');
   });
 
@@ -162,11 +140,7 @@ describe('Team management (e2e)', () => {
       .send({ active: true })
       .expect(200);
 
-    const res = await request(server())
-      .get('/identity/me')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', e2eTeamId)
-      .expect(403);
+    const res = await request(server()).get('/identity/me').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', e2eTeamId).expect(403);
     expect(JSON.stringify(res.body.message)).toContain('does not match token team');
   });
 
@@ -177,17 +151,9 @@ describe('Team management (e2e)', () => {
       .set('X-Team-Id', admin.teamId)
       .expect(200);
 
-    await request(server())
-      .get(`/team-management/${e2eTeamId}`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(404);
+    await request(server()).get(`/team-management/${e2eTeamId}`).set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(404);
 
-    const res = await request(server())
-      .get('/identity/me')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', e2eTeamId)
-      .expect(400);
+    const res = await request(server()).get('/identity/me').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', e2eTeamId).expect(400);
     expect(JSON.stringify(res.body.message)).toContain('not found');
   });
 });

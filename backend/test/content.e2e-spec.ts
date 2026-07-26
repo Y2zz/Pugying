@@ -1,12 +1,6 @@
 import { randomUUID } from 'crypto';
 import request from 'supertest';
-import {
-  createE2eApp,
-  loginAsAdmin,
-  loginAsEditor,
-  type AuthSession,
-  type E2eTestApp,
-} from './e2e-test-app';
+import { createE2eApp, loginAsAdmin, loginAsEditor, type AuthSession, type E2eTestApp } from './e2e-test-app';
 
 describe('Contents (e2e)', () => {
   let ctx: E2eTestApp;
@@ -131,19 +125,11 @@ describe('Contents (e2e)', () => {
   });
 
   it('rejects creation without X-Team-Id (400)', async () => {
-    await request(server())
-      .post('/contents')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .send({ type: 'article', title: '没团队' })
-      .expect(400);
+    await request(server()).post('/contents').set('Authorization', `Bearer ${admin.accessToken}`).send({ type: 'article', title: '没团队' }).expect(400);
   });
 
   it('lists team contents, optionally filtered by type', async () => {
-    const all = await request(server())
-      .get('/contents')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(200);
+    const all = await request(server()).get('/contents').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(200);
     expect((all.body as Array<unknown>).length).toBe(2);
 
     const articles = await request(server())
@@ -175,11 +161,7 @@ describe('Contents (e2e)', () => {
   });
 
   it('unknown content id yields 404', async () => {
-    await request(server())
-      .get(`/contents/${randomUUID()}`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(404);
+    await request(server()).get(`/contents/${randomUUID()}`).set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(404);
   });
 
   it('publish / unpublish toggles publishedAt', async () => {
@@ -257,33 +239,17 @@ describe('Contents (e2e)', () => {
   });
 
   it('editor without Content permissions gets 403, anonymous gets 401', async () => {
-    await request(server())
-      .get('/contents')
-      .set('Authorization', `Bearer ${editor.accessToken}`)
-      .set('X-Team-Id', editor.teamId)
-      .expect(403);
+    await request(server()).get('/contents').set('Authorization', `Bearer ${editor.accessToken}`).set('X-Team-Id', editor.teamId).expect(403);
 
     await request(server()).get('/contents').expect(401);
   });
 
   it('soft-deletes content and hides it from reads', async () => {
-    await request(server())
-      .delete(`/contents/${articleId}`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(200);
+    await request(server()).delete(`/contents/${articleId}`).set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(200);
 
-    await request(server())
-      .get(`/contents/${articleId}`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(404);
+    await request(server()).get(`/contents/${articleId}`).set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(404);
 
-    const list = await request(server())
-      .get('/contents')
-      .set('Authorization', `Bearer ${admin.accessToken}`)
-      .set('X-Team-Id', admin.teamId)
-      .expect(200);
+    const list = await request(server()).get('/contents').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(200);
     const ids = (list.body as Array<{ id: string }>).map((c) => c.id);
     expect(ids).toEqual([videoId]);
 
