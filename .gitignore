@@ -7,3 +7,10 @@
 # Local-only
 .claude/settings.local.json
 backend/.seed_probe
+
+# Deploy
+.env
+backend/pugying.db
+backend/*.db
+
+/test-reports/
