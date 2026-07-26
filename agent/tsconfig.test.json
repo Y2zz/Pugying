@@ -1,0 +1,27 @@
+{
+  "include": [
+    "test/**/*",
+    "electron/**/*.test.ts",
+    "shared/**/*.test.ts",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["vitest/globals", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["shared/*"]
+    }
+  }
+}
