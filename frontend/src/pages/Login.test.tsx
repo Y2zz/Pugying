@@ -6,7 +6,7 @@ function renderLogin(): string {
   return renderToString(
     <MemoryRouter initialEntries={['/login']}>
       <Login />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 

@@ -58,7 +58,7 @@ function renderLayout(): string {
   return renderToString(
     <MemoryRouter initialEntries={['/admin']}>
       <AdminLayout />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 

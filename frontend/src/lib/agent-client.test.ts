@@ -1,10 +1,4 @@
-import {
-  AGENT_WS_URL,
-  agentClient,
-  type AgentConnectionStatus,
-  type AgentHelloPayload,
-  type CreatorWindowClosedEvent,
-} from '@/lib/agent-client';
+import { AGENT_WS_URL, agentClient, type AgentConnectionStatus, type AgentHelloPayload, type CreatorWindowClosedEvent } from '@/lib/agent-client';
 
 type FakeListener = (event: { data?: string }) => void;
 
@@ -307,7 +301,7 @@ describe('startPlatformAuth', () => {
         platform: 'douyin',
         requestId: 'auth-req-2',
         timeoutMs: 20,
-      }),
+      })
     ).rejects.toThrow('授权超时');
 
     const cancel = sentFrames(socket).find((frame) => frame.type === 'platform.auth.cancel');
@@ -329,9 +323,7 @@ describe('startPlatformAuth', () => {
 
 describe('openCreatorCenter', () => {
   it('rejects when the agent is not connected', async () => {
-    await expect(
-      agentClient.openCreatorCenter({ accountId: 'acc-1', platform: 'douyin', cookies: [] }),
-    ).rejects.toThrow('Agent 未连接');
+    await expect(agentClient.openCreatorCenter({ accountId: 'acc-1', platform: 'douyin', cookies: [] })).rejects.toThrow('Agent 未连接');
   });
 
   it('sends the open request and resolves the matching result', async () => {
@@ -377,7 +369,7 @@ describe('openCreatorCenter', () => {
         platform: 'douyin',
         cookies: [],
         timeoutMs: 20,
-      }),
+      })
     ).rejects.toThrow('打开创作者中心超时');
   });
 });

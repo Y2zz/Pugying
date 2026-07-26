@@ -96,10 +96,11 @@ function fakeResponse(status: number, body?: unknown): Response {
 function stubFetch(...responses: Response[]): void {
   const queue = [...responses];
   setGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    fetchCalls.push({ url: String(input), init });
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    fetchCalls.push({ url, init });
     const next = queue.shift();
     if (!next) {
-      return Promise.reject(new Error(`unexpected fetch call: ${String(input)}`));
+      return Promise.reject(new Error(`unexpected fetch call: ${url}`));
     }
     return Promise.resolve(next);
   });
@@ -110,7 +111,11 @@ function headersOf(call: FetchCall | undefined): Headers {
 }
 
 function bodyOf(call: FetchCall | undefined): unknown {
-  return JSON.parse(String(call?.init?.body));
+  const body = call?.init?.body;
+  if (typeof body !== 'string') {
+    throw new Error('expected a string request body');
+  }
+  return JSON.parse(body);
 }
 
 const sampleUser: AuthUser = {
@@ -351,7 +356,7 @@ describe('auth and team flows', () => {
       fakeResponse(200, {
         accessToken: 'token-t2',
         user: { ...sampleUser, teamId: 'team-2' },
-      }),
+      })
     );
 
     await switchTeam(otherTeam);

@@ -1,8 +1,9 @@
-import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Bot,
+  LayoutGrid,
   LifeBuoy,
+  Link2,
   PieChart,
   Send,
   Settings2,
@@ -10,18 +11,16 @@ import {
 } from 'lucide-react';
 
 import { NavMain } from '@/components/layouts/NavMain';
+import { NavPublish } from '@/components/layouts/NavPublish';
 import { NavSecondary } from '@/components/layouts/NavSecondary';
 import { NavUser } from '@/components/layouts/NavUser';
+import { TeamSwitcher } from '@/components/layouts/TeamSwitcher';
 
-import { Logo } from '@/components/Logo';
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import type { ComponentProps } from 'react';
 import { getStoredUser } from '@/lib/api';
@@ -33,6 +32,16 @@ const data = {
       url: '/dashboard',
       icon: SquareTerminal,
       isActive: true,
+    },
+    {
+      title: '内容管理',
+      url: '/contents',
+      icon: LayoutGrid,
+    },
+    {
+      title: '媒体账号',
+      url: '/platform-accounts',
+      icon: Link2,
     },
     {
       title: '工作台',
@@ -84,22 +93,11 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <Logo className="size-6" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Pugying</span>
-                <span className="truncate text-xs">蒲公英 · 内容发布</span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <TeamSwitcher />
       </SidebarHeader>
 
       <SidebarContent>
+        <NavPublish />
         <NavMain items={data.navMain} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>

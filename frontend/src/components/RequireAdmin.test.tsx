@@ -71,7 +71,7 @@ describe('RequireAdmin (SSR)', () => {
             <Route index element={<div>admin-child-content</div>} />
           </Route>
         </Routes>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
   }
 

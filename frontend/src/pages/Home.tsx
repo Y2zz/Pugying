@@ -150,6 +150,7 @@ function ContentPublishForm() {
     { value: 'toutiao', label: '今日头条' },
     { value: 'wechat', label: '视频号' },
     { value: 'bilibili', label: '哔哩哔哩' },
+    { value: 'xiaohongshu', label: '小红书' },
   ];
 
   const categories = [
@@ -222,7 +223,7 @@ function ContentPublishForm() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>发布平台</Label>
-              <Select value={form.platform} onValueChange={(val) => setForm({ ...form, platform: val ?? '' })}>
+              <Select value={form.platform} onValueChange={(val) => setForm({ ...form, platform: val ?? '' })} items={platforms}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="选择平台" />
                 </SelectTrigger>
@@ -240,7 +241,7 @@ function ContentPublishForm() {
 
             <div className="space-y-2">
               <Label>内容类型</Label>
-              <Select value={form.category} onValueChange={(val) => setForm({ ...form, category: val ?? '' })}>
+              <Select value={form.category} onValueChange={(val) => setForm({ ...form, category: val ?? '' })} items={categories}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="选择类型" />
                 </SelectTrigger>

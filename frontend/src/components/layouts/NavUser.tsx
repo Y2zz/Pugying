@@ -1,11 +1,4 @@
-import {
-  BadgeCheck,
-  Bell,
-  ChevronsUpDown,
-  CreditCard,
-  LogOut,
-  Sparkles,
-} from 'lucide-react';
+import { ChevronsUpDown, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -28,7 +21,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { clearSession } from '@/lib/api';
+import { clearSession, getStoredUser } from '@/lib/api';
+import { canAccessAdmin } from '@/components/RequireAdmin';
 
 export function NavUser({
   user,
@@ -41,10 +35,11 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
+  const showAdmin = canAccessAdmin(getStoredUser()?.permissions);
 
   const handleLogout = () => {
     clearSession();
-    navigate('/login', { replace: true });
+    void navigate('/login', { replace: true });
   };
 
   return (
@@ -90,28 +85,16 @@ export function NavUser({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles />
-                升级到专业版
+            {showAdmin ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  void navigate('/admin');
+                }}
+              >
+                <Settings />
+                管理
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <BadgeCheck />
-                账户
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCard />
-                计费
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell />
-                通知
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+            ) : null}
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               退出登录

@@ -2,6 +2,16 @@ import { Fragment } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb.tsx';
 
+const SEGMENT_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  contents: '内容管理',
+  'platform-accounts': '媒体账号',
+  publish: '发布',
+  article: '图文',
+  video: '视频',
+  admin: '管理',
+};
+
 export function BreadcrumbNav() {
   const { pathname } = useLocation();
   const segments = pathname.split('/').filter(Boolean);
@@ -15,7 +25,7 @@ export function BreadcrumbNav() {
   let accumulated = '';
   for (const seg of segments) {
     accumulated += `/${seg}`;
-    items.push({ label: seg, href: accumulated });
+    items.push({ label: SEGMENT_LABELS[seg] ?? seg, href: accumulated });
   }
 
   const last = items.pop()!;
