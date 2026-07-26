@@ -1,6 +1,7 @@
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { canAccessAdmin, RequireAdmin } from '@/components/RequireAdmin';
+import { RequireAdmin } from '@/components/RequireAdmin';
+import { canAccessAdmin } from '@/lib/permissions';
 
 function createLocalStorageStub(entries: Record<string, string>): Storage {
   let store = new Map<string, string>(Object.entries(entries));

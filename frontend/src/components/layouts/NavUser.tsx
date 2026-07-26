@@ -22,7 +22,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { clearSession, getStoredUser } from '@/lib/api';
-import { canAccessAdmin } from '@/components/RequireAdmin';
+import { canAccessAdmin } from '@/lib/permissions';
 
 export function NavUser({
   user,

@@ -1,14 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { getStoredUser, isAuthenticated } from '@/lib/api';
-
-export function canAccessAdmin(permissions: string[] | undefined): boolean {
-  if (!permissions || permissions.length === 0) {
-    return false;
-  }
-  return permissions.some((permission) =>
-    permission.startsWith('TeamManagement.'),
-  );
-}
+import { canAccessAdmin } from '@/lib/permissions';
 
 export function RequireAdmin() {
   const location = useLocation();
