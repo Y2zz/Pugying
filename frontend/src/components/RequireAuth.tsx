@@ -8,12 +8,12 @@ import { clearSession, isAuthenticated, refreshClaims } from '@/lib/api';
  */
 export function RequireAuth() {
   const location = useLocation();
-  const [ready, setReady] = useState(false);
+  // 未登录时无需刷新 claims，初始即 ready，避免 effect 内同步 setState
+  const [ready, setReady] = useState(() => !isAuthenticated());
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      setReady(true);
       return;
     }
 
