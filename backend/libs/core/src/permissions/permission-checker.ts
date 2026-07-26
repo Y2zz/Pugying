@@ -5,7 +5,8 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   username: string;
-  tenantId: string;
+  /** Active team from JWT; null when signed in without a team. */
+  teamId: string | null;
   permissions: string[];
 }
 

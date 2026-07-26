@@ -1,7 +1,7 @@
 {
   "name": "@pugying/core",
   "version": "0.0.1",
-  "description": "Pugying framework core — multi-tenancy, permissions, module contracts",
+  "description": "Pugying framework core — multi-team, permissions, module contracts",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

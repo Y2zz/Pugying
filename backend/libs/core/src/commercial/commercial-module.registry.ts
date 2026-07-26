@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import {
+  PUGYING_MODULE_METADATA,
+  type PugyingModuleMetadata,
+} from '@pugying/core/module/pugying-module.metadata';
 
 export interface CommercialModuleInfo {
   name: string;
@@ -14,8 +19,28 @@ export interface CommercialModuleInfo {
 export class CommercialModuleRegistry {
   private readonly modules = new Map<string, CommercialModuleInfo>();
 
+  constructor(private readonly reflector: Reflector) {}
+
   register(info: CommercialModuleInfo): void {
     this.modules.set(info.name, info);
+  }
+
+  /**
+   * Reads `@PugyingModule` metadata from a module class and registers it.
+   */
+  registerFromModule(moduleClass: object): void {
+    const metadata = this.reflector.get<PugyingModuleMetadata | undefined>(
+      PUGYING_MODULE_METADATA,
+      moduleClass as NewableFunction,
+    );
+    if (!metadata?.name) {
+      return;
+    }
+    this.register({
+      name: metadata.name,
+      version: metadata.version,
+      description: metadata.description,
+    });
   }
 
   getAll(): CommercialModuleInfo[] {
@@ -26,8 +51,3 @@ export class CommercialModuleRegistry {
     return this.modules.has(name);
   }
 }
-
-/**
- * Marker token commercial packages can implement via onModuleInit.
- */
-export const COMMERCIAL_MODULE_MARKER = 'PUGYING_COMMERCIAL_MODULE_MARKER';

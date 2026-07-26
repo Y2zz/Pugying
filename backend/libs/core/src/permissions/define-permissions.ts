@@ -13,12 +13,3 @@ export function definePermissions(
   }
   return permissions;
 }
-
-export interface PermissionDefinition {
-  name: string;
-  module: string;
-}
-
-export interface PermissionContributor {
-  getPermissions(): string[];
-}

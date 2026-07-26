@@ -1,7 +1,8 @@
 import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { CommercialModuleRegistry } from '@pugying/core/commercial/commercial-module.registry';
-import { CurrentTenant } from '@pugying/core/multi-tenancy/current-tenant';
-import { TenantMiddleware } from '@pugying/core/multi-tenancy/tenant.middleware';
+import { CurrentTeam } from '@pugying/core/multi-team/current-team';
+import { TeamConsistencyGuard } from '@pugying/core/multi-team/team-consistency.guard';
+import { TeamMiddleware } from '@pugying/core/multi-team/team.middleware';
 import { PermissionChecker } from '@pugying/core/permissions/permission-checker';
 import { PermissionGuard } from '@pugying/core/permissions/permission.guard';
 import { PermissionRegistry } from '@pugying/core/permissions/permission-registry';
@@ -9,22 +10,25 @@ import { PermissionRegistry } from '@pugying/core/permissions/permission-registr
 @Global()
 @Module({
   providers: [
-    CurrentTenant,
+    CurrentTeam,
     PermissionRegistry,
     PermissionChecker,
     PermissionGuard,
+    TeamConsistencyGuard,
+    TeamMiddleware,
     CommercialModuleRegistry,
   ],
   exports: [
-    CurrentTenant,
+    CurrentTeam,
     PermissionRegistry,
     PermissionChecker,
     PermissionGuard,
+    TeamConsistencyGuard,
     CommercialModuleRegistry,
   ],
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(TenantMiddleware).forRoutes('*');
+    consumer.apply(TeamMiddleware).forRoutes('*');
   }
 }

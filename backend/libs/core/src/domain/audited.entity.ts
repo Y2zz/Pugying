@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Entity } from '@pugying/core/domain/entity.base';
+import { ISoftDelete } from '@pugying/core/domain/ISoftDelete';
 
 /**
  * Audited entity base: UUID id + createdAt / updatedAt (ABP-style AuditedEntity).
@@ -14,8 +15,9 @@ export abstract class AuditedEntity extends Entity {
 }
 
 /**
- * Soft-delete marker (reserved for future use).
+ * Audited entity with soft-delete support (ABP-style FullAudited without actor ids).
  */
-export interface ISoftDelete {
+export abstract class SoftDeleteAuditedEntity extends AuditedEntity implements ISoftDelete {
+  @ApiPropertyOptional({ description: '软删除时间；null 表示未删除' })
   deletedAt?: Date | null;
 }
