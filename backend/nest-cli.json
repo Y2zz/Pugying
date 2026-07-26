@@ -20,13 +20,13 @@
         "tsConfigPath": "libs/core/tsconfig.lib.json"
       }
     },
-    "tenant-management": {
+    "team-management": {
       "type": "library",
-      "root": "libs/tenant-management",
+      "root": "libs/team-management",
       "entryFile": "index",
-      "sourceRoot": "libs/tenant-management/src",
+      "sourceRoot": "libs/team-management/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/tenant-management/tsconfig.lib.json"
+        "tsConfigPath": "libs/team-management/tsconfig.lib.json"
       }
     },
     "identity": {
@@ -45,6 +45,33 @@
       "sourceRoot": "libs/typeorm/src",
       "compilerOptions": {
         "tsConfigPath": "libs/typeorm/tsconfig.lib.json"
+      }
+    },
+    "account-pro": {
+      "type": "library",
+      "root": "libs/account-pro",
+      "entryFile": "index",
+      "sourceRoot": "libs/account-pro/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/account-pro/tsconfig.lib.json"
+      }
+    },
+    "platform-account": {
+      "type": "library",
+      "root": "libs/platform-account",
+      "entryFile": "index",
+      "sourceRoot": "libs/platform-account/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/platform-account/tsconfig.lib.json"
+      }
+    },
+    "content": {
+      "type": "library",
+      "root": "libs/content",
+      "entryFile": "index",
+      "sourceRoot": "libs/content/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/content/tsconfig.lib.json"
       }
     }
   }

@@ -24,7 +24,7 @@ async function bootstrap() {
     .setDescription('Pugying 后端 API 文档')
     .setVersion('1.0')
     .addBearerAuth()
-    .addApiKey({ type: 'apiKey', name: 'X-Tenant-Id', in: 'header' }, 'X-Tenant-Id')
+    .addApiKey({ type: 'apiKey', name: 'X-Team-Id', in: 'header' }, 'X-Team-Id')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);

@@ -74,21 +74,36 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/libs"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       ".+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.ts",
+      "libs/**/*.ts",
+      "!**/*.spec.ts",
+      "!**/index.ts",
+      "!**/*.module.ts",
+      "!src/main.ts",
+      "!src/database/migrations/**",
+      "!**/node_modules/**",
+      "!**/dist/**"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "@pugying/core(.*)": "<rootDir>/../libs/core/src$1",
-      "@pugying/tenant-management(.*)": "<rootDir>/../libs/tenant-management/src$1",
-      "@pugying/identity(.*)": "<rootDir>/../libs/identity/src$1",
-      "@pugying/typeorm(.*)": "<rootDir>/../libs/typeorm/src$1"
+      "@pugying/core(.*)": "<rootDir>/libs/core/src$1",
+      "@pugying/team-management(.*)": "<rootDir>/libs/team-management/src$1",
+      "@pugying/identity(.*)": "<rootDir>/libs/identity/src$1",
+      "@pugying/typeorm(.*)": "<rootDir>/libs/typeorm/src$1",
+      "@pugying/account-pro(.*)": "<rootDir>/libs/account-pro/src$1",
+      "@pugying/platform-account(.*)": "<rootDir>/libs/platform-account/src$1",
+      "@pugying/content(.*)": "<rootDir>/libs/content/src$1"
     }
   }
 }

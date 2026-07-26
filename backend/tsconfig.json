@@ -19,12 +19,18 @@
     "paths": {
       "@pugying/core": ["./libs/core/src"],
       "@pugying/core/*": ["./libs/core/src/*"],
-      "@pugying/tenant-management": ["./libs/tenant-management/src"],
-      "@pugying/tenant-management/*": ["./libs/tenant-management/src/*"],
+      "@pugying/team-management": ["./libs/team-management/src"],
+      "@pugying/team-management/*": ["./libs/team-management/src/*"],
       "@pugying/identity": ["./libs/identity/src"],
       "@pugying/identity/*": ["./libs/identity/src/*"],
       "@pugying/typeorm": ["./libs/typeorm/src"],
-      "@pugying/typeorm/*": ["./libs/typeorm/src/*"]
+      "@pugying/typeorm/*": ["./libs/typeorm/src/*"],
+      "@pugying/account-pro": ["./libs/account-pro/src"],
+      "@pugying/account-pro/*": ["./libs/account-pro/src/*"],
+      "@pugying/platform-account": ["./libs/platform-account/src"],
+      "@pugying/platform-account/*": ["./libs/platform-account/src/*"],
+      "@pugying/content": ["./libs/content/src"],
+      "@pugying/content/*": ["./libs/content/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

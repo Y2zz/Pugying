@@ -1,10 +1,29 @@
 import { DataSource } from 'typeorm';
-import { UserEntitySchema } from '@pugying/identity';
-import { TenantEntitySchema } from '@pugying/tenant-management';
+import {
+  RoleEntitySchema,
+  UserEntitySchema,
+  UserRoleEntitySchema,
+} from '@pugying/identity';
+import { TeamEntitySchema } from '@pugying/team-management';
+import { TeamUserEntitySchema } from '@pugying/account-pro';
+import { PlatformAccountEntitySchema } from '@pugying/platform-account';
+import {
+  ContentEntitySchema,
+  ContentTargetEntitySchema,
+} from '@pugying/content';
 
 export default new DataSource({
   type: 'better-sqlite3',
   database: 'pugying.db',
-  entities: [TenantEntitySchema, UserEntitySchema],
+  entities: [
+    TeamEntitySchema,
+    UserEntitySchema,
+    RoleEntitySchema,
+    UserRoleEntitySchema,
+    TeamUserEntitySchema,
+    PlatformAccountEntitySchema,
+    ContentEntitySchema,
+    ContentTargetEntitySchema,
+  ],
   migrations: ['src/database/migrations/*.ts'],
 });
