@@ -362,11 +362,11 @@ describe('AccountService', () => {
       });
       teamUserRepository.findByUserAndTeam.mockResolvedValue(left);
 
-      const result = (await service.invite({
+      const result = await service.invite({
         email: EMAIL,
         teamId: TEAM_A,
         extraPermissions: ['Content.Contents.View'],
-      })) as TeamUser;
+      });
 
       expect(result).toBe(left);
       expect(result.leftAt).toBeNull();
@@ -377,10 +377,10 @@ describe('AccountService', () => {
     it('creates a fresh membership inside the matching team context', async () => {
       currentTeam.id = TEAM_A;
 
-      const result = (await service.invite({
+      const result = await service.invite({
         email: EMAIL,
         teamId: TEAM_A,
-      })) as TeamUser;
+      });
 
       expect(result.userId).toBe(USER_ID);
       expect(result.teamId).toBe(TEAM_A);
