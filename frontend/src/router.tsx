@@ -7,7 +7,9 @@ import { RequireAuth } from '@/components/RequireAuth.tsx';
 import { RequireAdmin } from '@/components/RequireAdmin.tsx';
 import { AdminLayout } from '@/components/layouts/AdminLayout.tsx';
 import AdminOverview from '@/pages/admin/Overview.tsx';
-import AdminPlaceholder from '@/pages/admin/Placeholder.tsx';
+import AdminMembers from '@/pages/admin/Members.tsx';
+import AdminRoles from '@/pages/admin/Roles.tsx';
+import AdminTeamSettings from '@/pages/admin/TeamSettings.tsx';
 import PlatformAccounts from '@/pages/PlatformAccounts.tsx';
 import Contents from '@/pages/Contents.tsx';
 import PublishArticle from '@/pages/PublishArticle.tsx';
@@ -41,18 +43,9 @@ export const router = createBrowserRouter([
             element: <AdminLayout />,
             children: [
               { index: true, element: <AdminOverview /> },
-              {
-                path: 'members',
-                element: <AdminPlaceholder title="成员" />,
-              },
-              {
-                path: 'roles',
-                element: <AdminPlaceholder title="角色" />,
-              },
-              {
-                path: 'team',
-                element: <AdminPlaceholder title="团队设置" />,
-              },
+              { path: 'members', element: <AdminMembers /> },
+              { path: 'roles', element: <AdminRoles /> },
+              { path: 'team', element: <AdminTeamSettings /> },
             ],
           },
         ],

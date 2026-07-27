@@ -439,3 +439,117 @@ export async function deleteContent(id: string): Promise<void> {
     method: 'DELETE',
   });
 }
+
+export interface TeamMember {
+  id: string;
+  email: string;
+  username: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RoleItem {
+  id: string;
+  name: string;
+  teamId: string;
+  permissions: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TeamDetail {
+  id: string;
+  name: string;
+  displayName: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export async function fetchTeamMembers(): Promise<TeamMember[]> {
+  return apiFetch<TeamMember[]>('/identity/users');
+}
+
+export async function inviteTeamMember(body: {
+  email: string;
+  teamId: string;
+  extraPermissions?: string[];
+}): Promise<unknown> {
+  return apiFetch('/account/invite', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchUserRoles(userId: string): Promise<RoleItem[]> {
+  return apiFetch<RoleItem[]>(`/identity/users/${userId}/roles`);
+}
+
+export async function assignUserRole(
+  userId: string,
+  roleId: string,
+): Promise<void> {
+  await apiFetch<void>(`/identity/users/${userId}/roles`, {
+    method: 'POST',
+    body: JSON.stringify({ roleId }),
+  });
+}
+
+export async function unassignUserRole(
+  userId: string,
+  roleId: string,
+): Promise<void> {
+  await apiFetch<void>(`/identity/users/${userId}/roles/${roleId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchRoles(): Promise<RoleItem[]> {
+  return apiFetch<RoleItem[]>('/identity/roles');
+}
+
+export async function createRole(body: {
+  name: string;
+  teamId: string;
+  permissions?: string[];
+}): Promise<RoleItem> {
+  return apiFetch<RoleItem>('/identity/roles', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateRole(
+  id: string,
+  body: { name?: string; permissions?: string[] },
+): Promise<RoleItem> {
+  return apiFetch<RoleItem>(`/identity/roles/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteRole(id: string): Promise<void> {
+  await apiFetch<void>(`/identity/roles/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchPermissionCatalog(): Promise<string[]> {
+  return apiFetch<string[]>('/identity/permissions');
+}
+
+export async function fetchTeam(id: string): Promise<TeamDetail> {
+  return apiFetch<TeamDetail>(`/team-management/${id}`);
+}
+
+export async function updateTeam(
+  id: string,
+  body: { displayName?: string; name?: string; active?: boolean },
+): Promise<TeamDetail> {
+  return apiFetch<TeamDetail>(`/team-management/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}

@@ -52,7 +52,7 @@ describe('AdminOverview (SSR)', () => {
         email: 'admin@pugying.local',
         username: 'admin',
         teamId: 't1',
-        permissions: ['TeamManagement.Members'],
+        permissions: ['TeamManagement.Teams.View'],
       }),
       pugying_team_info: JSON.stringify({ id: 't1', name: 'default', displayName: '默认团队' }),
     });

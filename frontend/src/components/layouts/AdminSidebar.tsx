@@ -21,23 +21,56 @@ import {
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/Logo';
 import { getStoredUser } from '@/lib/api';
+import { hasPermission, Permissions } from '@/lib/permissions';
 import { NavUser } from '@/components/layouts/NavUser';
 
 const adminNav = [
-  { title: '概览', url: '/admin', icon: LayoutDashboard, end: true },
-  { title: '成员', url: '/admin/members', icon: Users, end: false },
-  { title: '角色', url: '/admin/roles', icon: Shield, end: false },
-  { title: '团队设置', url: '/admin/team', icon: Settings2, end: false },
+  {
+    title: '概览',
+    url: '/admin',
+    icon: LayoutDashboard,
+    end: true,
+    requiredPermission: null as string | null,
+  },
+  {
+    title: '成员',
+    url: '/admin/members',
+    icon: Users,
+    end: false,
+    requiredPermission: Permissions.Identity.Users.View,
+  },
+  {
+    title: '角色',
+    url: '/admin/roles',
+    icon: Shield,
+    end: false,
+    requiredPermission: Permissions.Identity.Roles.View,
+  },
+  {
+    title: '团队设置',
+    url: '/admin/team',
+    icon: Settings2,
+    end: false,
+    requiredPermission: Permissions.TeamManagement.Teams.View,
+  },
 ];
 
 export function AdminSidebar() {
   const location = useLocation();
   const stored = getStoredUser();
+  const permissions = stored?.permissions ?? [];
   const user = {
     name: stored?.username ?? 'Pugying',
     email: stored?.email ?? 'admin@pugying.local',
     avatar: '/avatars/pugying.jpg',
   };
+
+  const visibleNav = adminNav.filter((item) => {
+    if (!item.requiredPermission) {
+      return true;
+    }
+    return hasPermission(permissions, item.requiredPermission);
+  });
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -64,7 +97,7 @@ export function AdminSidebar() {
           <SidebarGroupLabel>团队管理</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {adminNav.map((item) => {
+              {visibleNav.map((item) => {
                 const active = item.end
                   ? location.pathname === item.url
                   : location.pathname.startsWith(item.url);

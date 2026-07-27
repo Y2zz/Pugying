@@ -28,8 +28,20 @@ function createLocalStorageStub(entries: Record<string, string>): Storage {
 }
 
 const savedLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+const savedWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
 
 beforeEach(() => {
+  Object.defineProperty(globalThis, 'window', {
+    value: {
+      innerWidth: 1280,
+      matchMedia: () => ({
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    },
+    writable: true,
+    configurable: true,
+  });
   Object.defineProperty(globalThis, 'localStorage', {
     value: createLocalStorageStub({
       pugying_access_token: 'token-abc',
@@ -38,7 +50,11 @@ beforeEach(() => {
         email: 'admin@pugying.local',
         username: 'admin',
         teamId: 't1',
-        permissions: ['TeamManagement.Members'],
+        permissions: [
+          'TeamManagement.Teams.View',
+          'Identity.Users.View',
+          'Identity.Roles.View',
+        ],
       }),
     }),
     writable: true,
@@ -51,6 +67,11 @@ afterEach(() => {
     Object.defineProperty(globalThis, 'localStorage', savedLocalStorage);
   } else {
     Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+  if (savedWindow) {
+    Object.defineProperty(globalThis, 'window', savedWindow);
+  } else {
+    Reflect.deleteProperty(globalThis, 'window');
   }
 });
 

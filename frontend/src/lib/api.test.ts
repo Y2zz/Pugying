@@ -123,7 +123,7 @@ const sampleUser: AuthUser = {
   email: 'admin@pugying.local',
   username: 'admin',
   teamId: 'team-1',
-  permissions: ['TeamManagement.Members'],
+  permissions: ['TeamManagement.Teams.View'],
 };
 
 const sampleTeam: TeamOption = {

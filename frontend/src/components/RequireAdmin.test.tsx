@@ -58,8 +58,8 @@ describe('canAccessAdmin', () => {
   });
 
   it('allows any TeamManagement.* permission', () => {
-    expect(canAccessAdmin(['TeamManagement.Members'])).toBe(true);
-    expect(canAccessAdmin(['Contents.Read', 'TeamManagement.Roles'])).toBe(true);
+    expect(canAccessAdmin(['TeamManagement.Teams.View'])).toBe(true);
+    expect(canAccessAdmin(['Contents.Read', 'TeamManagement.Teams.Update'])).toBe(true);
   });
 });
 
@@ -84,7 +84,7 @@ describe('RequireAdmin (SSR)', () => {
         email: 'admin@pugying.local',
         username: 'admin',
         teamId: 't1',
-        permissions: ['TeamManagement.Members'],
+        permissions: ['TeamManagement.Teams.View'],
       }),
     });
 
