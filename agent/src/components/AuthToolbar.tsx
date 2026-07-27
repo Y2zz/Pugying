@@ -137,9 +137,9 @@ export function AuthToolbar({ variant = 'auth' }: AuthToolbarProps) {
         <div
           title={url}
           aria-label="当前页面地址"
-          className="flex h-8 min-w-0 flex-1 items-center rounded-full border border-input bg-background px-3 text-sm text-muted-foreground"
+          className="flex h-8 min-w-0 flex-1 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
         >
-          <span className="truncate select-all">{url}</span>
+          <span className="truncate">{url}</span>
         </div>
 
         <span ref={moreBtnRef} className="inline-flex">
@@ -160,9 +160,8 @@ export function AuthToolbar({ variant = 'auth' }: AuthToolbarProps) {
           <div className="flex items-center gap-1">
             <Button
               type="button"
-              variant="ghost"
+              variant="destructive"
               size="sm"
-              className="text-destructive hover:text-destructive"
               onClick={() => void api.cancel()}
             >
               取消

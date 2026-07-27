@@ -1,7 +1,7 @@
 import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
+import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 
 const shared = {
@@ -33,7 +33,6 @@ function dropCspInDev(): Plugin {
 export default defineConfig({
   main: {
     ...shared,
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         input: {
@@ -44,7 +43,6 @@ export default defineConfig({
   },
   preload: {
     ...shared,
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         input: {

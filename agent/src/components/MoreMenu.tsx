@@ -98,18 +98,20 @@ export function MoreMenu() {
         }}
         className="absolute flex flex-col rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
       >
-        <div className="flex items-center justify-between gap-2 pl-2 pr-1">
+        <div className="flex items-center justify-between gap-2 px-1 pl-2">
           <span className="text-xs font-medium text-muted-foreground">
             缩放
           </span>
-          <div className="flex items-center">
+          <div className="flex items-center gap-0.5">
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
               title="缩小"
               aria-label="缩小"
-              onClick={() => void api.zoomOut()}
+              onClick={() => {
+                void api.zoomOut();
+              }}
             >
               <MinusIcon />
             </Button>
@@ -120,7 +122,9 @@ export function MoreMenu() {
               title="恢复 100%"
               aria-label="恢复实际大小"
               className="w-14 tabular-nums"
-              onClick={() => void api.zoomReset()}
+              onClick={() => {
+                void api.zoomReset();
+              }}
             >
               {zoomPct}%
             </Button>
@@ -130,7 +134,9 @@ export function MoreMenu() {
               size="icon-sm"
               title="放大"
               aria-label="放大"
-              onClick={() => void api.zoomIn()}
+              onClick={() => {
+                void api.zoomIn();
+              }}
             >
               <PlusIcon />
             </Button>
