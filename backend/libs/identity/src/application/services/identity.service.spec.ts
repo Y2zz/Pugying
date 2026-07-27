@@ -382,6 +382,47 @@ describe('IdentityService', () => {
     });
   });
 
+  describe('findUserRoles', () => {
+    beforeEach(() => {
+      currentTeam.id = TEAM_A;
+      userRepository.findById.mockResolvedValue(createUser());
+      membershipLookup.isMember.mockResolvedValue(true);
+    });
+
+    it('returns only roles belonging to the current team', async () => {
+      userRoleRepository.listRoleIdsForUser.mockResolvedValue(['role-1', 'role-2', 'role-3']);
+      roleRepository.findByIdAny.mockImplementation(async (id: string) => {
+        if (id === 'role-1') {
+          return createRole({ id, teamId: TEAM_A, name: 'admin' });
+        }
+        if (id === 'role-2') {
+          return createRole({ id, teamId: TEAM_B, name: 'admin' });
+        }
+        return null;
+      });
+
+      const roles = await service.findUserRoles('user-1');
+
+      expect(roles).toHaveLength(1);
+      expect(roles[0].id).toBe('role-1');
+      expect(roles[0].teamId).toBe(TEAM_A);
+    });
+
+    it('returns [] when no current team is set', async () => {
+      currentTeam.id = null;
+      userRoleRepository.listRoleIdsForUser.mockResolvedValue(['role-1']);
+
+      await expect(service.findUserRoles('user-1')).resolves.toEqual([]);
+      expect(userRoleRepository.listRoleIdsForUser).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for non-members in team scope', async () => {
+      membershipLookup.isMember.mockResolvedValue(false);
+
+      await expect(service.findUserRoles('user-1')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('resolveEffectivePermissions', () => {
     it('unions team role permissions with membership extras', async () => {
       userRoleRepository.listRoleIdsForUser.mockResolvedValue(['role-1', 'role-2', 'role-3']);

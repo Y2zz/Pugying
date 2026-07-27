@@ -269,6 +269,33 @@ describe('Identity users & roles (e2e)', () => {
         .expect(403);
     });
 
+    it('lists the permission catalog for role editors', async () => {
+      const catalog = await request(server())
+        .get('/identity/permissions')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .expect(200);
+
+      expect(Array.isArray(catalog.body)).toBe(true);
+      expect(catalog.body).toContain('Identity.Users.View');
+      expect(catalog.body).toContain('Identity.Roles.View');
+      expect(catalog.body).toContain('TeamManagement.Teams.View');
+    });
+
+    it('editor with Identity.Roles.View can list permissions', async () => {
+      const catalog = await request(server())
+        .get('/identity/permissions')
+        .set('Authorization', `Bearer ${editor.accessToken}`)
+        .set('X-Team-Id', editor.teamId)
+        .expect(200);
+
+      expect(catalog.body).toContain('Identity.Roles.View');
+    });
+
+    it('rejects unauthenticated permission catalog requests (401)', async () => {
+      await request(server()).get('/identity/permissions').expect(401);
+    });
+
     it('assigns the role and the user logs in with its permissions', async () => {
       await request(server())
         .post(`/identity/users/${qaUserId}/roles`)
@@ -276,6 +303,15 @@ describe('Identity users & roles (e2e)', () => {
         .set('X-Team-Id', admin.teamId)
         .send({ roleId: qaRoleId })
         .expect(201);
+
+      const userRoles = await request(server())
+        .get(`/identity/users/${qaUserId}/roles`)
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .expect(200);
+
+      const roleIds = (userRoles.body as Array<{ id: string }>).map((role) => role.id);
+      expect(roleIds).toContain(qaRoleId);
 
       const qaSession = await login(ctx.app, {
         email: QA_USER.email,

@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import {
   CurrentTeam,
   CurrentUser,
+  PermissionRegistry,
   RequirePermission,
   type AuthenticatedUser,
 } from '@pugying/core';
@@ -33,6 +34,7 @@ export class IdentityController {
   constructor(
     private readonly identityService: IdentityService,
     private readonly currentTeam: CurrentTeam,
+    private readonly permissionRegistry: PermissionRegistry,
   ) {}
 
   @Get('me')
@@ -40,6 +42,15 @@ export class IdentityController {
   @ApiOperation({ summary: '当前登录用户' })
   me(@CurrentUser() user: AuthenticatedUser) {
     return user;
+  }
+
+  @Get('permissions')
+  @ApiBearerAuth()
+  @RequirePermission(IdentityPermissions.Roles.View)
+  @ApiOperation({ summary: '权限目录（已注册权限名）' })
+  @ApiResponse({ status: 200, description: '权限名列表', type: [String] })
+  listPermissions(): string[] {
+    return this.permissionRegistry.getAll();
   }
 
   @Post('users')
@@ -98,6 +109,15 @@ export class IdentityController {
   @ApiOperation({ summary: '删除用户（软删）' })
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.identityService.remove(id);
+  }
+
+  @Get('users/:id/roles')
+  @ApiBearerAuth()
+  @RequirePermission(IdentityPermissions.Users.View)
+  @ApiOperation({ summary: '获取用户在当前团队的角色' })
+  @ApiResponse({ status: 200, description: '角色列表', type: [Role] })
+  findUserRoles(@Param('id', ParseUUIDPipe) id: string): Promise<Role[]> {
+    return this.identityService.findUserRoles(id);
   }
 
   @Post('users/:id/roles')

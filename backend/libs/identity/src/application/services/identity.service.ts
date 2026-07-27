@@ -219,6 +219,25 @@ export class IdentityService {
     });
   }
 
+  /** Roles assigned to the user within the current team. */
+  async findUserRoles(userId: string): Promise<Role[]> {
+    await this.assertTeamMembership(userId);
+    if (!this.currentTeam.isAvailable) {
+      return [];
+    }
+    const teamId = this.currentTeam.id!;
+    const roleIds = await this.userRoleRepository.listRoleIdsForUser(userId);
+    const roles: Role[] = [];
+    for (const roleId of roleIds) {
+      const role = await this.roleRepository.findByIdAny(roleId);
+      if (!role || role.teamId !== teamId) {
+        continue;
+      }
+      roles.push(role);
+    }
+    return roles;
+  }
+
   /**
    * Effective permissions = role permissions in team ∪ membership extraPermissions.
    */
