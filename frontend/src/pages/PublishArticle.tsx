@@ -2,23 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, Save, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  createContent,
-  fetchContent,
-  updateContent,
-  type ContentStatus,
-} from '@/lib/api';
+import { createContent, fetchContent, updateContent, type ContentStatus } from '@/lib/api';
 
 export default function PublishArticle() {
   const navigate = useNavigate();
@@ -98,66 +86,66 @@ export default function PublishArticle() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="size-5" />
+            <FileText />
             {editId ? '编辑图文' : '发布图文'}
           </CardTitle>
-          <CardDescription>
-            填写标题与正文，可附上封面与图片素材链接；保存后可在「内容管理」中查看
-          </CardDescription>
+          <CardDescription>填写标题与正文，可附上封面与图片素材链接；保存后可在「内容管理」中查看</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <div className="space-y-2">
-            <Label htmlFor="article-title">标题</Label>
-            <Input
-              id="article-title"
-              placeholder="请输入标题"
-              maxLength={200}
-              disabled={loading}
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="article-body">正文</Label>
-            <Textarea
-              id="article-body"
-              placeholder="请输入正文内容"
-              className="min-h-40"
-              disabled={loading}
-              value={body}
-              onChange={(e) => {
-                setBody(e.target.value);
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="article-cover">封面图 URL（可选）</Label>
-            <Input
-              id="article-cover"
-              placeholder="https://…"
-              disabled={loading}
-              value={coverUrl}
-              onChange={(e) => {
-                setCoverUrl(e.target.value);
-              }}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="article-images">图片链接（可选，每行一个）</Label>
-            <Textarea
-              id="article-images"
-              placeholder={'https://…\nhttps://…'}
-              className="min-h-20"
-              disabled={loading}
-              value={imageUrls}
-              onChange={(e) => {
-                setImageUrls(e.target.value);
-              }}
-            />
-          </div>
+        <CardContent>
+          <FieldGroup className="gap-4">
+            {error ? <FieldError>{error}</FieldError> : null}
+            <Field>
+              <FieldLabel htmlFor="article-title">标题</FieldLabel>
+              <Input
+                id="article-title"
+                placeholder="请输入标题"
+                maxLength={200}
+                disabled={loading}
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                }}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="article-body">正文</FieldLabel>
+              <Textarea
+                id="article-body"
+                placeholder="请输入正文内容"
+                className="min-h-40"
+                disabled={loading}
+                value={body}
+                onChange={(e) => {
+                  setBody(e.target.value);
+                }}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="article-cover">封面图 URL（可选）</FieldLabel>
+              <Input
+                id="article-cover"
+                placeholder="https://…"
+                disabled={loading}
+                value={coverUrl}
+                onChange={(e) => {
+                  setCoverUrl(e.target.value);
+                }}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="article-images">图片链接（可选，每行一个）</FieldLabel>
+              <Textarea
+                id="article-images"
+                placeholder={'https://…\nhttps://…'}
+                className="min-h-20"
+                disabled={loading}
+                value={imageUrls}
+                onChange={(e) => {
+                  setImageUrls(e.target.value);
+                }}
+              />
+            </Field>
+          </FieldGroup>
         </CardContent>
         <CardFooter className="justify-end gap-2">
           <Button
@@ -167,7 +155,7 @@ export default function PublishArticle() {
               void submit('draft');
             }}
           >
-            <Save />
+            <Save data-icon="inline-start" />
             存草稿
           </Button>
           <Button
@@ -176,7 +164,7 @@ export default function PublishArticle() {
               void submit('published');
             }}
           >
-            <Send />
+            <Send data-icon="inline-start" />
             发布
           </Button>
         </CardFooter>

@@ -1,11 +1,7 @@
 import { ChevronsUpDown, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,12 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from '@/components/ui/sidebar';
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import { clearSession, getStoredUser } from '@/lib/api';
 import { canAccessAdmin } from '@/lib/permissions';
 
@@ -47,14 +38,9 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton
-                size="lg"
-                className="aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground"
-              />
-            }
+            render={<SidebarMenuButton size="lg" className="aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground" />}
           >
-            <Avatar className="h-8 w-8 rounded-lg">
+            <Avatar className="size-8 rounded-lg">
               <AvatarImage src={user.avatar} alt={user.name} />
               <AvatarFallback className="rounded-lg">PU</AvatarFallback>
             </Avatar>
@@ -62,18 +48,13 @@ export function NavUser({
               <span className="truncate font-medium">{user.name}</span>
               <span className="truncate text-xs">{user.email}</span>
             </div>
-            <ChevronsUpDown className="ml-auto size-4" />
+            <ChevronsUpDown className="ml-auto" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--anchor-width) min-w-56 rounded-lg"
-            side={isMobile ? 'bottom' : 'right'}
-            align="end"
-            sideOffset={4}
-          >
+          <DropdownMenuContent className="w-(--anchor-width) min-w-56 rounded-lg" side={isMobile ? 'bottom' : 'right'} align="end" sideOffset={4}>
             <DropdownMenuGroup>
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-lg">
+                  <Avatar className="size-8 rounded-lg">
                     <AvatarImage src={user.avatar} alt={user.name} />
                     <AvatarFallback className="rounded-lg">PU</AvatarFallback>
                   </Avatar>
@@ -85,20 +66,22 @@ export function NavUser({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            {showAdmin ? (
-              <DropdownMenuItem
-                onClick={() => {
-                  void navigate('/admin');
-                }}
-              >
-                <Settings />
-                管理
+            <DropdownMenuGroup>
+              {showAdmin ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    void navigate('/admin');
+                  }}
+                >
+                  <Settings />
+                  管理
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut />
+                退出登录
               </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut />
-              退出登录
-            </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

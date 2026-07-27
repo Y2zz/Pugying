@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -103,7 +103,7 @@ function TagInput({ value, onChange, disabled }: { value: string[]; onChange: (t
   };
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       <div className="flex gap-2">
         <Input
           placeholder="输入话题后回车，如：美食 vlog"
@@ -135,7 +135,7 @@ function TagInput({ value, onChange, disabled }: { value: string[]; onChange: (t
                     onChange(value.filter((t) => t !== tag));
                   }}
                 >
-                  <X className="size-3" />
+                  <X />
                   <span className="sr-only">移除 {tag}</span>
                 </button>
               ) : null}
@@ -244,104 +244,106 @@ function OverrideCard({
         ) : (
           <span className="text-xs text-muted-foreground">使用通用设置</span>
         )}
-        <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform duration-200', open && 'rotate-180')} />
+        <ChevronDown className={cn('shrink-0 text-muted-foreground transition-transform duration-200', open && 'rotate-180')} />
       </button>
 
       {open ? (
-        <CardContent className="space-y-4 border-t px-4 py-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+        <CardContent className="border-t px-4 py-4">
+          <FieldGroup className="gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <div className="flex items-baseline justify-between">
+                  <FieldLabel htmlFor={`ov-${account.id}-title`}>标题</FieldLabel>
+                  <span className="text-xs text-muted-foreground">
+                    {draft.title.length}/{TITLE_MAX}
+                  </span>
+                </div>
+                <Input
+                  id={`ov-${account.id}-title`}
+                  placeholder="使用通用标题"
+                  maxLength={TITLE_MAX}
+                  disabled={disabled}
+                  value={draft.title}
+                  onChange={(e) => {
+                    patch({ title: e.target.value });
+                  }}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`ov-${account.id}-cover`}>封面图 URL</FieldLabel>
+                <Input
+                  id={`ov-${account.id}-cover`}
+                  placeholder="使用通用封面"
+                  disabled={disabled}
+                  value={draft.coverUrl}
+                  onChange={(e) => {
+                    patch({ coverUrl: e.target.value });
+                  }}
+                />
+              </Field>
+            </div>
+
+            <Field>
               <div className="flex items-baseline justify-between">
-                <Label htmlFor={`ov-${account.id}-title`}>标题</Label>
+                <FieldLabel htmlFor={`ov-${account.id}-body`}>作品描述</FieldLabel>
                 <span className="text-xs text-muted-foreground">
-                  {draft.title.length}/{TITLE_MAX}
+                  {draft.body.length}/{BODY_MAX}
                 </span>
               </div>
-              <Input
-                id={`ov-${account.id}-title`}
-                placeholder="使用通用标题"
-                maxLength={TITLE_MAX}
+              <Textarea
+                id={`ov-${account.id}-body`}
+                placeholder="使用通用描述"
+                className="min-h-16"
+                maxLength={BODY_MAX}
                 disabled={disabled}
-                value={draft.title}
+                value={draft.body}
                 onChange={(e) => {
-                  patch({ title: e.target.value });
+                  patch({ body: e.target.value });
                 }}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`ov-${account.id}-cover`}>封面图 URL</Label>
-              <Input
-                id={`ov-${account.id}-cover`}
-                placeholder="使用通用封面"
-                disabled={disabled}
-                value={draft.coverUrl}
-                onChange={(e) => {
-                  patch({ coverUrl: e.target.value });
-                }}
-              />
-            </div>
-          </div>
+            </Field>
 
-          <div className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <Label htmlFor={`ov-${account.id}-body`}>作品描述</Label>
-              <span className="text-xs text-muted-foreground">
-                {draft.body.length}/{BODY_MAX}
-              </span>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor={`ov-${account.id}-tags`}>话题（空格/逗号分隔）</FieldLabel>
+                <Input
+                  id={`ov-${account.id}-tags`}
+                  placeholder="使用通用话题"
+                  disabled={disabled}
+                  value={draft.tagsText}
+                  onChange={(e) => {
+                    patch({ tagsText: e.target.value });
+                  }}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`ov-${account.id}-schedule`}>定时发布时间</FieldLabel>
+                <Input
+                  id={`ov-${account.id}-schedule`}
+                  type="datetime-local"
+                  disabled={disabled}
+                  value={draft.scheduledLocal}
+                  onChange={(e) => {
+                    patch({ scheduledLocal: e.target.value });
+                  }}
+                />
+              </Field>
             </div>
-            <Textarea
-              id={`ov-${account.id}-body`}
-              placeholder="使用通用描述"
-              className="min-h-16"
-              maxLength={BODY_MAX}
-              disabled={disabled}
-              value={draft.body}
-              onChange={(e) => {
-                patch({ body: e.target.value });
-              }}
-            />
-          </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`ov-${account.id}-tags`}>话题（空格/逗号分隔）</Label>
-              <Input
-                id={`ov-${account.id}-tags`}
-                placeholder="使用通用话题"
-                disabled={disabled}
-                value={draft.tagsText}
-                onChange={(e) => {
-                  patch({ tagsText: e.target.value });
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">留空的字段使用通用设置；定时同样需满足 2 小时至 14 天规则</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={disabled || count === 0}
+                onClick={() => {
+                  onDraftChange(emptyDraft());
                 }}
-              />
+              >
+                清空差异
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={`ov-${account.id}-schedule`}>定时发布时间</Label>
-              <Input
-                id={`ov-${account.id}-schedule`}
-                type="datetime-local"
-                disabled={disabled}
-                value={draft.scheduledLocal}
-                onChange={(e) => {
-                  patch({ scheduledLocal: e.target.value });
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">留空的字段使用通用设置；定时同样需满足 2 小时至 14 天规则</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={disabled || count === 0}
-              onClick={() => {
-                onDraftChange(emptyDraft());
-              }}
-            >
-              清空差异
-            </Button>
-          </div>
+          </FieldGroup>
         </CardContent>
       ) : null}
     </Card>
@@ -528,7 +530,7 @@ export default function PublishVideo() {
   ].join(' · ');
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
       {/* 页头 */}
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -542,99 +544,101 @@ export default function PublishVideo() {
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* 左栏：作品信息 + 差异设置 */}
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">作品信息</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <Label htmlFor="video-title">标题</Label>
-                  <span className="text-xs text-muted-foreground">
-                    {title.length}/{TITLE_MAX}
-                  </span>
-                </div>
-                <Input
-                  id="video-title"
-                  placeholder="填写作品标题，可能获得更多流量"
-                  maxLength={TITLE_MAX}
-                  disabled={loading}
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="video-url">视频链接</Label>
-                <Input
-                  id="video-url"
-                  placeholder="https://…（当前通过链接引用视频文件）"
-                  disabled={loading}
-                  value={videoUrl}
-                  onChange={(e) => {
-                    setVideoUrl(e.target.value);
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <Label htmlFor="video-body">作品描述（可选）</Label>
-                  <span className="text-xs text-muted-foreground">
-                    {body.length}/{BODY_MAX}
-                  </span>
-                </div>
-                <Textarea
-                  id="video-body"
-                  placeholder="添加作品描述，合理的描述有助于推荐"
-                  className="min-h-28"
-                  maxLength={BODY_MAX}
-                  disabled={loading}
-                  value={body}
-                  onChange={(e) => {
-                    setBody(e.target.value);
-                  }}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="video-cover">封面图 URL（可选）</Label>
+            <CardContent>
+              <FieldGroup className="gap-4">
+                <Field>
+                  <div className="flex items-baseline justify-between">
+                    <FieldLabel htmlFor="video-title">标题</FieldLabel>
+                    <span className="text-xs text-muted-foreground">
+                      {title.length}/{TITLE_MAX}
+                    </span>
+                  </div>
                   <Input
-                    id="video-cover"
-                    placeholder="https://…"
+                    id="video-title"
+                    placeholder="填写作品标题，可能获得更多流量"
+                    maxLength={TITLE_MAX}
                     disabled={loading}
-                    value={coverUrl}
+                    value={title}
                     onChange={(e) => {
-                      setCoverUrl(e.target.value);
+                      setTitle(e.target.value);
                     }}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="video-location" className="flex items-center gap-1">
-                    <MapPin className="size-3.5" />
-                    位置（可选）
-                  </Label>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="video-url">视频链接</FieldLabel>
                   <Input
-                    id="video-location"
-                    placeholder="添加位置信息"
-                    maxLength={100}
+                    id="video-url"
+                    placeholder="https://…（当前通过链接引用视频文件）"
                     disabled={loading}
-                    value={location}
+                    value={videoUrl}
                     onChange={(e) => {
-                      setLocation(e.target.value);
+                      setVideoUrl(e.target.value);
                     }}
                   />
-                </div>
-              </div>
+                </Field>
 
-              <div className="space-y-2">
-                <Label>话题（可选，建议不超过 5 个）</Label>
-                <TagInput value={tags} onChange={setTags} disabled={loading} />
-              </div>
+                <Field>
+                  <div className="flex items-baseline justify-between">
+                    <FieldLabel htmlFor="video-body">作品描述（可选）</FieldLabel>
+                    <span className="text-xs text-muted-foreground">
+                      {body.length}/{BODY_MAX}
+                    </span>
+                  </div>
+                  <Textarea
+                    id="video-body"
+                    placeholder="添加作品描述，合理的描述有助于推荐"
+                    className="min-h-28"
+                    maxLength={BODY_MAX}
+                    disabled={loading}
+                    value={body}
+                    onChange={(e) => {
+                      setBody(e.target.value);
+                    }}
+                  />
+                </Field>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="video-cover">封面图 URL（可选）</FieldLabel>
+                    <Input
+                      id="video-cover"
+                      placeholder="https://…"
+                      disabled={loading}
+                      value={coverUrl}
+                      onChange={(e) => {
+                        setCoverUrl(e.target.value);
+                      }}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="video-location" className="flex items-center gap-1">
+                      <MapPin />
+                      位置（可选）
+                    </FieldLabel>
+                    <Input
+                      id="video-location"
+                      placeholder="添加位置信息"
+                      maxLength={100}
+                      disabled={loading}
+                      value={location}
+                      onChange={(e) => {
+                        setLocation(e.target.value);
+                      }}
+                    />
+                  </Field>
+                </div>
+
+                <Field>
+                  <FieldLabel>话题（可选，建议不超过 5 个）</FieldLabel>
+                  <TagInput value={tags} onChange={setTags} disabled={loading} />
+                </Field>
+              </FieldGroup>
             </CardContent>
           </Card>
 
@@ -644,7 +648,7 @@ export default function PublishVideo() {
                 <CardTitle className="text-base">差异设置</CardTitle>
                 <CardDescription>展开账号卡片，为其单独设置标题/描述/封面/话题/定时；留空使用通用设置</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="flex flex-col gap-2">
                 {selectedAccounts.map(({ account, platformLabel }) => (
                   <OverrideCard
                     key={account.id}
@@ -663,79 +667,83 @@ export default function PublishVideo() {
         </div>
 
         {/* 右栏：发布设置 + 发布账号（桌面端吸顶） */}
-        <div className="space-y-4 lg:sticky lg:top-4">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">发布设置</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>谁可以看</Label>
-                <Select
-                  value={visibility}
-                  onValueChange={(value) => {
-                    setVisibility((value as ContentVisibility) ?? 'public');
-                  }}
-                  items={VISIBILITY_OPTIONS}
-                >
-                  <SelectTrigger className="w-full" disabled={loading}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VISIBILITY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <CardContent>
+              <FieldGroup className="gap-4">
+                <Field>
+                  <FieldLabel>谁可以看</FieldLabel>
+                  <Select
+                    value={visibility}
+                    onValueChange={(value) => {
+                      setVisibility((value as ContentVisibility) ?? 'public');
+                    }}
+                    items={VISIBILITY_OPTIONS}
+                  >
+                    <SelectTrigger className="w-full" disabled={loading}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {VISIBILITY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
 
-              <Separator />
+                <Separator />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="video-schedule">定时发布</Label>
-                    <p className="text-xs text-muted-foreground">2 小时后至 14 天内</p>
+                <Field>
+                  <div className="flex items-center justify-between gap-4">
+                    <FieldContent>
+                      <FieldLabel htmlFor="video-schedule">定时发布</FieldLabel>
+                      <FieldDescription>2 小时后至 14 天内</FieldDescription>
+                    </FieldContent>
+                    <Switch
+                      id="video-schedule"
+                      disabled={loading}
+                      checked={scheduleEnabled}
+                      onCheckedChange={(checked) => {
+                        setScheduleEnabled(checked === true);
+                      }}
+                    />
                   </div>
+                  {scheduleEnabled ? (
+                    <Input
+                      type="datetime-local"
+                      disabled={loading}
+                      value={scheduledLocal}
+                      onChange={(e) => {
+                        setScheduledLocal(e.target.value);
+                      }}
+                    />
+                  ) : null}
+                </Field>
+
+                <Separator />
+
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel htmlFor="video-allow-download">允许他人保存视频</FieldLabel>
+                    <FieldDescription>关闭后不能下载此作品</FieldDescription>
+                  </FieldContent>
                   <Switch
-                    id="video-schedule"
+                    id="video-allow-download"
                     disabled={loading}
-                    checked={scheduleEnabled}
+                    checked={allowDownload}
                     onCheckedChange={(checked) => {
-                      setScheduleEnabled(checked === true);
+                      setAllowDownload(checked === true);
                     }}
                   />
-                </div>
-                {scheduleEnabled ? (
-                  <Input
-                    type="datetime-local"
-                    disabled={loading}
-                    value={scheduledLocal}
-                    onChange={(e) => {
-                      setScheduledLocal(e.target.value);
-                    }}
-                  />
-                ) : null}
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="video-allow-download">允许他人保存视频</Label>
-                  <p className="text-xs text-muted-foreground">关闭后不能下载此作品</p>
-                </div>
-                <Switch
-                  id="video-allow-download"
-                  disabled={loading}
-                  checked={allowDownload}
-                  onCheckedChange={(checked) => {
-                    setAllowDownload(checked === true);
-                  }}
-                />
-              </div>
+                </Field>
+              </FieldGroup>
             </CardContent>
           </Card>
 
@@ -744,7 +752,7 @@ export default function PublishVideo() {
               <CardTitle className="text-base">发布账号</CardTitle>
               <CardDescription>{selectedAccounts.length > 0 ? `已选择 ${selectedAccounts.length} 个账号` : '可多平台、多账号分发'}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="flex flex-col gap-3">
               {!loading && accounts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   还没有绑定媒体账号，请先前往
@@ -758,14 +766,14 @@ export default function PublishVideo() {
               {grouped.map((group) => {
                 const groupSelected = group.accounts.filter((a) => selected[a.id]).length;
                 return (
-                  <div key={group.platform} className="space-y-1.5">
+                  <div key={group.platform} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium">{group.displayName}</p>
                       <span className="text-xs text-muted-foreground">
                         {groupSelected}/{group.accounts.length} 已选
                       </span>
                     </div>
-                    <div className="space-y-1 rounded-md border p-1.5">
+                    <div className="flex flex-col gap-1 rounded-md border p-1.5">
                       {group.accounts.map((account) => {
                         const usable = account.status === 'active';
                         return (

@@ -5,10 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAgent } from '@/hooks/use-agent';
 import { PLATFORM_ACCOUNT_SYNCED_EVENT } from '@/hooks/use-creator-window-sync';
@@ -209,7 +211,7 @@ export default function PlatformAccounts() {
       setRenameTarget(null);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '重命名失败');
+      setError(err instanceof Error ? err.message : '编辑失败');
     } finally {
       setBusy(false);
     }
@@ -232,7 +234,7 @@ export default function PlatformAccounts() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">媒体账号</h1>
@@ -247,7 +249,7 @@ export default function PlatformAccounts() {
               void reload();
             }}
           >
-            <RefreshCw />
+            <RefreshCw data-icon="inline-start" />
             刷新
           </Button>
           <Button
@@ -257,16 +259,18 @@ export default function PlatformAccounts() {
               setDialogOpen(true);
             }}
           >
-            <Plus />
+            <Plus data-icon="inline-start" />
             添加账号
           </Button>
         </div>
       </div>
 
       {!connected ? (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          Agent 未连接。请运行 <code className="rounded bg-muted px-1">cd agent && npm run dev</code> 后再添加账号。
-        </p>
+        <Alert>
+          <AlertDescription>
+            Agent 未连接。请运行 <code className="rounded bg-muted px-1">cd agent && npm run dev</code> 后再添加账号。
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -275,10 +279,10 @@ export default function PlatformAccounts() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="h-full gap-3">
-              <CardContent className="space-y-3">
+              <CardContent className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                   <Skeleton className="size-10 rounded-full" />
-                  <div className="flex-1 space-y-2">
+                  <div className="flex flex-1 flex-col gap-2">
                     <Skeleton className="h-4 w-2/3" />
                     <Skeleton className="h-3 w-1/3" />
                   </div>
@@ -332,30 +336,35 @@ export default function PlatformAccounts() {
             <DialogTitle>添加媒体账号</DialogTitle>
             <DialogDescription>选择平台后，Agent 将打开隔离的类 Chrome 授权窗口。登录完成后可自动检测，或点击窗口内「完成授权」。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            {/* Base UI Select 需传 items，SelectValue 才会渲染选中项 label 而非原始 value */}
-            <Select
-              value={selectedPlatform}
-              onValueChange={(value) => {
-                setSelectedPlatform(value ?? '');
-              }}
-              items={catalog.map((item) => ({
-                value: item.id,
-                label: item.displayName,
-              }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择平台" />
-              </SelectTrigger>
-              <SelectContent>
-                {catalog.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.displayName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FieldGroup className="gap-4 py-2">
+            <Field>
+              <FieldLabel>平台</FieldLabel>
+              {/* Base UI Select 需传 items，SelectValue 才会渲染选中项 label 而非原始 value */}
+              <Select
+                value={selectedPlatform}
+                onValueChange={(value) => {
+                  setSelectedPlatform(value ?? '');
+                }}
+                items={catalog.map((item) => ({
+                  value: item.id,
+                  label: item.displayName,
+                }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择平台" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {catalog.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
           <DialogFooter>
             <Button
               variant="outline"
@@ -387,24 +396,28 @@ export default function PlatformAccounts() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>重命名账号</DialogTitle>
+            <DialogTitle>编辑账号</DialogTitle>
             <DialogDescription>授权时会自动读取平台昵称；读取失败或想用自定义名称时，可在此手动修改。</DialogDescription>
           </DialogHeader>
-          <div className="py-2">
-            <Input
-              value={renameValue}
-              autoFocus
-              placeholder="账号名称"
-              onChange={(e) => {
-                setRenameValue(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  void handleRename();
-                }
-              }}
-            />
-          </div>
+          <FieldGroup className="gap-4 py-2">
+            <Field>
+              <FieldLabel htmlFor="rename-account">账号名称</FieldLabel>
+              <Input
+                id="rename-account"
+                value={renameValue}
+                autoFocus
+                placeholder="账号名称"
+                onChange={(e) => {
+                  setRenameValue(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    void handleRename();
+                  }
+                }}
+              />
+            </Field>
+          </FieldGroup>
           <DialogFooter>
             <Button
               variant="outline"
@@ -451,12 +464,13 @@ function AccountCard({
   onDelete: () => void;
 }) {
   const status = STATUS_META[account.status];
+  const needsReauth = account.status !== 'active';
 
   return (
     // h-full + 底栏 mt-auto：同排卡片等高，底栏始终贴底，
     // 不受名称/平台文本行数影响（内容管理页曾踩过的坑）。
     <Card className="h-full gap-3">
-      <CardContent className="space-y-3">
+      <CardContent className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar size="lg">
@@ -474,35 +488,46 @@ function AccountCard({
         </div>
         <p className="text-xs text-muted-foreground">最近授权 {formatTime(account.lastAuthedAt)}</p>
       </CardContent>
-      <CardFooter className="mt-auto justify-between">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!connected || busy || opening}
-          title="用该账号的登录态打开创作者中心（可同时打开多个账号）"
-          onClick={onOpenCreator}
-        >
-          <AppWindow />
-          {opening ? '打开中…' : '创作者中心'}
-        </Button>
+      <CardFooter className="mt-auto justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {needsReauth ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={!connected || busy}
+              onClick={onReauth}
+            >
+              <Link2 data-icon="inline-start" />
+              重新授权
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!connected || busy || opening}
+              title="用该账号的登录态打开创作者后台"
+              onClick={onOpenCreator}
+            >
+              <AppWindow data-icon="inline-start" />
+              {opening ? '打开中…' : '查看'}
+            </Button>
+          )}
+        </div>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={busy} />}>
-            <MoreHorizontal />
-            <span className="sr-only">操作</span>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="sm" disabled={busy} />}>
+            <MoreHorizontal data-icon="inline-start" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled={!connected || busy} onClick={onReauth}>
-              <Link2 />
-              重新授权
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={busy} onClick={onRename}>
-              <Pencil />
-              重命名
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" disabled={busy} onClick={onDelete}>
-              <Trash2 />
-              删除
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={busy} onClick={onRename}>
+                <Pencil />
+                编辑
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" disabled={busy} onClick={onDelete}>
+                <Trash2 />
+                删除
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </CardFooter>

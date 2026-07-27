@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -53,7 +53,7 @@ function BasicContactForm() {
           <CardDescription>表单提交成功！</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 text-sm">
+          <div className="flex flex-col gap-2 text-sm">
             <p>
               <span className="font-medium">姓名：</span>
               {form.name}
@@ -82,50 +82,52 @@ function BasicContactForm() {
         <CardDescription>包含 Input、Textarea 及手动验证逻辑</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">姓名</Label>
-            <Input
-              id="name"
-              placeholder="请输入您的姓名"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              aria-invalid={!!errors.name}
-            />
-            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-          </div>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="name">姓名</FieldLabel>
+              <Input
+                id="name"
+                placeholder="请输入您的姓名"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                aria-invalid={!!errors.name}
+              />
+              {errors.name ? <FieldError>{errors.name}</FieldError> : null}
+            </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">邮箱</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="example@domain.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              aria-invalid={!!errors.email}
-            />
-            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-          </div>
+            <Field>
+              <FieldLabel htmlFor="email">邮箱</FieldLabel>
+              <Input
+                id="email"
+                type="email"
+                placeholder="example@domain.com"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                aria-invalid={!!errors.email}
+              />
+              {errors.email ? <FieldError>{errors.email}</FieldError> : null}
+            </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="message">留言</Label>
-            <Textarea
-              id="message"
-              placeholder="请输入您的留言内容..."
-              value={form.message}
-              onChange={(e) => setForm({ ...form, message: e.target.value })}
-              aria-invalid={!!errors.message}
-            />
-            {errors.message && <p className="text-xs text-destructive">{errors.message}</p>}
-          </div>
+            <Field>
+              <FieldLabel htmlFor="message">留言</FieldLabel>
+              <Textarea
+                id="message"
+                placeholder="请输入您的留言内容..."
+                value={form.message}
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
+                aria-invalid={!!errors.message}
+              />
+              {errors.message ? <FieldError>{errors.message}</FieldError> : null}
+            </Field>
 
-          <div className="flex gap-2">
-            <Button type="submit">提交</Button>
-            <Button type="button" variant="outline" onClick={handleReset}>
-              重置
-            </Button>
-          </div>
+            <div className="flex gap-2">
+              <Button type="submit">提交</Button>
+              <Button type="button" variant="outline" onClick={handleReset}>
+                重置
+              </Button>
+            </div>
+          </FieldGroup>
         </form>
       </CardContent>
     </Card>
@@ -173,7 +175,7 @@ function ContentPublishForm() {
           <CardDescription>提交结果预览</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 text-sm">
+          <div className="flex flex-col gap-2 text-sm">
             <p>
               <span className="font-medium">标题：</span>
               {form.title}
@@ -214,104 +216,106 @@ function ContentPublishForm() {
         <CardDescription>综合演示 Select、Checkbox、Switch 组件用法</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">内容标题</Label>
-            <Input id="title" placeholder="请输入内容标题" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          </div>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="title">内容标题</FieldLabel>
+              <Input id="title" placeholder="请输入内容标题" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>发布平台</Label>
-              <Select value={form.platform} onValueChange={(val) => setForm({ ...form, platform: val ?? '' })} items={platforms}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择平台" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {platforms.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>发布平台</FieldLabel>
+                <Select value={form.platform} onValueChange={(val) => setForm({ ...form, platform: val ?? '' })} items={platforms}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择平台" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {platforms.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field>
+                <FieldLabel>内容类型</FieldLabel>
+                <Select value={form.category} onValueChange={(val) => setForm({ ...form, category: val ?? '' })} items={categories}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {categories.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
             </div>
 
-            <div className="space-y-2">
-              <Label>内容类型</Label>
-              <Select value={form.category} onValueChange={(val) => setForm({ ...form, category: val ?? '' })} items={categories}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择类型" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {categories.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            <Field>
+              <FieldLabel htmlFor="content">正文内容</FieldLabel>
+              <Textarea
+                id="content"
+                placeholder="请输入发布内容..."
+                rows={4}
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+              />
+            </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="content">正文内容</Label>
-            <Textarea
-              id="content"
-              placeholder="请输入发布内容..."
-              rows={4}
-              value={form.content}
-              onChange={(e) => setForm({ ...form, content: e.target.value })}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="comments">允许评论</Label>
-                <p className="text-xs text-muted-foreground">开启后用户可在内容下方留言</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <FieldLabel htmlFor="comments">允许评论</FieldLabel>
+                  <p className="text-xs text-muted-foreground">开启后用户可在内容下方留言</p>
+                </div>
+                <Switch id="comments" checked={form.enableComments} onCheckedChange={(v) => setForm({ ...form, enableComments: v })} />
               </div>
-              <Switch id="comments" checked={form.enableComments} onCheckedChange={(v) => setForm({ ...form, enableComments: v })} />
-            </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="public">公开可见</Label>
-                <p className="text-xs text-muted-foreground">关闭后仅团队成员可查看</p>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <FieldLabel htmlFor="public">公开可见</FieldLabel>
+                  <p className="text-xs text-muted-foreground">关闭后仅团队成员可查看</p>
+                </div>
+                <Switch id="public" checked={form.isPublic} onCheckedChange={(v) => setForm({ ...form, isPublic: v })} />
               </div>
-              <Switch id="public" checked={form.isPublic} onCheckedChange={(v) => setForm({ ...form, isPublic: v })} />
+
+              <div className="flex items-center gap-2">
+                <Checkbox id="scheduled" checked={form.scheduledPublish} onCheckedChange={(v) => setForm({ ...form, scheduledPublish: !!v })} />
+                <FieldLabel htmlFor="scheduled">定时发布</FieldLabel>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox id="scheduled" checked={form.scheduledPublish} onCheckedChange={(v) => setForm({ ...form, scheduledPublish: !!v })} />
-              <Label htmlFor="scheduled">定时发布</Label>
+            <div className="flex gap-2">
+              <Button type="submit">发布内容</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setForm({
+                    title: '',
+                    platform: '',
+                    category: '',
+                    content: '',
+                    enableComments: true,
+                    isPublic: false,
+                    scheduledPublish: false,
+                  })
+                }
+              >
+                重置
+              </Button>
             </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button type="submit">发布内容</Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setForm({
-                  title: '',
-                  platform: '',
-                  category: '',
-                  content: '',
-                  enableComments: true,
-                  isPublic: false,
-                  scheduledPublish: false,
-                })
-              }
-            >
-              重置
-            </Button>
-          </div>
+          </FieldGroup>
         </form>
       </CardContent>
     </Card>
@@ -346,36 +350,38 @@ function LoginForm() {
         <CardDescription>演示 disabled 状态与异步提交反馈</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="username">用户名</Label>
-            <Input
-              className="focus-visible:ring-0"
-              id="username"
-              placeholder="请输入用户名"
-              value={form.username}
-              disabled={loading}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-            />
-          </div>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="username">用户名</FieldLabel>
+              <Input
+                className="focus-visible:ring-0"
+                id="username"
+                placeholder="请输入用户名"
+                value={form.username}
+                disabled={loading}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">密码</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="请输入密码"
-              value={form.password}
-              disabled={loading}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </div>
+            <Field>
+              <FieldLabel htmlFor="password">密码</FieldLabel>
+              <Input
+                id="password"
+                type="password"
+                placeholder="请输入密码"
+                value={form.password}
+                disabled={loading}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </Field>
 
-          {result && <p className="text-sm text-green-600 dark:text-green-400">{result}</p>}
+            {result ? <p className="text-sm text-muted-foreground">{result}</p> : null}
 
-          <Button type="submit" disabled={!isValid || loading} className="w-full">
-            {loading ? '登录中...' : '登录'}
-          </Button>
+            <Button type="submit" disabled={!isValid || loading} className="w-full">
+              {loading ? '登录中...' : '登录'}
+            </Button>
+          </FieldGroup>
         </form>
       </CardContent>
     </Card>
@@ -392,41 +398,41 @@ function InputTypesDemo() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="text">text</Label>
+          <Field>
+            <FieldLabel htmlFor="text">text</FieldLabel>
             <Input id="text" type="text" placeholder="普通文本" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email-type">email</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="email-type">email</FieldLabel>
             <Input id="email-type" type="email" placeholder="user@example.com" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password-type">password</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="password-type">password</FieldLabel>
             <Input id="password-type" type="password" placeholder="密码" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="number">number</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="number">number</FieldLabel>
             <Input id="number" type="number" placeholder="数字" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tel">tel</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="tel">tel</FieldLabel>
             <Input id="tel" type="tel" placeholder="电话号码" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="url">url</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="url">url</FieldLabel>
             <Input id="url" type="url" placeholder="https://example.com" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="date">date</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="date">date</FieldLabel>
             <Input id="date" type="date" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="search">search</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="search">search</FieldLabel>
             <Input id="search" type="search" placeholder="搜索..." />
-          </div>
+          </Field>
         </div>
-        <div className="mt-4 space-y-2">
-          <Label htmlFor="disabled-input">disabled 状态</Label>
+        <div className="mt-4 flex flex-col gap-2">
+          <FieldLabel htmlFor="disabled-input">disabled 状态</FieldLabel>
           <Input id="disabled-input" type="text" value="不可编辑的内容" disabled />
         </div>
       </CardContent>
@@ -436,7 +442,7 @@ function InputTypesDemo() {
 
 export function Home() {
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex flex-col gap-6 p-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">表单演示</h1>
         <p className="text-sm text-muted-foreground">基于 shadcn/ui（Base UI）组件的表单示例集合</p>

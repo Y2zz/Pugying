@@ -1,53 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Clapperboard,
-  FileText,
-  ImageIcon,
-  MoreHorizontal,
-  Pencil,
-  RefreshCw,
-  Send,
-  Share2,
-  Trash2,
-  Undo2,
-} from 'lucide-react';
+import { Clapperboard, FileText, ImageIcon, MoreHorizontal, Pencil, RefreshCw, Send, Share2, Trash2, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-} from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  deleteContent,
-  fetchContents,
-  updateContent,
-  type ContentItem,
-  type ContentType,
-} from '@/lib/api';
+import { deleteContent, fetchContents, updateContent, type ContentItem, type ContentType } from '@/lib/api';
 
 type TypeFilter = 'all' | ContentType;
 
-const TYPE_META: Record<
-  ContentType,
-  { label: string; icon: typeof FileText }
-> = {
+const TYPE_META: Record<ContentType, { label: string; icon: typeof FileText }> = {
   article: { label: '图文', icon: FileText },
   video: { label: '视频', icon: Clapperboard },
 };
@@ -91,8 +56,7 @@ export default function Contents() {
     };
   }, []);
 
-  const visible =
-    filter === 'all' ? items : items.filter((item) => item.type === filter);
+  const visible = filter === 'all' ? items : items.filter((item) => item.type === filter);
 
   const handleToggleStatus = async (item: ContentItem) => {
     setBusyId(item.id);
@@ -101,9 +65,7 @@ export default function Contents() {
       const updated = await updateContent(item.id, {
         status: item.status === 'published' ? 'draft' : 'published',
       });
-      setItems((prev) =>
-        prev.map((it) => (it.id === updated.id ? updated : it)),
-      );
+      setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败');
     } finally {
@@ -128,13 +90,11 @@ export default function Contents() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">内容管理</h1>
-          <p className="text-sm text-muted-foreground">
-            管理团队的图文与视频内容，可在左侧「发布」入口创建新内容
-          </p>
+          <p className="text-sm text-muted-foreground">管理团队的图文与视频内容，可在左侧「发布」入口创建新内容</p>
         </div>
         <div className="flex items-center gap-2">
           <Tabs
@@ -157,7 +117,7 @@ export default function Contents() {
               void reload();
             }}
           >
-            <RefreshCw />
+            <RefreshCw data-icon="inline-start" />
             刷新
           </Button>
         </div>
@@ -170,7 +130,7 @@ export default function Contents() {
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="gap-3 overflow-hidden pt-0 pb-4">
               <Skeleton className="aspect-video w-full rounded-none" />
-              <CardContent className="space-y-2">
+              <CardContent className="flex flex-col gap-2">
                 <Skeleton className="h-5 w-3/4" />
                 <Skeleton className="h-4 w-1/2" />
               </CardContent>
@@ -184,9 +144,7 @@ export default function Contents() {
               <ImageIcon />
             </EmptyMedia>
             <EmptyTitle>暂无内容</EmptyTitle>
-            <EmptyDescription>
-              使用左侧菜单上方的「发布」按钮创建第一条图文或视频内容。
-            </EmptyDescription>
+            <EmptyDescription>使用左侧菜单上方的「发布」按钮创建第一条图文或视频内容。</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -210,17 +168,7 @@ export default function Contents() {
   );
 }
 
-function ContentCard({
-  item,
-  busy,
-  onToggleStatus,
-  onDelete,
-}: {
-  item: ContentItem;
-  busy: boolean;
-  onToggleStatus: () => void;
-  onDelete: () => void;
-}) {
+function ContentCard({ item, busy, onToggleStatus, onDelete }: { item: ContentItem; busy: boolean; onToggleStatus: () => void; onDelete: () => void }) {
   const meta = TYPE_META[item.type];
   const TypeIcon = meta.icon;
   const published = item.status === 'published';
@@ -229,12 +177,7 @@ function ContentCard({
     <Card className="h-full gap-3 overflow-hidden pt-0 pb-0">
       <div className="relative aspect-video w-full bg-muted">
         {item.coverUrl ? (
-          <img
-            src={item.coverUrl}
-            alt={item.title}
-            className="size-full object-cover"
-            loading="lazy"
-          />
+          <img src={item.coverUrl} alt={item.title} className="size-full object-cover" loading="lazy" />
         ) : (
           <div className="flex size-full items-center justify-center text-muted-foreground">
             <TypeIcon className="size-8" />
@@ -250,59 +193,41 @@ function ContentCard({
           </Badge>
         </div>
       </div>
-      <CardContent className="space-y-1">
+      <CardContent className="flex flex-col gap-1">
         <p className="line-clamp-1 font-medium" title={item.title}>
           {item.title}
         </p>
-        <p className="line-clamp-2 min-h-8 text-xs text-muted-foreground">
-          {item.body || '暂无描述'}
-        </p>
+        <p className="line-clamp-2 min-h-8 text-xs text-muted-foreground">{item.body || '暂无描述'}</p>
         {item.targets.length > 0 ? (
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Share2 className="size-3" />
             分发 {item.targets.length} 个账号
-            {item.scheduledAt
-              ? ` · 定时 ${formatTime(item.scheduledAt)}`
-              : ''}
+            {item.scheduledAt ? ` · 定时 ${formatTime(item.scheduledAt)}` : ''}
           </p>
         ) : null}
       </CardContent>
       <CardFooter className="mt-auto justify-between">
-        <span className="text-xs text-muted-foreground">
-          {published ? `发布于 ${formatTime(item.publishedAt)}` : `更新于 ${formatTime(item.updatedAt)}`}
-        </span>
+        <span className="text-xs text-muted-foreground">{published ? `发布于 ${formatTime(item.publishedAt)}` : `更新于 ${formatTime(item.updatedAt)}`}</span>
         <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" disabled={busy} />
-            }
-          >
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={busy} />}>
             <MoreHorizontal />
             <span className="sr-only">操作</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onToggleStatus}>
-              {published ? <Undo2 /> : <Send />}
-              {published ? '撤回为草稿' : '发布'}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              render={
-                <Link
-                  to={
-                    item.type === 'article'
-                      ? `/publish/article?id=${item.id}`
-                      : `/publish/video?id=${item.id}`
-                  }
-                />
-              }
-            >
-              <Pencil />
-              编辑
-            </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onClick={onDelete}>
-              <Trash2 />
-              删除
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={onToggleStatus}>
+                {published ? <Undo2 /> : <Send />}
+                {published ? '撤回为草稿' : '发布'}
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link to={item.type === 'article' ? `/publish/article?id=${item.id}` : `/publish/video?id=${item.id}`} />}>
+                <Pencil />
+                编辑
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <Trash2 />
+                删除
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </CardFooter>

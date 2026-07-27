@@ -1,24 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { Logo } from '@/components/Logo';
-import {
-  fetchMyTeams,
-  isLoginRequiresTeamSelection,
-  login,
-  selectTeam,
-  setSession,
-  setStoredTeam,
-  type TeamOption,
-} from '@/lib/api';
+import { fetchMyTeams, isLoginRequiresTeamSelection, login, selectTeam, setSession, setStoredTeam, type TeamOption } from '@/lib/api';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const from =
-    (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
   const [email, setEmail] = useState('admin@pugying.local');
   const [password, setPassword] = useState('Admin123!');
@@ -81,17 +73,15 @@ export default function Login() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted/40 p-6">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border bg-background p-6 shadow-sm">
+      <div className="flex w-full max-w-sm flex-col gap-6 rounded-xl border bg-background p-6 shadow-sm">
         <div className="flex flex-col items-center gap-2 text-center">
           <Logo className="size-10" />
           <h1 className="text-xl font-semibold">登录 Pugying</h1>
-          <p className="text-sm text-muted-foreground">
-            admin@pugying.local / Admin123!（加入 default + demo，可测选团队）
-          </p>
+          <p className="text-sm text-muted-foreground">admin@pugying.local / Admin123!（加入 default + demo，可测选团队）</p>
         </div>
 
         {teams && loginTicket ? (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">请选择要进入的团队</p>
             {teams.map((team) => (
               <Button
@@ -105,56 +95,54 @@ export default function Login() {
                 }}
               >
                 {team.displayName}
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {team.name}
-                </span>
+                <span className="ml-auto text-xs text-muted-foreground">{team.name}</span>
               </Button>
             ))}
-            {error ? (
-              <p className="text-sm text-destructive">{error}</p>
-            ) : null}
+            {error ? <FieldError>{error}</FieldError> : null}
           </div>
         ) : (
           <form
-            className="space-y-4"
             onSubmit={(event) => {
               void handleSubmit(event);
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                }}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                }}
-                required
-              />
-            </div>
+            <FieldGroup className="gap-4">
+              <Field data-invalid={error ? true : undefined}>
+                <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  aria-invalid={error ? true : undefined}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                  }}
+                  required
+                />
+              </Field>
+              <Field data-invalid={error ? true : undefined}>
+                <FieldLabel htmlFor="password">密码</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  aria-invalid={error ? true : undefined}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                  }}
+                  required
+                />
+              </Field>
 
-            {error ? (
-              <p className="text-sm text-destructive">{error}</p>
-            ) : null}
+              {error ? <FieldError>{error}</FieldError> : null}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? '登录中…' : '登录'}
-            </Button>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? <Spinner data-icon="inline-start" /> : null}
+                {loading ? '登录中…' : '登录'}
+              </Button>
+            </FieldGroup>
           </form>
         )}
       </div>
