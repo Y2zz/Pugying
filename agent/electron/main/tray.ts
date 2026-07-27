@@ -55,14 +55,6 @@ function buildMenuTemplate(): MenuItemConstructorOptions[] {
       label: clients > 0 ? `状态：已连接（${clients}）` : '状态：等待前端连接',
       enabled: false,
     },
-    {
-      label: `进行中授权：${authJobs}`,
-      enabled: false,
-    },
-    {
-      label: `创作者中心窗口：${browseWindows}`,
-      enabled: false,
-    },
     { type: 'separator' },
     {
       label: WS_URL,
