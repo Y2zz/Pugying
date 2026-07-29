@@ -137,4 +137,10 @@
   html {
     @apply font-sans;
   }
+
+  /* DialogTitle 未设字号，与 Description 同为 text-sm；中文仅靠字重区分不够。
+     对齐 AlertDialogTitle，用主题层覆盖，不改动 components/ui。 */
+  [data-slot='dialog-title'] {
+    @apply text-base;
+  }
 }
