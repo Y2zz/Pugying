@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+package-lock.json
+
+src/components/ui/
+
+tsconfig.json
+tsconfig.*.json

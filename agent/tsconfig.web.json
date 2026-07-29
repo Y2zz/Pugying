@@ -1,6 +1,6 @@
 {
   "include": ["src/**/*", "shared/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "shared/**/*.test.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "shared/**/*.test.ts", "src/components/ui"],
   "compilerOptions": {
     "composite": true,
     "target": "ES2022",

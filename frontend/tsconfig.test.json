@@ -5,5 +5,5 @@
     "types": ["vite/client", "vitest/globals"]
   },
   "include": ["src"],
-  "exclude": []
+  "exclude": ["src/components/ui"]
 }
