@@ -13,6 +13,7 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { useAgent } from '@/hooks/use-agent';
 import { PLATFORM_ACCOUNT_SYNCED_EVENT } from '@/hooks/use-creator-window-sync';
 import { agentClient, type AgentCookie } from '@/lib/agent-client';
@@ -29,6 +30,19 @@ import {
 } from '@/lib/api';
 import { matchPlatformQuery } from '@/lib/platforms';
 import { cn } from '@/lib/utils';
+
+type AuthLockState = {
+  mode: 'create' | 'reauth';
+  platformName: string;
+  requestId: string;
+};
+
+function createAuthRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `auth-${crypto.randomUUID()}`;
+  }
+  return `auth-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 const OPEN_ERROR_TEXT: Record<string, string> = {
   invalid_payload: '请求参数不完整',
@@ -75,6 +89,8 @@ export default function PlatformAccounts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [authLock, setAuthLock] = useState<AuthLockState | null>(null);
+  const authSessionRef = useRef(0);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('');
@@ -165,14 +181,22 @@ export default function PlatformAccounts() {
     }
 
     const meta = catalog.find((item) => item.id === platform);
+    const platformName = meta?.displayName ?? platformLabel(platform);
+    const requestId = createAuthRequestId();
+    const session = ++authSessionRef.current;
     setBusy(true);
     setError('');
     setDialogOpen(false);
+    setAuthLock({ mode, platformName, requestId });
     try {
       const result = await agentClient.startPlatformAuth({
         platform,
         loginUrl: meta?.loginUrl,
+        requestId,
       });
+      if (session !== authSessionRef.current) {
+        return;
+      }
       if (!result.ok || !result.cookies?.length) {
         if (result.error === 'cancelled' || result.error === 'window_closed') {
           return;
@@ -196,11 +220,30 @@ export default function PlatformAccounts() {
           profile: result.profile,
         });
       }
+      if (session !== authSessionRef.current) {
+        return;
+      }
       await reload();
     } catch (err) {
+      if (session !== authSessionRef.current) {
+        return;
+      }
       setError(err instanceof Error ? err.message : '授权失败');
     } finally {
-      setBusy(false);
+      if (session === authSessionRef.current) {
+        setAuthLock(null);
+        setBusy(false);
+      }
+    }
+  };
+
+  const handleCancelAuth = () => {
+    const requestId = authLock?.requestId;
+    authSessionRef.current += 1;
+    setAuthLock(null);
+    setBusy(false);
+    if (requestId) {
+      void agentClient.cancelPlatformAuth(requestId);
     }
   };
 
@@ -481,6 +524,37 @@ export default function PlatformAccounts() {
               }}
             >
               保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={authLock !== null}
+        onOpenChange={(open, eventDetails) => {
+          if (!open) {
+            // Esc / backdrop cannot dismiss; use the explicit exit action below.
+            eventDetails.cancel();
+          }
+        }}
+      >
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Spinner className="size-8 text-muted-foreground" />
+            <DialogHeader className="items-center text-center">
+              <DialogTitle>
+                {authLock?.mode === 'reauth' ? '正在重新授权' : '正在添加账号'}
+              </DialogTitle>
+              <DialogDescription>
+                {authLock
+                  ? `请前往桌面 Agent 完成「${authLock.platformName}」登录。完成后将自动解除锁定；若 Agent 异常或无法继续，可手动退出。`
+                  : null}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button variant="outline" onClick={handleCancelAuth}>
+              退出授权
             </Button>
           </DialogFooter>
         </DialogContent>
