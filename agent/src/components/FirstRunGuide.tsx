@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { getChromeShell, type GuidePayload } from '@/lib/chrome-api';
 
 export function FirstRunGuide() {
@@ -26,18 +34,16 @@ export function FirstRunGuide() {
   }
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-black/45 p-6">
-      <div className="flex w-full max-w-md flex-col gap-4 rounded-xl border border-border bg-background p-6 shadow-lg">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-muted-foreground">
+    <div className="flex size-full items-center justify-center bg-black/45 p-6">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader>
+          <Badge variant="secondary">
             首次指引 · {guide.slideIndex + 1}/{guide.slides.length}
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight">{slide.title}</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {slide.body}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-2">
+          </Badge>
+          <CardTitle>{slide.title}</CardTitle>
+          <CardDescription>{slide.body}</CardDescription>
+        </CardHeader>
+        <CardFooter className="justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -59,8 +65,8 @@ export function FirstRunGuide() {
           >
             {isLast ? '开始授权' : '下一步'}
           </Button>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

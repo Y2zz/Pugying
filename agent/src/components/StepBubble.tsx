@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { getChromeShell, type GuidePayload } from '@/lib/chrome-api';
 import { CHROME_HEIGHT } from '@shared/ipc';
 
@@ -89,8 +97,9 @@ export function StepBubble() {
   const anchoredUp = step.anchor === 'complete';
 
   return (
-    <div className="relative h-full w-full bg-black/30">
-      <div
+    <div className="relative size-full bg-black/30">
+      <Card
+        size="sm"
         style={{
           width: CARD_WIDTH,
           left,
@@ -102,25 +111,23 @@ export function StepBubble() {
               }
             : { top }),
         }}
-        className="absolute flex flex-col gap-3 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg"
+        className="absolute overflow-visible shadow-lg"
       >
         {anchoredUp && arrowLeft != null ? (
           <span
-            className="absolute -top-1.5 size-3 rotate-45 border-t border-l border-border bg-popover"
+            className="absolute -top-1.5 size-3 rotate-45 border-t border-l border-foreground/10 bg-card"
             style={{ left: arrowLeft }}
             aria-hidden
           />
         ) : null}
-        <div className="flex flex-col gap-1">
-          <p className="text-[11px] font-medium text-muted-foreground">
+        <CardHeader>
+          <Badge variant="secondary">
             操作提示 · {guide.stepIndex + 1}/{guide.steps.length}
-          </p>
-          <h2 className="text-sm font-semibold">{step.title}</h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {step.body}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-2">
+          </Badge>
+          <CardTitle>{step.title}</CardTitle>
+          <CardDescription>{step.body}</CardDescription>
+        </CardHeader>
+        <CardFooter className="justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -152,8 +159,8 @@ export function StepBubble() {
               {isLast ? '知道了' : '下一步'}
             </Button>
           </div>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

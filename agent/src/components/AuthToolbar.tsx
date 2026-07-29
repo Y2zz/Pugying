@@ -160,7 +160,7 @@ export function AuthToolbar({ variant = 'auth' }: AuthToolbarProps) {
           <div className="flex items-center gap-1">
             <Button
               type="button"
-              variant="destructive"
+              variant="outline"
               size="sm"
               onClick={() => void api.cancel()}
             >
