@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AppWindow, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, SearchIcon, Trash2 } from 'lucide-react';
+import { PlatformIcon } from '@/components/PlatformIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAgent } from '@/hooks/use-agent';
 import { PLATFORM_ACCOUNT_SYNCED_EVENT } from '@/hooks/use-creator-window-sync';
@@ -26,6 +27,8 @@ import {
   type PlatformAccountItem,
   type PlatformCatalogItem,
 } from '@/lib/api';
+import { matchPlatformQuery } from '@/lib/platforms';
+import { cn } from '@/lib/utils';
 
 const OPEN_ERROR_TEXT: Record<string, string> = {
   invalid_payload: '请求参数不完整',
@@ -75,10 +78,13 @@ export default function PlatformAccounts() {
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('');
+  const [platformQuery, setPlatformQuery] = useState('');
   const [renameTarget, setRenameTarget] = useState<PlatformAccountItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
   const platformLabel = (id: string) => catalog.find((item) => item.id === id)?.displayName ?? id;
+
+  const filteredCatalog = catalog.filter((item) => matchPlatformQuery(item, platformQuery));
 
   const reload = async () => {
     setLoading(true);
@@ -256,6 +262,7 @@ export default function PlatformAccounts() {
             size="sm"
             disabled={!connected || busy}
             onClick={() => {
+              setPlatformQuery('');
               setDialogOpen(true);
             }}
           >
@@ -330,39 +337,79 @@ export default function PlatformAccounts() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            setPlatformQuery('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>添加媒体账号</DialogTitle>
             <DialogDescription>选择平台后，Agent 将打开隔离的类 Chrome 授权窗口。登录完成后可自动检测，或点击窗口内「完成授权」。</DialogDescription>
           </DialogHeader>
           <FieldGroup className="gap-4 py-2">
             <Field>
-              <FieldLabel>平台</FieldLabel>
-              {/* Base UI Select 需传 items，SelectValue 才会渲染选中项 label 而非原始 value */}
-              <Select
-                value={selectedPlatform}
-                onValueChange={(value) => {
-                  setSelectedPlatform(value ?? '');
-                }}
-                items={catalog.map((item) => ({
-                  value: item.id,
-                  label: item.displayName,
-                }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择平台" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {catalog.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <FieldLabel htmlFor="platform-search">搜索平台</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  id="platform-search"
+                  value={platformQuery}
+                  placeholder="按名称搜索，如 抖音、B站、小红书"
+                  autoFocus
+                  onChange={(e) => {
+                    setPlatformQuery(e.target.value);
+                  }}
+                />
+                <InputGroupAddon>
+                  <SearchIcon />
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
+            <Field>
+              <FieldLabel id="platform-grid-label">选择平台</FieldLabel>
+              {filteredCatalog.length === 0 ? (
+                <Empty className="border border-dashed py-8">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <SearchIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>未找到平台</EmptyTitle>
+                    <EmptyDescription>换个关键词试试，例如「头条」「视频号」「B站」。</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div
+                  role="radiogroup"
+                  aria-labelledby="platform-grid-label"
+                  className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+                >
+                  {filteredCatalog.map((item) => {
+                    const selected = selectedPlatform === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          setSelectedPlatform(item.id);
+                        }}
+                        className={cn(
+                          'flex flex-col items-center gap-2 rounded-xl bg-card p-4 text-sm shadow-xs ring-1 ring-foreground/10 transition-[color,box-shadow] outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50',
+                          selected && 'bg-muted ring-2 ring-ring',
+                        )}
+                      >
+                        <PlatformIcon platform={item.id} className="size-10" />
+                        <span className="truncate font-medium">{item.displayName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </Field>
           </FieldGroup>
           <DialogFooter>
