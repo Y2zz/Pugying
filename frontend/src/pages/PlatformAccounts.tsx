@@ -1,12 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, SearchIcon, Trash2 } from 'lucide-react';
+import {
+  AppWindow,
+  Check,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RefreshCw,
+  SearchIcon,
+  Trash2,
+} from 'lucide-react';
 import { PlatformIcon } from '@/components/PlatformIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -14,9 +33,10 @@ import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { AgentNeededDialog } from '@/components/AgentNeededDialog';
 import { useAgent } from '@/hooks/use-agent';
 import { PLATFORM_ACCOUNT_SYNCED_EVENT } from '@/hooks/use-creator-window-sync';
-import { agentClient, type AgentCookie } from '@/lib/agent-client';
+import { agentClient, type AgentCookie, type PlatformAuthProgressPhase } from '@/lib/agent-client';
 import {
   bindPlatformAccount,
   deletePlatformAccount,
@@ -31,10 +51,20 @@ import {
 import { matchPlatformQuery } from '@/lib/platforms';
 import { cn } from '@/lib/utils';
 
+type AuthPhase = 'opening' | PlatformAuthProgressPhase | 'binding';
+
 type AuthLockState = {
   mode: 'create' | 'reauth';
   platformName: string;
   requestId: string;
+  phase: AuthPhase;
+};
+
+type AuthSuccessState = {
+  mode: 'create' | 'reauth';
+  account: PlatformAccountItem;
+  platformName: string;
+  weakProfile: boolean;
 };
 
 function createAuthRequestId(): string {
@@ -49,6 +79,12 @@ const OPEN_ERROR_TEXT: Record<string, string> = {
   missing_cookies: '账号缺少登录凭证，请先重新授权',
 };
 
+const AUTH_ERROR_TEXT: Record<string, string> = {
+  invalid_payload: '请求参数不完整',
+  duplicate_request_id: '已有进行中的授权，请先完成或退出后再试',
+  not_found: '授权会话已结束，请重新开始',
+};
+
 function openErrorText(code: string | undefined): string {
   if (!code) {
     return '打开创作者中心失败';
@@ -57,6 +93,23 @@ function openErrorText(code: string | undefined): string {
     return '当前 Agent 版本不支持该平台，请升级 Agent';
   }
   return OPEN_ERROR_TEXT[code] ?? `打开创作者中心失败（${code}）`;
+}
+
+function authErrorText(code: string | undefined): string {
+  if (!code) {
+    return '授权失败';
+  }
+  if (code.startsWith('unsupported_platform')) {
+    return '当前 Agent 版本不支持该平台，请升级 Agent';
+  }
+  return AUTH_ERROR_TEXT[code] ?? `授权失败（${code}）`;
+}
+
+function isWeakProfileName(displayName: string, platformName: string, hasNickname: boolean): boolean {
+  if (!hasNickname) {
+    return true;
+  }
+  return displayName === `${platformName}账号`;
 }
 
 const STATUS_META: Record<
@@ -70,6 +123,32 @@ const STATUS_META: Record<
   expired: { label: '登录过期', variant: 'outline' },
   revoked: { label: '已失效', variant: 'destructive' },
 };
+
+const AUTH_STEPS: Array<{ id: 'open' | 'login' | 'bind'; label: (platformName: string) => string }> = [
+  { id: 'open', label: () => '打开授权窗口' },
+  { id: 'login', label: (platformName) => `在 Agent 登录「${platformName}」` },
+  { id: 'bind', label: () => '保存到蒲公英' },
+];
+
+function authStepStatus(
+  stepId: 'open' | 'login' | 'bind',
+  phase: AuthPhase,
+): 'done' | 'current' | 'pending' {
+  const currentStep =
+    phase === 'opening'
+      ? 0
+      : phase === 'window_opened' || phase === 'awaiting_login' || phase === 'finishing'
+        ? 1
+        : 2;
+  const stepIndex = stepId === 'open' ? 0 : stepId === 'login' ? 1 : 2;
+  if (stepIndex < currentStep) {
+    return 'done';
+  }
+  if (stepIndex === currentStep) {
+    return 'current';
+  }
+  return 'pending';
+}
 
 function formatTime(value: string | null): string {
   if (!value) {
@@ -90,6 +169,7 @@ export default function PlatformAccounts() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [authLock, setAuthLock] = useState<AuthLockState | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<AuthSuccessState | null>(null);
   const authSessionRef = useRef(0);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -97,10 +177,20 @@ export default function PlatformAccounts() {
   const [platformQuery, setPlatformQuery] = useState('');
   const [renameTarget, setRenameTarget] = useState<PlatformAccountItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<PlatformAccountItem | null>(null);
+  const [agentNeededOpen, setAgentNeededOpen] = useState(false);
 
   const platformLabel = (id: string) => catalog.find((item) => item.id === id)?.displayName ?? id;
 
   const filteredCatalog = catalog.filter((item) => matchPlatformQuery(item, platformQuery));
+
+  const requireAgent = (): boolean => {
+    if (connected) {
+      return true;
+    }
+    setAgentNeededOpen(true);
+    return false;
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -144,8 +234,7 @@ export default function PlatformAccounts() {
   }, []);
 
   const handleOpenCreator = async (account: PlatformAccountItem) => {
-    if (!connected) {
-      setError('请先启动桌面 Agent（cd agent && npm run dev）');
+    if (!requireAgent()) {
       return;
     }
     setOpeningId(account.id);
@@ -170,8 +259,7 @@ export default function PlatformAccounts() {
   };
 
   const runAuthAndBind = async (mode: 'create' | 'reauth', accountId?: string) => {
-    if (!connected) {
-      setError('请先启动桌面 Agent（cd agent && npm run dev）');
+    if (!requireAgent()) {
       return;
     }
     const platform = mode === 'create' ? selectedPlatform : accounts.find((a) => a.id === accountId)?.platform;
@@ -186,13 +274,22 @@ export default function PlatformAccounts() {
     const session = ++authSessionRef.current;
     setBusy(true);
     setError('');
+    setAuthSuccess(null);
     setDialogOpen(false);
-    setAuthLock({ mode, platformName, requestId });
+    setAuthLock({ mode, platformName, requestId, phase: 'opening' });
     try {
       const result = await agentClient.startPlatformAuth({
         platform,
         loginUrl: meta?.loginUrl,
         requestId,
+        onProgress: (progress) => {
+          if (session !== authSessionRef.current) {
+            return;
+          }
+          setAuthLock((prev) =>
+            prev && prev.requestId === requestId ? { ...prev, phase: progress.phase } : prev,
+          );
+        },
       });
       if (session !== authSessionRef.current) {
         return;
@@ -201,11 +298,16 @@ export default function PlatformAccounts() {
         if (result.error === 'cancelled' || result.error === 'window_closed') {
           return;
         }
-        throw new Error(result.error ?? '授权失败');
+        throw new Error(authErrorText(result.error));
       }
 
+      setAuthLock((prev) =>
+        prev && prev.requestId === requestId ? { ...prev, phase: 'binding' } : prev,
+      );
+
+      let bound: PlatformAccountItem;
       if (mode === 'reauth' && accountId) {
-        await reauthPlatformAccount(accountId, {
+        bound = await reauthPlatformAccount(accountId, {
           cookies: result.cookies,
           finalUrl: result.finalUrl,
           profile: result.profile,
@@ -213,7 +315,7 @@ export default function PlatformAccounts() {
       } else {
         // No displayName here on purpose: the backend prefers the Agent's
         // scraped nickname and only falls back to a placeholder.
-        await bindPlatformAccount({
+        bound = await bindPlatformAccount({
           platform,
           cookies: result.cookies,
           finalUrl: result.finalUrl,
@@ -224,6 +326,16 @@ export default function PlatformAccounts() {
         return;
       }
       await reload();
+      setAuthSuccess({
+        mode,
+        account: bound,
+        platformName,
+        weakProfile: isWeakProfileName(
+          bound.displayName,
+          platformName,
+          Boolean(result.profile?.nickname?.trim()),
+        ),
+      });
     } catch (err) {
       if (session !== authSessionRef.current) {
         return;
@@ -247,6 +359,11 @@ export default function PlatformAccounts() {
     }
   };
 
+  const openRename = (account: PlatformAccountItem) => {
+    setRenameTarget(account);
+    setRenameValue(account.displayName);
+  };
+
   const handleRename = async () => {
     const target = renameTarget;
     const next = renameValue.trim();
@@ -258,6 +375,7 @@ export default function PlatformAccounts() {
     try {
       await renamePlatformAccount(target.id, next);
       setRenameTarget(null);
+      setAuthSuccess(null);
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : '编辑失败');
@@ -266,14 +384,16 @@ export default function PlatformAccounts() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('确定删除该媒体账号？')) {
+  const handleDelete = async () => {
+    const target = deleteTarget;
+    if (!target) {
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await deletePlatformAccount(id);
+      await deletePlatformAccount(target.id);
+      setDeleteTarget(null);
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : '删除失败');
@@ -287,7 +407,9 @@ export default function PlatformAccounts() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">媒体账号</h1>
-          <p className="text-sm text-muted-foreground">通过桌面 Agent 打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站绑定</p>
+          <p className="text-sm text-muted-foreground">
+            通过桌面 Agent 打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站 / 小红书绑定
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -303,8 +425,11 @@ export default function PlatformAccounts() {
           </Button>
           <Button
             size="sm"
-            disabled={!connected || busy}
+            disabled={busy}
             onClick={() => {
+              if (!requireAgent()) {
+                return;
+              }
               setPlatformQuery('');
               setDialogOpen(true);
             }}
@@ -314,14 +439,6 @@ export default function PlatformAccounts() {
           </Button>
         </div>
       </div>
-
-      {!connected ? (
-        <Alert>
-          <AlertDescription>
-            Agent 未连接。请运行 <code className="rounded bg-muted px-1">cd agent && npm run dev</code> 后再添加账号。
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
@@ -349,7 +466,7 @@ export default function PlatformAccounts() {
               <Link2 />
             </EmptyMedia>
             <EmptyTitle>暂无媒体账号</EmptyTitle>
-            <EmptyDescription>点击右上角「添加账号」，通过桌面 Agent 完成授权绑定。</EmptyDescription>
+            <EmptyDescription>点击右上角「添加账号」，通过桌面 Agent 完成平台登录后即可绑定。</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -359,7 +476,6 @@ export default function PlatformAccounts() {
               key={account.id}
               account={account}
               platformName={platformLabel(account.platform)}
-              connected={connected}
               busy={busy}
               opening={openingId === account.id}
               onOpenCreator={() => {
@@ -369,11 +485,10 @@ export default function PlatformAccounts() {
                 void runAuthAndBind('reauth', account.id);
               }}
               onRename={() => {
-                setRenameTarget(account);
-                setRenameValue(account.displayName);
+                openRename(account);
               }}
               onDelete={() => {
-                void handleDelete(account.id);
+                setDeleteTarget(account);
               }}
             />
           ))}
@@ -392,7 +507,9 @@ export default function PlatformAccounts() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>添加媒体账号</DialogTitle>
-            <DialogDescription>选择平台后，Agent 将打开隔离的类 Chrome 授权窗口。登录完成后可自动检测，或点击窗口内「完成授权」。</DialogDescription>
+            <DialogDescription>
+              选择平台后，Agent 将打开隔离的类 Chrome 授权窗口。登录完成后可自动检测，或点击窗口内「完成授权」。
+            </DialogDescription>
           </DialogHeader>
           <FieldGroup className="gap-4 py-2">
             <Field>
@@ -465,7 +582,7 @@ export default function PlatformAccounts() {
               取消
             </Button>
             <Button
-              disabled={!selectedPlatform || !connected || busy}
+              disabled={!selectedPlatform || busy}
               onClick={() => {
                 void runAuthAndBind('create');
               }}
@@ -538,20 +655,64 @@ export default function PlatformAccounts() {
           }
         }}
       >
-        <DialogContent showCloseButton={false} className="sm:max-w-sm">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <Spinner className="size-8 text-muted-foreground" />
-            <DialogHeader className="items-center text-center">
-              <DialogTitle>
-                {authLock?.mode === 'reauth' ? '正在重新授权' : '正在添加账号'}
-              </DialogTitle>
-              <DialogDescription>
-                {authLock
-                  ? `请前往桌面 Agent 完成「${authLock.platformName}」登录。完成后将自动解除锁定；若 Agent 异常或无法继续，可手动退出。`
-                  : null}
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {authLock?.mode === 'reauth' ? '正在重新授权' : '正在添加账号'}
+            </DialogTitle>
+            <DialogDescription>
+              {authLock
+                ? `请前往桌面 Agent 完成「${authLock.platformName}」登录。登录成功后会自动继续；若长时间无反应，可在 Agent 窗口点击「完成授权」。`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          {authLock ? (
+            <ol className="flex flex-col gap-3 py-1">
+              {AUTH_STEPS.map((step) => {
+                const status = authStepStatus(step.id, authLock.phase);
+                return (
+                  <li key={step.id} className="flex items-start gap-3">
+                    <span
+                      className={cn(
+                        'mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs',
+                        status === 'done' && 'border-primary bg-primary text-primary-foreground',
+                        status === 'current' && 'border-primary text-primary',
+                        status === 'pending' && 'border-muted-foreground/30 text-muted-foreground',
+                      )}
+                    >
+                      {status === 'done' ? (
+                        <Check className="size-3.5" />
+                      ) : status === 'current' ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <span className="size-1.5 rounded-full bg-current opacity-40" />
+                      )}
+                    </span>
+                    <div className="min-w-0 pt-0.5">
+                      <p
+                        className={cn(
+                          'text-sm font-medium',
+                          status === 'pending' && 'text-muted-foreground',
+                        )}
+                      >
+                        {step.label(authLock.platformName)}
+                      </p>
+                      {status === 'current' && step.id === 'login' ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {authLock.phase === 'finishing'
+                            ? '正在读取账号资料…'
+                            : '在 Agent 窗口登录目标账号'}
+                        </p>
+                      ) : null}
+                      {status === 'current' && step.id === 'bind' ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">正在加密保存登录凭证…</p>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : null}
           <DialogFooter className="sm:justify-center">
             <Button variant="outline" onClick={handleCancelAuth}>
               退出授权
@@ -559,6 +720,115 @@ export default function PlatformAccounts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={authSuccess !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAuthSuccess(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          {authSuccess ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {authSuccess.mode === 'reauth' ? '重新授权成功' : '账号添加成功'}
+                </DialogTitle>
+                <DialogDescription>
+                  {authSuccess.weakProfile
+                    ? '已保存登录凭证，但未能读取到平台昵称。建议现在设置一个便于识别的名称。'
+                    : '登录凭证已加密保存，可在列表中查看或打开创作者中心。'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-3">
+                <Avatar size="lg">
+                  {authSuccess.account.avatarUrl ? (
+                    <AvatarImage
+                      src={authSuccess.account.avatarUrl}
+                      alt={authSuccess.account.displayName}
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : null}
+                  <AvatarFallback>{authSuccess.account.displayName.slice(0, 1)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate font-medium" title={authSuccess.account.displayName}>
+                    {authSuccess.account.displayName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{authSuccess.platformName}</p>
+                </div>
+              </div>
+              <DialogFooter>
+                {authSuccess.weakProfile ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAuthSuccess(null);
+                      }}
+                    >
+                      稍后再说
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const account = authSuccess.account;
+                        setAuthSuccess(null);
+                        openRename(account);
+                      }}
+                    >
+                      修改名称
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      setAuthSuccess(null);
+                    }}
+                  >
+                    完成
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除媒体账号？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `将删除「${deleteTarget.displayName}」。删除后需重新授权才能发布到该账号。`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy}
+              onClick={() => {
+                void handleDelete();
+              }}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AgentNeededDialog open={agentNeededOpen} onOpenChange={setAgentNeededOpen} />
     </div>
   );
 }
@@ -566,7 +836,6 @@ export default function PlatformAccounts() {
 function AccountCard({
   account,
   platformName,
-  connected,
   busy,
   opening,
   onOpenCreator,
@@ -576,7 +845,6 @@ function AccountCard({
 }: {
   account: PlatformAccountItem;
   platformName: string;
-  connected: boolean;
   busy: boolean;
   opening: boolean;
   onOpenCreator: () => void;
@@ -612,12 +880,7 @@ function AccountCard({
       <CardFooter className="mt-auto justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {needsReauth ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={!connected || busy}
-              onClick={onReauth}
-            >
+            <Button variant="destructive" size="sm" disabled={busy} onClick={onReauth}>
               <Link2 data-icon="inline-start" />
               重新授权
             </Button>
@@ -625,7 +888,7 @@ function AccountCard({
             <Button
               variant="outline"
               size="sm"
-              disabled={!connected || busy || opening}
+              disabled={busy || opening}
               title="用该账号的登录态打开创作者后台"
               onClick={onOpenCreator}
             >
