@@ -128,7 +128,13 @@ export default function AdminOverview() {
           <dl className="flex flex-col gap-1 text-sm text-muted-foreground">
             <div className="flex justify-between gap-4">
               <dt>状态</dt>
-              <dd>{status}</dd>
+              <dd>
+                {status === 'connected'
+                  ? '已连接'
+                  : status === 'connecting'
+                    ? '连接中'
+                    : '未连接'}
+              </dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt>版本</dt>
@@ -141,8 +147,7 @@ export default function AdminOverview() {
           </dl>
           {status !== 'connected' ? (
             <p className="text-xs text-muted-foreground">
-              请在本机运行 <code className="rounded bg-muted px-1">cd agent && npm run dev</code>
-              ，前端会自动重连 ws://127.0.0.1:3927
+              请打开本机菜单栏 / 托盘中的「蒲公英 Agent」，页面会自动重连。
             </p>
           ) : null}
         </section>

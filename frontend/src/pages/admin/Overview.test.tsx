@@ -74,13 +74,14 @@ describe('AdminOverview (SSR)', () => {
     expect(html).toContain('登录用户：');
   });
 
-  it('shows the disconnected agent state with the local run hint', () => {
+  it('shows the disconnected agent state with a user-facing reconnect hint', () => {
     stubSession({});
 
     const html = renderToString(<AdminOverview />);
 
     expect(html).toContain('Agent 未连接');
-    expect(html).toContain('disconnected');
-    expect(html).toContain('ws://127.0.0.1:3927');
+    expect(html).toContain('未连接');
+    expect(html).toContain('蒲公英 Agent');
+    expect(html).not.toContain('npm run dev');
   });
 });
