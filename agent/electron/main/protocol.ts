@@ -8,6 +8,7 @@ export type AgentMessageType =
   | 'agent.ping'
   | 'agent.pong'
   | 'platform.auth.start'
+  | 'platform.auth.progress'
   | 'platform.auth.result'
   | 'platform.auth.cancel'
   | 'platform.open.start'
@@ -30,6 +31,18 @@ export interface PlatformAuthStartPayload {
   requestId: string;
   platform: string;
   loginUrl?: string;
+}
+
+/** Pushed while an auth window is open so the SPA can mirror progress. */
+export type PlatformAuthProgressPhase =
+  | 'window_opened'
+  | 'awaiting_login'
+  | 'finishing';
+
+export interface PlatformAuthProgressPayload {
+  requestId: string;
+  platform: string;
+  phase: PlatformAuthProgressPhase;
 }
 
 export interface AgentCookie {

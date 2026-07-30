@@ -109,6 +109,7 @@ describe('agent WebSocket server', () => {
         capabilities: [
           'ping',
           'platform.auth.start',
+          'platform.auth.progress',
           'platform.auth.cancel',
           'platform.open.start',
         ],

@@ -7,6 +7,7 @@ export type AgentMessageType =
   | 'agent.ping'
   | 'agent.pong'
   | 'platform.auth.start'
+  | 'platform.auth.progress'
   | 'platform.auth.result'
   | 'platform.auth.cancel'
   | 'platform.open.start'
@@ -52,6 +53,17 @@ export interface PlatformAuthResult {
   finalUrl?: string;
   source?: 'auto' | 'manual';
   profile?: AgentProfile;
+}
+
+export type PlatformAuthProgressPhase =
+  | 'window_opened'
+  | 'awaiting_login'
+  | 'finishing';
+
+export interface PlatformAuthProgress {
+  requestId: string;
+  platform: string;
+  phase: PlatformAuthProgressPhase;
 }
 
 export interface PlatformOpenResult {
@@ -251,6 +263,7 @@ class AgentClient {
     loginUrl?: string;
     requestId?: string;
     timeoutMs?: number;
+    onProgress?: (progress: PlatformAuthProgress) => void;
   }): Promise<PlatformAuthResult> {
     return new Promise((resolve, reject) => {
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
@@ -270,7 +283,17 @@ class AgentClient {
 
       const onMessage = (event: MessageEvent) => {
         const message = parse(String(event.data));
-        if (message?.type !== 'platform.auth.result') {
+        if (!message) {
+          return;
+        }
+        if (message.type === 'platform.auth.progress') {
+          const progress = message.payload as PlatformAuthProgress | undefined;
+          if (progress?.requestId === requestId) {
+            input.onProgress?.(progress);
+          }
+          return;
+        }
+        if (message.type !== 'platform.auth.result') {
           return;
         }
         const payload = message.payload as PlatformAuthResult | undefined;

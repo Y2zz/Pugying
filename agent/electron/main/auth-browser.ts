@@ -15,6 +15,7 @@ import { fetchPlatformProfile } from './platforms/fetch-profile';
 import { readPrefs, writePrefs } from './prefs';
 import type {
   AgentCookie,
+  PlatformAuthProgressPhase,
   PlatformAuthResultPayload,
   PlatformOpenClosedPayload,
 } from './protocol';
@@ -32,6 +33,10 @@ const POLL_MS = 1500;
 
 export type AuthResultCallback = (
   result: PlatformAuthResultPayload,
+) => void;
+
+export type AuthProgressCallback = (
+  phase: PlatformAuthProgressPhase,
 ) => void;
 
 export type BrowseClosedCallback = (
@@ -67,6 +72,8 @@ export interface AuthBrowserHandle {
   /** Result callback for THIS job — IPC handlers must use this, never a
    *  closure captured at wiring time (the wiring only happens once). */
   onResult: AuthResultCallback;
+  /** Auth jobs only — mirrors progress to the SPA lock dialog. */
+  onProgress?: AuthProgressCallback;
   dispose: () => Promise<void>;
 }
 
@@ -791,6 +798,7 @@ async function finishAuth(
   handle: AuthBrowserHandle,
   source: 'auto' | 'manual',
 ): Promise<void> {
+  handle.onProgress?.('finishing');
   const adapter = getPlatformAdapter(handle.platform);
   const cookies = await collectCookies(
     handle.authSession,
@@ -823,6 +831,7 @@ export function startAuthBrowser(options: {
   platform: string;
   loginUrl?: string;
   onResult: AuthResultCallback;
+  onProgress?: AuthProgressCallback;
 }): AuthBrowserHandle | { error: string } {
   const adapter = getPlatformAdapter(options.platform);
   if (!adapter) {
@@ -881,6 +890,7 @@ export function startAuthBrowser(options: {
     guideIndex: 0,
     pendingToastEvents: [],
     onResult: options.onResult,
+    onProgress: options.onProgress,
     dispose: async () => {
       if (handle.pollTimer) {
         clearInterval(handle.pollTimer);
@@ -904,6 +914,7 @@ export function startAuthBrowser(options: {
   updateDockVisibility();
   layoutContent(handle);
   ensureToastView(handle);
+  options.onProgress?.('window_opened');
 
   window.on('resize', () => {
     layoutContent(handle);
@@ -926,9 +937,20 @@ export function startAuthBrowser(options: {
 
   const wc = contentView.webContents;
   const sync = () => pushState(handle);
+  let announcedAwaitingLogin = false;
+  const announceAwaitingLogin = () => {
+    if (announcedAwaitingLogin || !activeJobs.has(options.requestId)) {
+      return;
+    }
+    announcedAwaitingLogin = true;
+    options.onProgress?.('awaiting_login');
+  };
   wc.on('did-navigate', sync);
   wc.on('did-navigate-in-page', sync);
-  wc.on('did-finish-load', sync);
+  wc.on('did-finish-load', () => {
+    sync();
+    announceAwaitingLogin();
+  });
   wc.on('page-title-updated', sync);
   wc.setWindowOpenHandler(({ url }) => {
     void wc.loadURL(url);
@@ -952,7 +974,16 @@ export function startAuthBrowser(options: {
     pushState(handle);
     await maybeStartGuides(handle);
   });
-  void wc.loadURL(loginUrl);
+  void wc.loadURL(loginUrl).then(
+    () => {
+      announceAwaitingLogin();
+    },
+    () => {
+      // Still ask the user to log in even if the first navigation fails —
+      // they can refresh from the chrome toolbar.
+      announceAwaitingLogin();
+    },
+  );
 
   return handle;
 }

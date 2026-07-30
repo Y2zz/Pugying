@@ -43,6 +43,7 @@ describe('startAuthBrowser', () => {
 
   it('creates an isolated temp partition, rejects duplicates and cancels cleanly', async () => {
     const results: PlatformAuthResultPayload[] = [];
+    const progress: string[] = [];
     try {
       const handle = startAuthBrowser({
         requestId: 'ab-r1',
@@ -50,10 +51,14 @@ describe('startAuthBrowser', () => {
         onResult: (result) => {
           results.push(result);
         },
+        onProgress: (phase) => {
+          progress.push(phase);
+        },
       });
       expect('error' in handle).toBe(false);
       expect(recordedPartitions()).toContain('temp:auth-ab-r1');
       expect(getActiveAuthJobCount()).toBe(1);
+      expect(progress).toContain('window_opened');
 
       const duplicate = startAuthBrowser({
         requestId: 'ab-r1',

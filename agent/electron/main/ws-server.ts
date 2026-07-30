@@ -11,6 +11,7 @@ import {
   encodeAgentMessage,
   parseAgentMessage,
   type AgentEnvelope,
+  type PlatformAuthProgressPayload,
   type PlatformAuthResultPayload,
   type PlatformAuthStartPayload,
   type PlatformOpenClosedPayload,
@@ -56,6 +57,23 @@ function broadcastResult(
   }
 }
 
+function broadcastProgress(progress: PlatformAuthProgressPayload): void {
+  const waiters = pendingAuth.get(progress.requestId);
+  const message: AgentEnvelope = {
+    type: 'platform.auth.progress',
+    payload: progress,
+  };
+  if (waiters && waiters.size > 0) {
+    for (const socket of waiters) {
+      send(socket, message);
+    }
+    return;
+  }
+  for (const socket of clients) {
+    send(socket, message);
+  }
+}
+
 /**
  * Creator-center close events go to every client: the page that opened the
  * window may have navigated away or reconnected, and any authenticated
@@ -86,6 +104,7 @@ export function startAgentWsServer(): WebSocketServer {
         capabilities: [
           'ping',
           'platform.auth.start',
+          'platform.auth.progress',
           'platform.auth.cancel',
           'platform.open.start',
         ],
@@ -159,6 +178,9 @@ export function startAgentWsServer(): WebSocketServer {
           loginUrl: payload?.loginUrl,
           onResult: (result) => {
             broadcastResult(requestId, message.id, result);
+          },
+          onProgress: (phase) => {
+            broadcastProgress({ requestId, platform, phase });
           },
         });
 
