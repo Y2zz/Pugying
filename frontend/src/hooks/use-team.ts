@@ -3,6 +3,7 @@ import {
   fetchMyTeams,
   getStoredTeam,
   getTeamId,
+  leaveTeam,
   setStoredTeam,
   switchTeam,
   type TeamOption,
@@ -57,5 +58,20 @@ export function useTeam() {
     window.location.reload();
   };
 
-  return { teams, current, loading, switchTo };
+  const leaveCurrent = async () => {
+    if (!current) {
+      throw new Error('未选择团队');
+    }
+    const remaining = teams.filter((team) => team.id !== current.id);
+    if (remaining.length === 0) {
+      throw new Error('不能离开唯一的团队');
+    }
+    await leaveTeam(current.id);
+    await switchTeam(remaining[0]);
+    setCurrent(remaining[0]);
+    setTeams(remaining);
+    window.location.reload();
+  };
+
+  return { teams, current, loading, switchTo, leaveCurrent };
 }

@@ -186,7 +186,7 @@ describe('Account login / team membership flows (e2e)', () => {
         .set('Authorization', `Bearer ${selected.body.accessToken}`)
         .set('X-Team-Id', defaultTeamId)
         .send({ teamId: defaultTeamId })
-        .expect(201);
+        .expect(204);
 
       const relogin = await request(server()).post('/account/login').send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password }).expect(201);
       expect(relogin.body.requiresTeamSelection).toBeUndefined();

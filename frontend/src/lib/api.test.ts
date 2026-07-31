@@ -10,6 +10,7 @@ import {
   isAuthenticated,
   isLoginRequiresTeamSelection,
   kickTeamMember,
+  leaveTeam,
   login,
   refreshClaims,
   register,
@@ -377,6 +378,16 @@ describe('auth and team flows', () => {
     expect(fetchCalls[0].url).toContain('/account/kick');
     expect(fetchCalls[0].init?.method).toBe('POST');
     expect(bodyOf(fetchCalls[0])).toEqual({ userId: 'user-2', teamId: 'team-1' });
+  });
+
+  it('leaveTeam posts the team id', async () => {
+    stubFetch(fakeResponse(204, undefined));
+
+    await leaveTeam('team-1');
+
+    expect(fetchCalls[0].url).toContain('/account/leave');
+    expect(fetchCalls[0].init?.method).toBe('POST');
+    expect(bodyOf(fetchCalls[0])).toEqual({ teamId: 'team-1' });
   });
 
   it('register posts email username and password', async () => {

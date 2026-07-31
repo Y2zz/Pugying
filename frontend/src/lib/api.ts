@@ -510,6 +510,13 @@ export async function kickTeamMember(body: {
   });
 }
 
+export async function leaveTeam(teamId: string): Promise<void> {
+  await apiFetch<void>('/account/leave', {
+    method: 'POST',
+    body: JSON.stringify({ teamId }),
+  });
+}
+
 export async function fetchUserRoles(userId: string): Promise<RoleItem[]> {
   return apiFetch<RoleItem[]>(`/identity/users/${userId}/roles`);
 }

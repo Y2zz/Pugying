@@ -77,6 +77,7 @@ export class AccountController {
   }
 
   @Post('leave')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @RequirePermission(AccountProPermissions.Leave)
   @ApiOperation({ summary: '离开团队' })
