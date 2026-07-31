@@ -28,6 +28,7 @@ import { TEAM_USER_REPOSITORY } from '@pugying/account-pro/domain/repositories/t
 import {
   AccountLoginDto,
   InviteUserDto,
+  KickUserDto,
   LeaveTeamDto,
   RegisterUserDto,
   SelectTeamDto,
@@ -252,6 +253,33 @@ export class AccountService {
         await this.teamUserRepository.findActiveByUserId(userId);
       if (remaining.length <= 1) {
         throw new BadRequestException('Cannot leave the last team');
+      }
+
+      membership.leftAt = new Date();
+      await this.teamUserRepository.save(membership);
+    });
+  }
+
+  async kick(actor: AuthenticatedUser, dto: KickUserDto): Promise<void> {
+    if (this.currentTeam.isAvailable && this.currentTeam.id !== dto.teamId) {
+      throw new ForbiddenException(
+        `Kick teamId must match current ${TEAM_HEADER}`,
+      );
+    }
+
+    if (actor.id === dto.userId) {
+      throw new BadRequestException('Cannot kick yourself; use leave instead');
+    }
+
+    await this.teamService.findOne(dto.teamId);
+
+    await this.unitOfWork.complete(async () => {
+      const membership = await this.teamUserRepository.findActiveByUserAndTeam(
+        dto.userId,
+        dto.teamId,
+      );
+      if (!membership) {
+        throw new NotFoundException('Membership not found');
       }
 
       membership.leftAt = new Date();

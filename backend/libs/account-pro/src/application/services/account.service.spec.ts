@@ -462,4 +462,46 @@ describe('AccountService', () => {
       expect(teamUserRepository.save).toHaveBeenCalledWith(membership);
     });
   });
+
+  describe('kick', () => {
+    const actor: AuthenticatedUser = {
+      id: 'admin-1',
+      email: 'admin@example.com',
+      username: 'admin',
+      teamId: TEAM_A,
+      permissions: ['Account.Users.Kick'],
+    };
+
+    it('rejects kicking into a different team than the current one', async () => {
+      currentTeam.id = TEAM_A;
+
+      await expect(service.kick(actor, { userId: USER_ID, teamId: TEAM_B })).rejects.toBeInstanceOf(ForbiddenException);
+      expect(teamService.findOne).not.toHaveBeenCalled();
+    });
+
+    it('rejects kicking yourself', async () => {
+      await expect(
+        service.kick({ ...actor, id: USER_ID }, { userId: USER_ID, teamId: TEAM_A }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(teamService.findOne).not.toHaveBeenCalled();
+    });
+
+    it('rejects kicking a non-member', async () => {
+      teamUserRepository.findActiveByUserAndTeam.mockResolvedValue(null);
+
+      await expect(service.kick(actor, { userId: USER_ID, teamId: TEAM_A })).rejects.toBeInstanceOf(NotFoundException);
+      expect(teamUserRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('marks the target membership as left', async () => {
+      currentTeam.id = TEAM_A;
+      const membership = createMembership({ teamId: TEAM_A });
+      teamUserRepository.findActiveByUserAndTeam.mockResolvedValue(membership);
+
+      await service.kick(actor, { userId: USER_ID, teamId: TEAM_A });
+
+      expect(membership.leftAt).toBeInstanceOf(Date);
+      expect(teamUserRepository.save).toHaveBeenCalledWith(membership);
+    });
+  });
 });

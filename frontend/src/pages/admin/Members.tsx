@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Plus, RefreshCw, Users } from 'lucide-react';
+import { MoreHorizontal, Pencil, Plus, RefreshCw, UserMinus, Users } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,6 +29,7 @@ import {
   getStoredTeam,
   getStoredUser,
   inviteTeamMember,
+  kickTeamMember,
   unassignUserRole,
   type RoleItem,
   type TeamMember,
@@ -31,6 +42,7 @@ export default function AdminMembers() {
   const permissions = user?.permissions ?? [];
 
   const canInvite = hasPermission(permissions, Permissions.Account.Users.Invite);
+  const canKick = hasPermission(permissions, Permissions.Account.Users.Kick);
   const canEditRoles = hasPermission(permissions, Permissions.Identity.Roles.Update);
 
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -47,6 +59,9 @@ export default function AdminMembers() {
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [memberRoleIds, setMemberRoleIds] = useState<string[]>([]);
   const [savingRoles, setSavingRoles] = useState(false);
+
+  const [kickTarget, setKickTarget] = useState<TeamMember | null>(null);
+  const [kicking, setKicking] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -160,6 +175,23 @@ export default function AdminMembers() {
     }
   };
 
+  const handleKick = async () => {
+    if (!kickTarget || !team?.id) {
+      return;
+    }
+    setKicking(true);
+    setError('');
+    try {
+      await kickTeamMember({ userId: kickTarget.id, teamId: team.id });
+      setKickTarget(null);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '移出失败');
+    } finally {
+      setKicking(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -248,37 +280,55 @@ export default function AdminMembers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {members.map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.username}</TableCell>
-                  <TableCell className="text-muted-foreground">{member.email}</TableCell>
-                  <TableCell>
-                    <Badge variant={member.active ? 'default' : 'outline'}>{member.active ? '启用' : '停用'}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {canEditRoles ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={busyId === member.id} />}>
-                          <MoreHorizontal />
-                          <span className="sr-only">操作</span>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                void openEditRoles(member);
-                              }}
-                            >
-                              <Pencil />
-                              编辑角色
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {members.map((member) => {
+                const isSelf = member.id === user?.id;
+                const showKick = canKick && !isSelf;
+                const showActions = canEditRoles || showKick;
+                return (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-medium">{member.username}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={member.active ? 'default' : 'outline'}>{member.active ? '启用' : '停用'}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {showActions ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={busyId === member.id} />}>
+                            <MoreHorizontal />
+                            <span className="sr-only">操作</span>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuGroup>
+                              {canEditRoles ? (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    void openEditRoles(member);
+                                  }}
+                                >
+                                  <Pencil />
+                                  编辑角色
+                                </DropdownMenuItem>
+                              ) : null}
+                              {showKick ? (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setKickTarget(member);
+                                  }}
+                                >
+                                  <UserMinus />
+                                  移出团队
+                                </DropdownMenuItem>
+                              ) : null}
+                            </DropdownMenuGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -386,6 +436,38 @@ export default function AdminMembers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={kickTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setKickTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>移出团队？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {kickTarget
+                ? `将把「${kickTarget.username}」（${kickTarget.email}）移出当前团队。对方仍可保留其他团队的成员身份。`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={kicking}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={kicking}
+              onClick={() => {
+                void handleKick();
+              }}
+            >
+              {kicking ? '移出中…' : '移出'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

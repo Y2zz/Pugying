@@ -500,6 +500,16 @@ export async function inviteTeamMember(body: {
   });
 }
 
+export async function kickTeamMember(body: {
+  userId: string;
+  teamId: string;
+}): Promise<void> {
+  await apiFetch<void>('/account/kick', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchUserRoles(userId: string): Promise<RoleItem[]> {
   return apiFetch<RoleItem[]>(`/identity/users/${userId}/roles`);
 }

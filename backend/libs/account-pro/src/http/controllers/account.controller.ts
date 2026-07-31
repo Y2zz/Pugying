@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CurrentUser,
@@ -10,6 +10,7 @@ import { AccountService } from '@pugying/account-pro/application/services/accoun
 import {
   AccountLoginDto,
   InviteUserDto,
+  KickUserDto,
   LeaveTeamDto,
   RegisterUserDto,
   SelectTeamDto,
@@ -84,5 +85,17 @@ export class AccountController {
     @Body() dto: LeaveTeamDto,
   ): Promise<void> {
     return this.accountService.leave(user.id, dto);
+  }
+
+  @Post('kick')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @RequirePermission(AccountProPermissions.Kick)
+  @ApiOperation({ summary: '管理员将成员移出团队' })
+  kick(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: KickUserDto,
+  ): Promise<void> {
+    return this.accountService.kick(user, dto);
   }
 }

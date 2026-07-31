@@ -214,6 +214,94 @@ describe('Account login / team membership flows (e2e)', () => {
     });
   });
 
+  describe('kick flows', () => {
+    let editorUserId: string;
+    let adminUserId: string;
+
+    beforeAll(async () => {
+      const adminLogin = await request(server()).post('/account/login').send({ email: SEED_ADMIN.email, password: SEED_ADMIN.password }).expect(201);
+      const adminSelected = await request(server())
+        .post('/account/login/select-team')
+        .send({ loginTicket: adminLogin.body.loginTicket, teamId: defaultTeamId })
+        .expect(201);
+      adminUserId = adminSelected.body.user.id as string;
+
+      const editorLogin = await request(server())
+        .post('/account/login')
+        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
+        .expect(201);
+      editorUserId = editorLogin.body.user.id as string;
+
+      await request(server())
+        .post('/account/invite')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .send({ email: SEED_EDITOR.email, teamId: defaultTeamId })
+        .expect(201);
+    });
+
+    it('editor without Account.Users.Kick cannot kick (403)', async () => {
+      const editorLogin = await request(server())
+        .post('/account/login')
+        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
+        .expect(201);
+      const selected = await request(server())
+        .post('/account/login/select-team')
+        .send({ loginTicket: editorLogin.body.loginTicket, teamId: defaultTeamId })
+        .expect(201);
+
+      await request(server())
+        .post('/account/kick')
+        .set('Authorization', `Bearer ${selected.body.accessToken}`)
+        .set('X-Team-Id', defaultTeamId)
+        .send({ userId: adminUserId, teamId: defaultTeamId })
+        .expect(403);
+    });
+
+    it('kicking yourself is rejected (400)', async () => {
+      await request(server())
+        .post('/account/kick')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .send({ userId: adminUserId, teamId: defaultTeamId })
+        .expect(400);
+    });
+
+    it('kicking into a team that differs from X-Team-Id yields 403', async () => {
+      await request(server())
+        .post('/account/kick')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .send({ userId: editorUserId, teamId: demoTeamId })
+        .expect(403);
+    });
+
+    it('admin kicks editor out of default and editor returns to single-team login', async () => {
+      await request(server())
+        .post('/account/kick')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .send({ userId: editorUserId, teamId: defaultTeamId })
+        .expect(204);
+
+      const relogin = await request(server())
+        .post('/account/login')
+        .send({ email: SEED_EDITOR.email, password: SEED_EDITOR.password })
+        .expect(201);
+      expect(relogin.body.requiresTeamSelection).toBeUndefined();
+      expect(relogin.body.user.teamId).toBe(demoTeamId);
+    });
+
+    it('kicking a non-member yields 404', async () => {
+      await request(server())
+        .post('/account/kick')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .send({ userId: editorUserId, teamId: defaultTeamId })
+        .expect(404);
+    });
+  });
+
   describe('self-register', () => {
     const registrant = {
       email: 'newbie@pugying.local',

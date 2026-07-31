@@ -16,6 +16,7 @@ export const Permissions = {
   Account: {
     Users: {
       Invite: 'Account.Users.Invite',
+      Kick: 'Account.Users.Kick',
       Leave: 'Account.Users.Leave',
     },
   },
