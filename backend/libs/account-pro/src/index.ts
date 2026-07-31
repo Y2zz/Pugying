@@ -17,4 +17,5 @@ export {
   SwitchTeamDto,
   InviteUserDto,
   LeaveTeamDto,
+  RegisterUserDto,
 } from './application/dtos';

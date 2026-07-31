@@ -64,7 +64,11 @@ describe('AccountService', () => {
   let teams: Map<string, Team>;
   let userRepository: any;
   let teamUserRepository: any;
-  let identityService: { resolveEffectivePermissions: jest.Mock };
+  let identityService: {
+    resolveEffectivePermissions: jest.Mock;
+    create: jest.Mock;
+    toPublicUser: jest.Mock;
+  };
   let teamService: { findOne: jest.Mock };
   let jwtService: { signAsync: jest.Mock };
   let currentTeam: FakeCurrentTeam;
@@ -103,6 +107,12 @@ describe('AccountService', () => {
     };
     identityService = {
       resolveEffectivePermissions: jest.fn().mockResolvedValue(['Identity.Users.View']),
+      create: jest.fn(),
+      toPublicUser: jest.fn((user: User) => {
+        const { passwordHash, ...safe } = user;
+        void passwordHash;
+        return safe;
+      }),
     };
     teamService = {
       findOne: jest.fn(async (id: string) => {
@@ -329,6 +339,41 @@ describe('AccountService', () => {
       const options = await service.myTeams(USER_ID);
 
       expect(options).toEqual([{ id: TEAM_A, name: `${TEAM_A}-slug`, displayName: `Team ${TEAM_A}` }]);
+    });
+  });
+
+  describe('register', () => {
+    it('creates a public user without issuing a token', async () => {
+      identityService.create.mockResolvedValue(user);
+
+      const result = await service.register({
+        email: EMAIL,
+        username: 'user',
+        password: PASSWORD,
+      });
+
+      expect(identityService.create).toHaveBeenCalledWith({
+        email: EMAIL,
+        username: 'user',
+        password: PASSWORD,
+      });
+      expect(result).toEqual({
+        id: USER_ID,
+        email: EMAIL,
+        username: 'user',
+        active: true,
+      });
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+      expect(teamUserRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('propagates email conflicts from identity', async () => {
+      identityService.create.mockRejectedValue(new ConflictException('Email already exists'));
+
+      await expect(
+        service.register({ email: EMAIL, username: 'user', password: PASSWORD }),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 

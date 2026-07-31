@@ -29,6 +29,7 @@ import {
   AccountLoginDto,
   InviteUserDto,
   LeaveTeamDto,
+  RegisterUserDto,
   SelectTeamDto,
   SwitchTeamDto,
 } from '@pugying/account-pro/application/dtos';
@@ -89,7 +90,9 @@ export class AccountService {
       user.id,
     );
     if (memberships.length === 0) {
-      throw new ForbiddenException('User does not belong to any team');
+      throw new ForbiddenException(
+        'User does not belong to any team. Ask an administrator to invite you.',
+      );
     }
 
     const teams = await this.toTeamOptions(memberships.map((m) => m.teamId));
@@ -184,6 +187,15 @@ export class AccountService {
     const memberships =
       await this.teamUserRepository.findActiveByUserId(userId);
     return this.toTeamOptions(memberships.map((m) => m.teamId));
+  }
+
+  async register(dto: RegisterUserDto) {
+    const user = await this.identityService.create({
+      email: dto.email,
+      username: dto.username,
+      password: dto.password,
+    });
+    return this.identityService.toPublicUser(user);
   }
 
   async invite(dto: InviteUserDto) {

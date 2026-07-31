@@ -176,6 +176,24 @@ export async function login(
   });
 }
 
+export interface RegisterResponse {
+  id: string;
+  email: string;
+  username: string;
+  active: boolean;
+}
+
+export async function register(body: {
+  email: string;
+  username: string;
+  password: string;
+}): Promise<RegisterResponse> {
+  return apiFetch<RegisterResponse>('/account/register', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function selectTeam(
   loginTicket: string,
   team: TeamOption,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -7,14 +7,31 @@ import { Spinner } from '@/components/ui/spinner';
 import { Logo } from '@/components/Logo';
 import { fetchMyTeams, isLoginRequiresTeamSelection, login, selectTeam, setSession, setStoredTeam, type TeamOption } from '@/lib/api';
 
+type LoginLocationState = {
+  from?: string;
+  registered?: boolean;
+  email?: string;
+} | null;
+
+function friendlyLoginError(message: string): string {
+  if (/any team/i.test(message)) {
+    return '账号尚未加入任何团队，请联系管理员邀请后再登录';
+  }
+  return message;
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const state = location.state as LoginLocationState;
+  const from = state?.from ?? '/dashboard';
 
-  const [email, setEmail] = useState('admin@pugying.local');
-  const [password, setPassword] = useState('Admin123!');
+  const [email, setEmail] = useState(state?.email ?? 'admin@pugying.local');
+  const [password, setPassword] = useState(state?.registered ? '' : 'Admin123!');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState(
+    state?.registered ? '注册成功。请等待管理员邀请加入团队后再登录。' : '',
+  );
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<TeamOption[] | null>(null);
   const [loginTicket, setLoginTicket] = useState<string | null>(null);
@@ -37,6 +54,7 @@ export default function Login() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setNotice('');
     setLoading(true);
     try {
       const result = await login(email, password);
@@ -49,7 +67,7 @@ export default function Login() {
       await resolveTeamAfterLogin(result.user.teamId);
       void navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败');
+      setError(friendlyLoginError(err instanceof Error ? err.message : '登录失败'));
     } finally {
       setLoading(false);
     }
@@ -80,6 +98,8 @@ export default function Login() {
           <p className="text-sm text-muted-foreground">admin@pugying.local / Admin123!（加入 default + demo，可测选团队）</p>
         </div>
 
+        {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+
         {teams && loginTicket ? (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">请选择要进入的团队</p>
@@ -101,49 +121,58 @@ export default function Login() {
             {error ? <FieldError>{error}</FieldError> : null}
           </div>
         ) : (
-          <form
-            onSubmit={(event) => {
-              void handleSubmit(event);
-            }}
-          >
-            <FieldGroup className="gap-4">
-              <Field data-invalid={error ? true : undefined}>
-                <FieldLabel htmlFor="email">邮箱</FieldLabel>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  aria-invalid={error ? true : undefined}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                  }}
-                  required
-                />
-              </Field>
-              <Field data-invalid={error ? true : undefined}>
-                <FieldLabel htmlFor="password">密码</FieldLabel>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  aria-invalid={error ? true : undefined}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                  }}
-                  required
-                />
-              </Field>
+          <>
+            <form
+              onSubmit={(event) => {
+                void handleSubmit(event);
+              }}
+            >
+              <FieldGroup className="gap-4">
+                <Field data-invalid={error ? true : undefined}>
+                  <FieldLabel htmlFor="email">邮箱</FieldLabel>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="username"
+                    value={email}
+                    aria-invalid={error ? true : undefined}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                    }}
+                    required
+                  />
+                </Field>
+                <Field data-invalid={error ? true : undefined}>
+                  <FieldLabel htmlFor="password">密码</FieldLabel>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    aria-invalid={error ? true : undefined}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                    }}
+                    required
+                  />
+                </Field>
 
-              {error ? <FieldError>{error}</FieldError> : null}
+                {error ? <FieldError>{error}</FieldError> : null}
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <Spinner data-icon="inline-start" /> : null}
-                {loading ? '登录中…' : '登录'}
-              </Button>
-            </FieldGroup>
-          </form>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Spinner data-icon="inline-start" /> : null}
+                  {loading ? '登录中…' : '登录'}
+                </Button>
+              </FieldGroup>
+            </form>
+
+            <p className="text-center text-sm text-muted-foreground">
+              还没有账号？{' '}
+              <Link to="/register" className="text-foreground underline-offset-4 hover:underline">
+                自行注册
+              </Link>
+            </p>
+          </>
         )}
       </div>
     </div>

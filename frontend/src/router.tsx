@@ -3,6 +3,7 @@ import App from '@/App.tsx';
 import Home from '@/pages/Home.tsx';
 import Dashboard from '@/pages/Dashboard.tsx';
 import Login from '@/pages/Login.tsx';
+import Register from '@/pages/Register.tsx';
 import { RequireAuth } from '@/components/RequireAuth.tsx';
 import { RequireAdmin } from '@/components/RequireAdmin.tsx';
 import { AdminLayout } from '@/components/layouts/AdminLayout.tsx';
@@ -19,6 +20,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/register',
+    element: <Register />,
   },
   {
     path: '/',

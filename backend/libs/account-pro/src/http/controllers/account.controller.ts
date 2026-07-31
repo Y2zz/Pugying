@@ -11,6 +11,7 @@ import {
   AccountLoginDto,
   InviteUserDto,
   LeaveTeamDto,
+  RegisterUserDto,
   SelectTeamDto,
   SwitchTeamDto,
 } from '@pugying/account-pro/application/dtos';
@@ -26,6 +27,13 @@ export class AccountController {
   @ApiOperation({ summary: '共享账户登录（可能需要选择团队）' })
   login(@Body() dto: AccountLoginDto) {
     return this.accountService.login(dto);
+  }
+
+  @Public()
+  @Post('register')
+  @ApiOperation({ summary: '自行注册账号（注册后需管理员邀请加入团队才能登录）' })
+  register(@Body() dto: RegisterUserDto) {
+    return this.accountService.register(dto);
   }
 
   @Public()

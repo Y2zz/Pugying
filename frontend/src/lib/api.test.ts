@@ -11,6 +11,7 @@ import {
   isLoginRequiresTeamSelection,
   login,
   refreshClaims,
+  register,
   selectTeam,
   setSession,
   setStoredTeam,
@@ -365,6 +366,31 @@ describe('auth and team flows', () => {
     expect(bodyOf(fetchCalls[0])).toEqual({ teamId: 'team-2' });
     expect(getTeamId()).toBe('team-2');
     expect(getStoredTeam()).toEqual(otherTeam);
+  });
+
+  it('register posts email username and password', async () => {
+    stubFetch(
+      fakeResponse(200, {
+        id: 'user-new',
+        email: 'new@example.com',
+        username: 'newbie',
+        active: true,
+      }),
+    );
+
+    const result = await register({
+      email: 'new@example.com',
+      username: 'newbie',
+      password: 'Secret123!',
+    });
+
+    expect(result.username).toBe('newbie');
+    expect(fetchCalls[0].url).toContain('/account/register');
+    expect(bodyOf(fetchCalls[0])).toEqual({
+      email: 'new@example.com',
+      username: 'newbie',
+      password: 'Secret123!',
+    });
   });
 
   it('refreshClaims keeps stored team info when the team id still matches', async () => {

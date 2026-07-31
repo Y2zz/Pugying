@@ -213,4 +213,62 @@ describe('Account login / team membership flows (e2e)', () => {
         .expect(404);
     });
   });
+
+  describe('self-register', () => {
+    const registrant = {
+      email: 'newbie@pugying.local',
+      username: 'newbie',
+      password: 'Newbie123!',
+    };
+
+    it('registers a new user without a token (201)', async () => {
+      const res = await request(server()).post('/account/register').send(registrant).expect(201);
+
+      expect(res.body.email).toBe(registrant.email);
+      expect(res.body.username).toBe(registrant.username);
+      expect(res.body.id).toBeDefined();
+      expect(res.body.accessToken).toBeUndefined();
+      expect(res.body.passwordHash).toBeUndefined();
+    });
+
+    it('registered user cannot login until invited (403)', async () => {
+      const res = await request(server())
+        .post('/account/login')
+        .send({ email: registrant.email, password: registrant.password })
+        .expect(403);
+
+      expect(res.body.message).toMatch(/any team/i);
+    });
+
+    it('duplicate email yields 409', async () => {
+      await request(server())
+        .post('/account/register')
+        .send({ ...registrant, username: 'newbie-2' })
+        .expect(409);
+    });
+
+    it('short password yields 400', async () => {
+      await request(server())
+        .post('/account/register')
+        .send({ email: 'shortpw@pugying.local', username: 'shortpw', password: '123' })
+        .expect(400);
+    });
+
+    it('admin can invite the registrant and they can then login', async () => {
+      await request(server())
+        .post('/account/invite')
+        .set('Authorization', `Bearer ${admin.accessToken}`)
+        .set('X-Team-Id', admin.teamId)
+        .send({ email: registrant.email, teamId: defaultTeamId })
+        .expect(201);
+
+      const loginRes = await request(server())
+        .post('/account/login')
+        .send({ email: registrant.email, password: registrant.password })
+        .expect(201);
+
+      expect(loginRes.body.accessToken).toBeDefined();
+      expect(loginRes.body.user.teamId).toBe(defaultTeamId);
+    });
+  });
 });
