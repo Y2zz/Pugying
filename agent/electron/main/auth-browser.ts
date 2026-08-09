@@ -1011,7 +1011,7 @@ function normalizeSameSite(
  * backend copy is authoritative: every window close writes refreshed
  * cookies back, so seeding from it can only move the session forward.
  */
-async function injectCookies(
+export async function injectCookies(
   browseSession: Session,
   cookies: AgentCookie[],
 ): Promise<void> {

@@ -112,7 +112,11 @@ describe('agent WebSocket server', () => {
           'platform.auth.progress',
           'platform.auth.cancel',
           'platform.open.start',
+          'platform.publish.start',
+          'platform.publish.progress',
+          'platform.publish.cancel',
         ],
+        busy: { publish: false },
       });
     } finally {
       await client.close();

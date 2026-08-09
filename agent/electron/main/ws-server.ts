@@ -4,6 +4,7 @@ import {
   startAuthBrowser,
   startCreatorBrowser,
 } from './auth-browser';
+import { cancelPublishJob, isPublishBusy, startPublishJob } from './publish-job';
 import {
   AGENT_VERSION,
   AGENT_WS_HOST,
@@ -17,12 +18,16 @@ import {
   type PlatformOpenClosedPayload,
   type PlatformOpenResultPayload,
   type PlatformOpenStartPayload,
+  type PlatformPublishProgressPayload,
+  type PlatformPublishResultPayload,
+  type PlatformPublishStartPayload,
 } from './protocol';
 
 const clients = new Set<WebSocket>();
 
 /** requestId -> sockets waiting for result (usually one) */
 const pendingAuth = new Map<string, Set<WebSocket>>();
+const pendingPublish = new Map<string, Set<WebSocket>>();
 
 export function getConnectedClientCount(): number {
   return clients.size;
@@ -89,6 +94,73 @@ function broadcastOpenClosed(payload: PlatformOpenClosedPayload): void {
   }
 }
 
+function broadcastPublishProgress(progress: PlatformPublishProgressPayload): void {
+  const waiters = pendingPublish.get(progress.requestId);
+  const message: AgentEnvelope = {
+    type: 'platform.publish.progress',
+    payload: progress,
+  };
+  if (waiters && waiters.size > 0) {
+    for (const socket of waiters) {
+      send(socket, message);
+    }
+    return;
+  }
+  for (const socket of clients) {
+    send(socket, message);
+  }
+}
+
+function broadcastPublishResult(
+  requestId: string,
+  messageId: string | undefined,
+  result: PlatformPublishResultPayload,
+): void {
+  const waiters = pendingPublish.get(requestId);
+  const payloadMsg: AgentEnvelope = {
+    type: 'platform.publish.result',
+    id: messageId,
+    payload: result,
+  };
+  if (waiters) {
+    for (const socket of waiters) {
+      send(socket, payloadMsg);
+    }
+    pendingPublish.delete(requestId);
+  } else {
+    for (const socket of clients) {
+      send(socket, payloadMsg);
+    }
+  }
+  broadcastAgentHello();
+}
+
+function buildHelloPayload() {
+  return {
+    version: AGENT_VERSION,
+    capabilities: [
+      'ping',
+      'platform.auth.start',
+      'platform.auth.progress',
+      'platform.auth.cancel',
+      'platform.open.start',
+      'platform.publish.start',
+      'platform.publish.progress',
+      'platform.publish.cancel',
+    ],
+    busy: {
+      publish: isPublishBusy(),
+    },
+  };
+}
+
+function broadcastAgentHello(): void {
+  const payload = buildHelloPayload();
+  for (const socket of clients) {
+    send(socket, { type: 'agent.hello', payload });
+  }
+}
+
 export function startAgentWsServer(): WebSocketServer {
   const wss = new WebSocketServer({
     host: AGENT_WS_HOST,
@@ -99,16 +171,7 @@ export function startAgentWsServer(): WebSocketServer {
     clients.add(socket);
     send(socket, {
       type: 'agent.hello',
-      payload: {
-        version: AGENT_VERSION,
-        capabilities: [
-          'ping',
-          'platform.auth.start',
-          'platform.auth.progress',
-          'platform.auth.cancel',
-          'platform.open.start',
-        ],
-      },
+      payload: buildHelloPayload(),
     });
 
     socket.on('message', (data) => {
@@ -246,6 +309,78 @@ export function startAgentWsServer(): WebSocketServer {
         });
         return;
       }
+
+      if (message.type === 'platform.publish.cancel') {
+        const payload = message.payload as { requestId?: string } | undefined;
+        const requestId = payload?.requestId ?? '';
+        const ok = cancelPublishJob(requestId);
+        if (!ok) {
+          send(socket, {
+            type: 'platform.publish.result',
+            id: message.id,
+            payload: {
+              requestId,
+              targetId: '',
+              ok: false,
+              error: 'not_found',
+            },
+          });
+        } else {
+          broadcastAgentHello();
+        }
+        return;
+      }
+
+      if (message.type === 'platform.publish.start') {
+        const payload = message.payload as PlatformPublishStartPayload | undefined;
+        const requestId = payload?.requestId?.trim() ?? '';
+        const targetId = payload?.targetId?.trim() ?? '';
+        const reply = (extra: Partial<PlatformPublishResultPayload>) => {
+          send(socket, {
+            type: 'platform.publish.result',
+            id: message.id,
+            payload: {
+              requestId,
+              targetId,
+              ok: false,
+              ...extra,
+            },
+          });
+        };
+
+        if (!payload || !requestId || !targetId) {
+          reply({ error: 'invalid_payload' });
+          return;
+        }
+
+        let waiters = pendingPublish.get(requestId);
+        if (!waiters) {
+          waiters = new Set();
+          pendingPublish.set(requestId, waiters);
+        }
+        waiters.add(socket);
+
+        const started = startPublishJob({
+          payload,
+          onProgress: (progress) => {
+            broadcastPublishProgress(progress);
+          },
+          onResult: (result) => {
+            broadcastPublishResult(requestId, message.id, result);
+          },
+        });
+
+        if ('error' in started) {
+          pendingPublish.delete(requestId);
+          reply({
+            error: started.error,
+            platform: payload.platform,
+          });
+        } else {
+          broadcastAgentHello();
+        }
+        return;
+      }
     });
 
     const forget = () => {
@@ -254,6 +389,12 @@ export function startAgentWsServer(): WebSocketServer {
         waiters.delete(socket);
         if (waiters.size === 0) {
           pendingAuth.delete(requestId);
+        }
+      }
+      for (const [requestId, waiters] of pendingPublish) {
+        waiters.delete(socket);
+        if (waiters.size === 0) {
+          pendingPublish.delete(requestId);
         }
       }
     };

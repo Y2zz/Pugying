@@ -14,6 +14,10 @@ export type AgentMessageType =
   | 'platform.open.start'
   | 'platform.open.result'
   | 'platform.open.closed'
+  | 'platform.publish.start'
+  | 'platform.publish.progress'
+  | 'platform.publish.result'
+  | 'platform.publish.cancel'
   | 'error';
 
 export interface AgentEnvelope<T = unknown> {
@@ -25,6 +29,9 @@ export interface AgentEnvelope<T = unknown> {
 export interface AgentHelloPayload {
   version: string;
   capabilities: string[];
+  busy?: {
+    publish?: boolean;
+  };
 }
 
 export interface PlatformAuthStartPayload {
@@ -108,6 +115,17 @@ export interface PlatformOpenClosedPayload {
   profile?: AgentProfile;
 }
 
+export function encodeAgentMessage(message: AgentEnvelope): string {
+  const out: Record<string, unknown> = { type: message.type };
+  if (message.id !== undefined) {
+    out.id = message.id;
+  }
+  if (message.payload !== undefined) {
+    out.payload = message.payload;
+  }
+  return JSON.stringify(out);
+}
+
 export function parseAgentMessage(raw: string): AgentEnvelope | null {
   try {
     const data = JSON.parse(raw) as AgentEnvelope;
@@ -120,6 +138,11 @@ export function parseAgentMessage(raw: string): AgentEnvelope | null {
   }
 }
 
-export function encodeAgentMessage(message: AgentEnvelope): string {
-  return JSON.stringify(message);
-}
+export type {
+  PlatformPublishCancelPayload,
+  PlatformPublishProgressPayload,
+  PlatformPublishProgressPhase,
+  PlatformPublishResultPayload,
+  PlatformPublishStartPayload,
+} from './publish-protocol';
+
