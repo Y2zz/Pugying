@@ -117,7 +117,9 @@ export async function apiFetch<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  if (!headers.has('Content-Type') && init.body) {
+  const isFormData =
+    typeof FormData !== 'undefined' && init.body instanceof FormData;
+  if (!headers.has('Content-Type') && init.body && !isFormData) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -359,6 +361,13 @@ export async function fetchPlatformAccountCredentials(
 export type ContentType = 'article' | 'video';
 export type ContentStatus = 'draft' | 'published';
 export type ContentVisibility = 'public' | 'friends' | 'private';
+export type TargetPublishStatus =
+  | 'idle'
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
 
 /** 针对单个账号的差异字段；未设置的字段使用内容通用设置 */
 export interface ContentTargetOverrides {
@@ -376,6 +385,13 @@ export interface ContentTargetItem {
   platformAccountId: string;
   platform: PlatformId;
   overrides: ContentTargetOverrides;
+  publishStatus: TargetPublishStatus;
+  platformPostId: string | null;
+  platformUrl: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -387,6 +403,7 @@ export interface ContentItem {
   title: string;
   body: string | null;
   coverUrl: string | null;
+  coverLandscapeUrl: string | null;
   mediaUrls: string[];
   status: ContentStatus;
   publishedAt: string | null;
@@ -410,6 +427,7 @@ export interface CreateContentBody {
   title: string;
   body?: string;
   coverUrl?: string;
+  coverLandscapeUrl?: string;
   mediaUrls?: string[];
   status?: ContentStatus;
   tags?: string[];
@@ -421,6 +439,99 @@ export interface CreateContentBody {
 }
 
 export type UpdateContentBody = Partial<Omit<CreateContentBody, 'type'>>;
+
+export interface PublishCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  expirationDate?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: string;
+}
+
+export interface PublishDispatch {
+  targetId: string;
+  platform: string;
+  accountId: string;
+  mediaUrl: string;
+  coverUrl: string;
+  coverLandscapeUrl: string;
+  title: string;
+  body?: string;
+  visibility: string;
+  scheduledAt?: string;
+  allowDownload: boolean;
+  cookies: PublishCookie[];
+  mediaExpiresAt: number;
+  coverExpiresAt: number;
+}
+
+export interface PublishStartResult {
+  content: ContentItem;
+  dispatches: PublishDispatch[];
+}
+
+export interface MediaUploadInitResult {
+  uploadId: string;
+  chunkSize: number;
+  chunkCount: number;
+}
+
+export interface MediaAssetResult {
+  id: string;
+  kind: 'video' | 'cover' | 'cover_landscape';
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  checksumSha256?: string;
+}
+
+export type MediaLibraryCategory = 'video' | 'image';
+
+export interface MediaLibraryItem extends MediaAssetResult {
+  category: MediaLibraryCategory;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MediaDuplicateHit {
+  id: string;
+  kind: 'video' | 'cover' | 'cover_landscape';
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  checksumSha256: string;
+  createdAt: string;
+}
+
+export async function checkMediaDuplicate(body: {
+  kind: 'video' | 'cover' | 'cover_landscape';
+  checksumSha256: string;
+}): Promise<{ duplicate: MediaDuplicateHit | null }> {
+  return apiFetch<{ duplicate: MediaDuplicateHit | null }>(
+    '/media/assets/check-duplicate',
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function fetchMediaAssets(
+  type?: 'all' | MediaLibraryCategory,
+): Promise<MediaLibraryItem[]> {
+  const query =
+    type && type !== 'all' ? `?type=${encodeURIComponent(type)}` : '';
+  return apiFetch<MediaLibraryItem[]>(`/media/assets${query}`);
+}
+
+export async function deleteMediaAsset(id: string): Promise<void> {
+  await apiFetch(`/media/assets/${id}`, { method: 'DELETE' });
+}
 
 export async function fetchContents(
   type?: ContentType,
@@ -456,6 +567,147 @@ export async function deleteContent(id: string): Promise<void> {
   await apiFetch<void>(`/contents/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function publishContent(id: string): Promise<PublishStartResult> {
+  return apiFetch<PublishStartResult>(`/contents/${id}/publish`, {
+    method: 'POST',
+  });
+}
+
+export async function startContentTarget(
+  contentId: string,
+  targetId: string,
+): Promise<{ target: ContentTargetItem; dispatch: PublishDispatch }> {
+  return apiFetch(`/contents/${contentId}/targets/${targetId}/start`, {
+    method: 'POST',
+  });
+}
+
+export async function completeContentTarget(
+  contentId: string,
+  targetId: string,
+  body: {
+    ok: boolean;
+    errorCode?: string;
+    errorMessage?: string;
+    platformPostId?: string;
+    platformUrl?: string;
+  },
+): Promise<ContentTargetItem> {
+  return apiFetch(`/contents/${contentId}/targets/${targetId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function cancelContentTarget(
+  contentId: string,
+  targetId: string,
+): Promise<ContentTargetItem> {
+  return apiFetch(`/contents/${contentId}/targets/${targetId}/cancel`, {
+    method: 'POST',
+  });
+}
+
+export async function retryContentTarget(
+  contentId: string,
+  targetId: string,
+): Promise<{ target: ContentTargetItem; dispatch: PublishDispatch }> {
+  return apiFetch(`/contents/${contentId}/targets/${targetId}/retry`, {
+    method: 'POST',
+  });
+}
+
+export async function initMediaUpload(body: {
+  kind: 'video' | 'cover' | 'cover_landscape';
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  chunkSize?: number;
+}): Promise<MediaUploadInitResult> {
+  return apiFetch<MediaUploadInitResult>('/media/uploads', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function putMediaChunk(
+  uploadId: string,
+  index: number,
+  chunk: Blob,
+): Promise<{ received: number; chunkCount: number }> {
+  const form = new FormData();
+  form.append('chunk', chunk, `chunk-${index}`);
+  return apiFetch(`/media/uploads/${uploadId}/chunks/${index}`, {
+    method: 'PUT',
+    body: form,
+  });
+}
+
+export async function completeMediaUpload(
+  uploadId: string,
+): Promise<MediaAssetResult> {
+  return apiFetch<MediaAssetResult>(`/media/uploads/${uploadId}/complete`, {
+    method: 'POST',
+  });
+}
+
+export async function fetchMediaSignedUrl(
+  assetId: string,
+): Promise<{ url: string; expiresAt: number }> {
+  return apiFetch<{ url: string; expiresAt: number }>(
+    `/media/assets/${assetId}/signed-url`,
+    { method: 'POST' },
+  );
+}
+
+/** 从 `/media/assets/{uuid}` 或裸 UUID 解析资产 ID */
+export function parseMediaAssetId(ref: string | null | undefined): string | null {
+  if (!ref?.trim()) {
+    return null;
+  }
+  const trimmed = ref.trim();
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (uuid.test(trimmed)) {
+    return trimmed;
+  }
+  const match = trimmed.match(
+    /\/media\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\/|$|\?)/i,
+  );
+  return match?.[1] ?? null;
+}
+
+/** 分片上传本地文件到团队库，返回资产（url 形如 /media/assets/{id}） */
+export async function uploadMediaFile(
+  file: File,
+  kind: 'video' | 'cover' | 'cover_landscape',
+  onProgress?: (ratio: number) => void,
+  signal?: AbortSignal,
+): Promise<MediaAssetResult> {
+  const throwIfAborted = () => {
+    if (signal?.aborted) {
+      // 与 UI「取消上传」文案对齐，便于页面直接展示
+      throw new DOMException('上传已取消', 'AbortError');
+    }
+  };
+  throwIfAborted();
+  const init = await initMediaUpload({
+    kind,
+    originalName: file.name,
+    mimeType: file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg'),
+    sizeBytes: file.size,
+  });
+  for (let i = 0; i < init.chunkCount; i += 1) {
+    throwIfAborted();
+    const start = i * init.chunkSize;
+    const end = Math.min(file.size, start + init.chunkSize);
+    await putMediaChunk(init.uploadId, i, file.slice(start, end));
+    onProgress?.((i + 1) / init.chunkCount);
+  }
+  throwIfAborted();
+  return completeMediaUpload(init.uploadId);
 }
 
 export interface TeamMember {

@@ -13,6 +13,10 @@ export type AgentMessageType =
   | 'platform.open.start'
   | 'platform.open.result'
   | 'platform.open.closed'
+  | 'platform.publish.start'
+  | 'platform.publish.progress'
+  | 'platform.publish.result'
+  | 'platform.publish.cancel'
   | 'error';
 
 export interface AgentEnvelope<T = unknown> {
@@ -24,6 +28,9 @@ export interface AgentEnvelope<T = unknown> {
 export interface AgentHelloPayload {
   version: string;
   capabilities: string[];
+  busy?: {
+    publish?: boolean;
+  };
 }
 
 export interface AgentCookie {
@@ -86,9 +93,52 @@ export interface CreatorWindowClosedEvent {
   profile?: AgentProfile;
 }
 
+export type PlatformPublishProgressPhase =
+  | 'accepted'
+  | 'fetching_media'
+  | 'opening_creator'
+  | 'uploading'
+  | 'submitting'
+  | 'done';
+
+export interface PlatformPublishStartInput {
+  targetId: string;
+  platform: string;
+  accountId: string;
+  mediaUrl: string;
+  coverUrl: string;
+  coverLandscapeUrl: string;
+  title: string;
+  body?: string;
+  visibility?: string;
+  scheduledAt?: string;
+  allowDownload?: boolean;
+  cookies: AgentCookie[];
+}
+
+export interface PlatformPublishProgress {
+  requestId: string;
+  targetId: string;
+  platform: string;
+  phase: PlatformPublishProgressPhase;
+  message?: string;
+}
+
+export interface PlatformPublishResult {
+  requestId: string;
+  targetId: string;
+  ok: boolean;
+  error?: string;
+  errorCode?: string;
+  platform?: string;
+  platformPostId?: string;
+  platformUrl?: string;
+}
+
 type StatusListener = (status: AgentConnectionStatus) => void;
 type HelloListener = (hello: AgentHelloPayload | null) => void;
 type CreatorClosedListener = (event: CreatorWindowClosedEvent) => void;
+type PublishProgressListener = (event: PlatformPublishProgress) => void;
 
 function encode(message: AgentEnvelope): string {
   return JSON.stringify(message);
@@ -122,6 +172,7 @@ class AgentClient {
   private readonly statusListeners = new Set<StatusListener>();
   private readonly helloListeners = new Set<HelloListener>();
   private readonly creatorClosedListeners = new Set<CreatorClosedListener>();
+  private readonly publishProgressListeners = new Set<PublishProgressListener>();
   private pingSeq = 0;
 
   getStatus(): AgentConnectionStatus {
@@ -157,6 +208,14 @@ class AgentClient {
     this.creatorClosedListeners.add(listener);
     return () => {
       this.creatorClosedListeners.delete(listener);
+    };
+  }
+
+  /** Progress events for an in-flight platform.publish job. */
+  subscribePublishProgress(listener: PublishProgressListener): () => void {
+    this.publishProgressListeners.add(listener);
+    return () => {
+      this.publishProgressListeners.delete(listener);
     };
   }
 
@@ -196,6 +255,14 @@ class AgentClient {
         const payload = message.payload as CreatorWindowClosedEvent | undefined;
         if (payload?.accountId) {
           for (const listener of this.creatorClosedListeners) {
+            listener(payload);
+          }
+        }
+      }
+      if (message.type === 'platform.publish.progress') {
+        const payload = message.payload as PlatformPublishProgress | undefined;
+        if (payload?.requestId) {
+          for (const listener of this.publishProgressListeners) {
             listener(payload);
           }
         }
@@ -403,6 +470,90 @@ class AgentClient {
           },
         }),
       );
+    });
+  }
+
+  /**
+   * Ask the Agent to publish one content target (P0: Douyin video stub/adapter).
+   * Resolves with the final result; progress arrives via subscribePublishProgress.
+   */
+  startPublish(
+    input: PlatformPublishStartInput,
+    options?: { timeoutMs?: number },
+  ): Promise<PlatformPublishResult> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        reject(new Error('Agent 未连接'));
+        return;
+      }
+
+      const requestId = createId('pub');
+      const messageId = createId('msg');
+      const socket = this.socket;
+      const timeoutMs = options?.timeoutMs ?? 15 * 60 * 1000;
+
+      const cleanup = () => {
+        socket.removeEventListener('message', onMessage);
+        clearTimeout(timer);
+      };
+
+      const onMessage = (event: MessageEvent) => {
+        const message = parse(String(event.data));
+        if (message?.type !== 'platform.publish.result') {
+          return;
+        }
+        const payload = message.payload as PlatformPublishResult | undefined;
+        if (!payload || payload.requestId !== requestId) {
+          return;
+        }
+        cleanup();
+        resolve(payload);
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        void this.cancelPublish(requestId);
+        reject(new Error('发布超时'));
+      }, timeoutMs);
+
+      socket.addEventListener('message', onMessage);
+      socket.send(
+        encode({
+          type: 'platform.publish.start',
+          id: messageId,
+          payload: {
+            requestId,
+            targetId: input.targetId,
+            platform: input.platform,
+            accountId: input.accountId,
+            mediaUrl: input.mediaUrl,
+            coverUrl: input.coverUrl,
+            coverLandscapeUrl: input.coverLandscapeUrl,
+            title: input.title,
+            body: input.body,
+            visibility: input.visibility,
+            scheduledAt: input.scheduledAt,
+            allowDownload: input.allowDownload,
+            cookies: input.cookies,
+          },
+        }),
+      );
+    });
+  }
+
+  cancelPublish(requestId: string): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+      this.socket.send(
+        encode({
+          type: 'platform.publish.cancel',
+          payload: { requestId },
+        }),
+      );
+      resolve();
     });
   }
 

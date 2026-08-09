@@ -9,6 +9,8 @@ const useAgentMock = vi.hoisted(() =>
     version: null as string | null,
     capabilities: [] as string[],
     connected: false,
+    publishBusy: false,
+    canPublish: false,
     ping: vi.fn(),
   })),
 );
@@ -24,6 +26,8 @@ describe('AgentStatusBadge (SSR)', () => {
       version: null,
       capabilities: [],
       connected: false,
+      publishBusy: false,
+      canPublish: false,
       ping: vi.fn(),
     });
   });
@@ -41,6 +45,8 @@ describe('AgentStatusBadge (SSR)', () => {
       version: null,
       capabilities: [],
       connected: false,
+      publishBusy: false,
+      canPublish: false,
       ping: vi.fn(),
     });
 
@@ -60,6 +66,8 @@ describe('AgentStatusBadge (SSR)', () => {
       version: '1.0.0',
       capabilities: [],
       connected: true,
+      publishBusy: false,
+      canPublish: true,
       ping: vi.fn(),
     });
 

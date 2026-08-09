@@ -28,6 +28,11 @@ export function useAgent() {
     version: hello?.version ?? null,
     capabilities: hello?.capabilities ?? [],
     connected: status === 'connected',
+    publishBusy: hello?.busy?.publish === true,
+    canPublish:
+      status === 'connected' &&
+      (hello?.capabilities.includes('platform.publish.start') ?? false) &&
+      hello?.busy?.publish !== true,
     ping: () => agentClient.ping(),
   };
 }
