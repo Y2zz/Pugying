@@ -27,6 +27,12 @@ export class TypeOrmContentTargetRepository
     return this.repo.create(data);
   }
 
+  async findById(id: string): Promise<ContentTarget | null> {
+    return this.repo.findOne(
+      this.teamFilter.applyOne<ContentTarget>({ where: { id } }),
+    );
+  }
+
   async findByContent(contentId: string): Promise<ContentTarget[]> {
     return this.repo.find(
       this.teamFilter.applyMany<ContentTarget>({
@@ -46,6 +52,10 @@ export class TypeOrmContentTargetRepository
         order: { createdAt: 'ASC' },
       }),
     );
+  }
+
+  async save(target: ContentTarget): Promise<ContentTarget> {
+    return this.repo.save(target);
   }
 
   async saveMany(targets: ContentTarget[]): Promise<ContentTarget[]> {

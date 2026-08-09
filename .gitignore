@@ -12,5 +12,6 @@ backend/.seed_probe
 .env
 backend/pugying.db
 backend/*.db
+backend/data/
 
 /test-reports/

@@ -26,6 +26,7 @@ function createContent(overrides: Partial<Content> = {}): Content {
     title: '标题',
     body: null,
     coverUrl: null,
+    coverLandscapeUrl: null,
     mediaUrls: [],
     status: 'draft',
     publishedAt: null,

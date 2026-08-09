@@ -19,12 +19,15 @@ export class Content extends SoftDeleteAuditedEntity implements IMultiTeam {
   @ApiPropertyOptional({ description: '正文（图文）/ 简介（视频）' })
   body: string | null;
 
-  @ApiPropertyOptional({ description: '封面图 URL' })
+  @ApiPropertyOptional({ description: '竖版封面 URL（3:4，视频必填）' })
   coverUrl: string | null;
+
+  @ApiPropertyOptional({ description: '横版封面 URL（16:9；抖音等平台必填）' })
+  coverLandscapeUrl: string | null;
 
   @ApiProperty({
     type: [String],
-    description: '素材列表：图文为图片 URL，视频为视频 URL',
+    description: '素材列表：图文为图片 URL，视频为团队库视频地址',
   })
   mediaUrls: string[];
 

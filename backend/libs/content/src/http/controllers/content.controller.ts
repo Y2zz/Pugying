@@ -18,8 +18,10 @@ import {
 import { RequirePermission } from '@pugying/core';
 import {
   CreateContentDto,
+  ReportPublishResultDto,
   UpdateContentDto,
 } from '@pugying/content/application/dtos';
+import { ContentPublishService } from '@pugying/content/application/services/content-publish.service';
 import { ContentService } from '@pugying/content/application/services/content.service';
 import { ContentPermissions } from '@pugying/content/content.permissions';
 
@@ -27,7 +29,10 @@ import { ContentPermissions } from '@pugying/content/content.permissions';
 @ApiBearerAuth()
 @Controller('contents')
 export class ContentController {
-  constructor(private readonly service: ContentService) {}
+  constructor(
+    private readonly service: ContentService,
+    private readonly publishService: ContentPublishService,
+  ) {}
 
   @Get()
   @RequirePermission(ContentPermissions.Contents.View)
@@ -66,5 +71,55 @@ export class ContentController {
   @ApiOperation({ summary: '删除（软删）内容' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);
+  }
+
+  @Post(':id/publish')
+  @RequirePermission(ContentPermissions.Contents.Update)
+  @ApiOperation({
+    summary: '幂等发布：入队未成功 Target，下发签名 URL + Cookie（浏览器编排 Agent）',
+  })
+  publish(@Param('id', ParseUUIDPipe) id: string) {
+    return this.publishService.publish(id);
+  }
+
+  @Post(':id/targets/:targetId/start')
+  @RequirePermission(ContentPermissions.Contents.Update)
+  @ApiOperation({ summary: '开始执行单个 Target（queued → running）并刷新下发载荷' })
+  startTarget(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+  ) {
+    return this.publishService.startTarget(id, targetId);
+  }
+
+  @Post(':id/targets/:targetId/complete')
+  @RequirePermission(ContentPermissions.Contents.Update)
+  @ApiOperation({ summary: '回写单个 Target 发布结果' })
+  completeTarget(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+    @Body() dto: ReportPublishResultDto,
+  ) {
+    return this.publishService.completeTarget(id, targetId, dto);
+  }
+
+  @Post(':id/targets/:targetId/cancel')
+  @RequirePermission(ContentPermissions.Contents.Update)
+  @ApiOperation({ summary: '取消单个 Target（queued / running）' })
+  cancelTarget(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+  ) {
+    return this.publishService.cancelTarget(id, targetId);
+  }
+
+  @Post(':id/targets/:targetId/retry')
+  @RequirePermission(ContentPermissions.Contents.Update)
+  @ApiOperation({ summary: '重试失败/已取消 Target，返回下发载荷' })
+  retryTarget(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+  ) {
+    return this.publishService.retryTarget(id, targetId);
   }
 }

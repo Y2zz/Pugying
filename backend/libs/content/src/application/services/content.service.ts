@@ -102,6 +102,7 @@ export class ContentService {
       title: dto.title.trim(),
       body: dto.body?.trim() || null,
       coverUrl: dto.coverUrl?.trim() || null,
+      coverLandscapeUrl: dto.coverLandscapeUrl?.trim() || null,
       mediaUrls: this.normalizeList(dto.mediaUrls),
       status,
       publishedAt: status === 'published' ? new Date() : null,
@@ -130,6 +131,9 @@ export class ContentService {
     }
     if (dto.coverUrl !== undefined) {
       content.coverUrl = dto.coverUrl.trim() || null;
+    }
+    if (dto.coverLandscapeUrl !== undefined) {
+      content.coverLandscapeUrl = dto.coverLandscapeUrl.trim() || null;
     }
     if (dto.mediaUrls !== undefined) {
       content.mediaUrls = this.normalizeList(dto.mediaUrls);
@@ -203,6 +207,13 @@ export class ContentService {
         platformAccountId: account.id,
         platform: account.platform,
         overrides: this.sanitizeOverrides(target.overrides),
+        publishStatus: 'idle',
+        platformPostId: null,
+        platformUrl: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: null,
+        finishedAt: null,
       });
     }
     return prepared;
@@ -212,6 +223,16 @@ export class ContentService {
     content: Content,
     prepared: Partial<ContentTarget>[],
   ): Promise<ContentTarget[]> {
+    const existing = await this.targetRepository.findByContent(content.id);
+    const busy = existing.some(
+      (target) =>
+        target.publishStatus === 'queued' || target.publishStatus === 'running',
+    );
+    if (busy) {
+      throw new BadRequestException(
+        '发布进行中，无法修改分发账号；请等待完成或取消后再试',
+      );
+    }
     await this.targetRepository.deleteByContent(content.id);
     if (prepared.length === 0) {
       return [];

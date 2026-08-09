@@ -28,6 +28,10 @@ export const ContentEntitySchema = new EntitySchema<Content>({
       type: String,
       nullable: true,
     },
+    coverLandscapeUrl: {
+      type: String,
+      nullable: true,
+    },
     mediaUrls: {
       type: 'simple-json',
       default: '[]',

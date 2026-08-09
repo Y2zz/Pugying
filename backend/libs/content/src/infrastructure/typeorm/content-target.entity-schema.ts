@@ -27,6 +27,34 @@ export const ContentTargetEntitySchema = new EntitySchema<ContentTarget>({
       type: 'simple-json',
       default: '{}',
     },
+    publishStatus: {
+      type: String,
+      default: 'idle',
+    },
+    platformPostId: {
+      type: String,
+      nullable: true,
+    },
+    platformUrl: {
+      type: String,
+      nullable: true,
+    },
+    errorCode: {
+      type: String,
+      nullable: true,
+    },
+    errorMessage: {
+      type: 'text',
+      nullable: true,
+    },
+    startedAt: {
+      type: Date,
+      nullable: true,
+    },
+    finishedAt: {
+      type: Date,
+      nullable: true,
+    },
     createdAt: {
       type: Date,
       createDate: true,
@@ -44,6 +72,10 @@ export const ContentTargetEntitySchema = new EntitySchema<ContentTarget>({
     {
       name: 'IDX_content_target_team_account',
       columns: ['teamId', 'platformAccountId'],
+    },
+    {
+      name: 'IDX_content_target_publish_status',
+      columns: ['teamId', 'publishStatus'],
     },
   ],
   uniques: [

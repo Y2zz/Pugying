@@ -29,10 +29,15 @@ export class UpdateContentDto {
   @IsString()
   body?: string;
 
-  @ApiPropertyOptional({ description: '封面图 URL' })
+  @ApiPropertyOptional({ description: '竖版封面 URL（3:4）' })
   @IsOptional()
   @IsString()
   coverUrl?: string;
+
+  @ApiPropertyOptional({ description: '横版封面 URL（16:9；抖音等平台必填）' })
+  @IsOptional()
+  @IsString()
+  coverLandscapeUrl?: string;
 
   @ApiPropertyOptional({ type: [String], description: '素材列表' })
   @IsOptional()
