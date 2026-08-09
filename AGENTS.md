@@ -33,9 +33,13 @@ Pugying（蒲公英）是一套**私有化部署**的自媒体内容发布系统
 | `@pugying/typeorm` | 开源 | TypeORM 框架层：Sqlite 连接、UoW 实现、团队查询过滤 |
 | `@pugying/account-pro` | 商业 | 共享用户账户（一账号多团队、登录选团队、切换团队）；`CommercialModuleRegistry` 自注册 |
 | `@pugying/platform-account` | 开源 | 平台账号绑定（抖音/头条/视频号/B 站/小红书）；Cookie 加密存储；含 `PlatformAccountTypeOrmModule` |
-| `@pugying/*-pro`（规划） | 商业 | 高阶能力（如高级发布、多平台适配等），宿主通过 `imports` 装配 |
+| `@pugying/content` | 开源 | 图文/短视频内容、分发 Target 状态机、团队媒体库（分片上传 + 签名下载）、发布编排 API；含 `ContentTypeOrmModule`；媒体二进制默认落**本机目录**（单实例） |
+| `@pugying/media-storage-pro`（规划） | 商业 | 高阶媒体存储（共享卷 / S3 兼容对象存储），覆盖 `IMediaStorage`，支持 K8s 多 Pod |
+| `@pugying/*-pro`（规划） | 商业 | 其它高阶能力（如高级发布、多平台适配等），宿主通过 `imports` 装配 |
 
 商业包不得改开源源码；通过依赖 `@pugying/core` 的 `CommercialModuleRegistry` 自注册，并在宿主 `AppModule` 中与开源模块同级 `imports`。
+
+媒体存储边界详见 [`docs/media-storage.md`](docs/media-storage.md)：开源版按单机本地盘设计；多副本与对象存储属商业版。
 
 ## 技术栈
 
@@ -168,10 +172,14 @@ Pugying/
 │   │   ├── team-management/  # 团队 + infrastructure/typeorm
 │   │   ├── account-pro/      # 商业：共享用户账户
 │   │   ├── platform-account/ # 平台账号绑定 + 加密凭证
+│   │   ├── content/          # 内容 CRUD + 媒体库 + 发布编排
+│   │   ├── media-storage-pro/# 商业（规划）：多副本 / 对象存储媒体后端
 │   │   └── typeorm/          # @pugying/typeorm 连接 + UoW + 团队过滤
 │   ├── test/                 # E2E 测试
 │   ├── nest-cli.json
 │   └── package.json
+├── docs/
+│   └── media-storage.md      # 媒体存储开源/商业边界与 IMediaStorage 约定
 ├── frontend/                 # React 前端（业务区 + /admin 管理区，同 SPA）
 │   ├── src/
 │   │   ├── main.tsx
@@ -186,10 +194,12 @@ Pugying/
 │   ├── vite.config.ts
 │   └── package.json
 ├── agent/                    # 独立 Electron 桌面 Agent（本机 WS 中介）
-│   ├── src/                  # 主进程 TypeScript → dist/
-│   │   ├── main.ts           # 托盘 + 无业务窗口
+│   ├── electron/main/        # 主进程 TypeScript（托盘 / WS / 授权 / 发布）
+│   │   ├── index.ts
 │   │   ├── ws-server.ts      # ws://127.0.0.1:3927
 │   │   ├── protocol.ts
+│   │   ├── publish-job.ts    # platform.publish.* 单任务
+│   │   ├── platforms/        # 抖音等适配（含 publish-douyin）
 │   │   └── auth-browser.ts   # 授权窗：React chrome + WebContentsView
 │   ├── ui/                   # 授权壳 React（Vite + Tailwind + shadcn）
 │   ├── chrome/preload.js     # chromeShell IPC bridge
@@ -210,16 +220,19 @@ Pugying/
   - `admin@pugying.local` / `Admin123!`（加入 **default** + **demo**，可测选团队/切换）
   - `editor@pugying.local` / `Editor123!`（仅 **demo**）
 - **API 文档**: Swagger UI 挂载在 `/api` 路径（支持 Bearer Auth）。
-- **路径别名**: Backend 使用 `@pugying/core`、`@pugying/identity`、`@pugying/team-management`、`@pugying/account-pro`、`@pugying/typeorm`（及对应深路径）；Frontend / Agent UI 使用 `@/` 映射到各自 `src/`（Agent 为 `ui/src/`）。
+- **路径别名**: Backend 使用 `@pugying/core`、`@pugying/identity`、`@pugying/team-management`、`@pugying/account-pro`、`@pugying/platform-account`、`@pugying/content`、`@pugying/typeorm`（及对应深路径）；Frontend / Agent UI 使用 `@/` 映射到各自 `src/`（Agent 为 `ui/src/`）。
 - **Import 约定**: 跨目录引用优先用别名（如 `@pugying/identity/domain/entities/user.entity`、`@/components/ui/button`）；同目录 `./` 相对路径可保留。`index.ts` 桶文件对外导出可用相对路径。
 - **ORM 边界**: `@pugying/core` 与 Application 层不依赖 TypeORM；映射/仓储与业务模块同包的 `infrastructure/typeorm` 捆绑开发；`@pugying/typeorm` 提供连接与 UoW。
 - **管理 UI**: 与业务前端同 SPA；`/admin/*` 使用独立 `AdminLayout`（GitLab 式分区）。入口在用户菜单「管理」；持有任一 `TeamManagement.*` 权限可进入，否则回 `/dashboard`。
 - **桌面 Agent**: 独立 Electron 应用（`agent/`），浏览器经 `ws://127.0.0.1:3927` 连接；**无状态**（不落盘 Cookie/凭证/业务数据）；平台授权使用 React + shadcn 浏览壳 + per-request ephemeral `session` partition（`temp:auth-{requestId}`），禁止 `defaultSession`，防多账号串号。权威状态在服务端。授权壳「更多」菜单与操作指引用同窗顶层 `WebContentsView` 叠在平台页之上（平台页 bounds/可见性不变）。首次打开有可跳过引导；分步气泡可「不再提示」（偏好写入 Electron `userData/agent-prefs.json`，不含平台凭证）。
 - **媒体账号**: `@pugying/platform-account`；主菜单「媒体账号」（UI 文案用「媒体账号」，代码/路由/模块名保留 platform-account）；Agent 授权后 Cookie AES-GCM 加密入库（`PLATFORM_CREDENTIAL_SECRET`，缺省回退 `JWT_SECRET`）；列表接口不返回凭证明文。
+- **内容与发布（P0 抖音短视频）**: `@pugying/content`；侧栏「发布 → 发布视频」为本机选 MP4 + 裁剪封面 → 分片入团队库 → `POST /contents/:id/publish` 下发签名 URL/Cookie → **浏览器**串行调本机 Agent `platform.publish.*`（后端不直连 Agent）。Target 运行态 `idle|queued|running|succeeded|failed|cancelled`；部分成功可重试；已有 queued/running 拒绝再发。发布会话用 `temp:publish-*` ephemeral（非 `persist:account-*`）。Contents 仅回看/重试，不做「改 status=published」假发布。
+- **团队媒体库**: `POST /media/uploads` 分片；视频 MP4≤1GB（可配）；竖封面 3:4 必填、横 16:9 可选（用户侧裁剪）；`POST /media/assets/:id/signed-url` + 公开 `GET .../download?exp&sig` 供 Agent 拉取。签名 Host 取 `MEDIA_PUBLIC_BASE_URL`（部署时须对本机 Agent 可达，勿默认不可达的 localhost）。启动时清理过期未完成上传会话。
+- **媒体存储部署**: 开源默认 `LocalMediaStorage`（`MEDIA_STORAGE_DIR` 本机盘），**仅单实例**；扩展点 `IMediaStorage`（`MEDIA_STORAGE`）。商业宿主用 `ContentModule.register({ mediaStorage })` 替换。详见 [`docs/media-storage.md`](docs/media-storage.md)。
 
 ## 支撑服务
 
-- **主数据库**: SQLite (better-sqlite3)，无外部数据库依赖。
+- **主数据库**: SQLite (better-sqlite3)，无外部数据库依赖（开源版按单实例；多副本数据库不在免费版范围）。
 
 ## 常用命令
 
@@ -275,7 +288,13 @@ Pugying/
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `PORT` | `3000` | Backend 监听端口 |
+| `PORT` / `BACKEND_PORT` | `3000` | Backend 监听端口 |
 | `JWT_SECRET` | `pugying-dev-secret-change-me` | JWT 签名密钥（生产必须覆盖） |
 | `PLATFORM_CREDENTIAL_SECRET` | （回退 JWT_SECRET） | 平台账号 Cookie 加密密钥 |
+| `MEDIA_PUBLIC_BASE_URL` | （回退 API_BASE_URL / 127.0.0.1） | Agent 拉媒体用的可达基址；生产/联调勿用不可达 localhost |
+| `MEDIA_SIGNING_SECRET` | （回退 JWT_SECRET） | 媒体签名下载 HMAC 密钥 |
+| `MEDIA_STORAGE_DIR` | `backend/data/media` | 团队库落盘目录（开源/单实例；多副本需商业存储或共享卷） |
+| `MEDIA_MAX_VIDEO_BYTES` | `1073741824`（1GB） | 视频大小上限 |
 | `VITE_API_BASE_URL` | `http://localhost:3000` | Frontend 直连 Backend API 基址 |
+| `API_BASE_URL` | — | 部署时浏览器可达的 API 地址（构建/Compose 注入） |
+| `CORS_ORIGINS` | — | 允许跨域的前端来源，逗号分隔 |
