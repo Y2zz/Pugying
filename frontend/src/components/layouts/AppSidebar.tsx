@@ -1,4 +1,4 @@
-import { LayoutGrid, Link2, SquareTerminal } from 'lucide-react';
+import { FolderOpen, LayoutGrid, Link2, SquareTerminal } from 'lucide-react';
 
 import { NavMain } from '@/components/layouts/NavMain';
 import { NavPublish } from '@/components/layouts/NavPublish';
@@ -26,6 +26,11 @@ const data = {
       title: '内容管理',
       url: '/contents',
       icon: LayoutGrid,
+    },
+    {
+      title: '媒体库',
+      url: '/media-library',
+      icon: FolderOpen,
     },
     {
       title: '媒体账号',

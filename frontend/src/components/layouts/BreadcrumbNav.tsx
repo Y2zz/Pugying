@@ -5,6 +5,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   contents: '内容管理',
+  'media-library': '媒体库',
   'platform-accounts': '媒体账号',
   publish: '发布',
   article: '图文',

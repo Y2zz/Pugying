@@ -13,6 +13,7 @@ import AdminRoles from '@/pages/admin/Roles.tsx';
 import AdminTeamSettings from '@/pages/admin/TeamSettings.tsx';
 import PlatformAccounts from '@/pages/PlatformAccounts.tsx';
 import Contents from '@/pages/Contents.tsx';
+import MediaLibrary from '@/pages/MediaLibrary.tsx';
 import PublishArticle from '@/pages/PublishArticle.tsx';
 import PublishVideo from '@/pages/PublishVideo.tsx';
 
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
           { path: 'dashboard', element: <Dashboard /> },
           { path: 'platform-accounts', element: <PlatformAccounts /> },
           { path: 'contents', element: <Contents /> },
+          { path: 'media-library', element: <MediaLibrary /> },
           { path: 'publish/article', element: <PublishArticle /> },
           { path: 'publish/video', element: <PublishVideo /> },
         ],
