@@ -144,3 +144,9 @@
     @apply text-base;
   }
 }
+
+/* 按钮按下效果（active:translate-y-px 下沉 1px）来自 shadcn 工具类，
+   位于 utilities 层；此处用层外规则覆盖即可取消，不改动 components/ui。 */
+[data-slot='button']:active {
+  translate: none;
+}
