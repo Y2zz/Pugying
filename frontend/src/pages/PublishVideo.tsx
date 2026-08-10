@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  AlertCircle,
   CheckCircle2,
   ChevronDown,
   Clapperboard,
@@ -15,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,9 +26,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -303,7 +315,9 @@ function OverrideCard({
       </button>
 
       {open ? (
-        <CardContent className="border-t px-4 py-4">
+        <>
+          <Separator />
+          <CardContent className="px-4 py-4">
           <FieldGroup className="gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
@@ -399,7 +413,8 @@ function OverrideCard({
               </Button>
             </div>
           </FieldGroup>
-        </CardContent>
+          </CardContent>
+        </>
       ) : null}
     </Card>
   );
@@ -1279,75 +1294,73 @@ export default function PublishVideo() {
         </p>
       </div>
 
-      {/* 门禁：环境是否发得了 */}
-      <div
-        className={cn(
-          'flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2 text-sm',
-          gateReady
-            ? 'border-border bg-muted/30 text-muted-foreground'
-            : 'border-destructive/30 bg-destructive/5 text-destructive',
-        )}
-      >
-        <span className="inline-flex items-center gap-1.5">
-          {connected && canPublish && !publishBusy ? (
-            <CheckCircle2 className="size-3.5 shrink-0" />
-          ) : (
-            <Link2 className="size-3.5 shrink-0" />
-          )}
-          {publishBusy
-            ? 'Agent 正忙，请稍候'
-            : connected
-              ? canPublish
-                ? '本机 Agent 已就绪'
-                : '当前 Agent 无发布能力，请升级'
-              : agentStatus === 'connecting'
-                ? '正在连接 Agent…'
-                : '请启动桌面 Agent'}
-        </span>
-        <span className="text-border">·</span>
-        <span>
-          {activeAccounts.length > 0 ? (
-            <>可用抖音号 {activeAccounts.length} 个</>
-          ) : accounts.length > 0 ? (
-            <>
-              账号不可用，请
-              <Link to="/platform-accounts" className="mx-1 underline">
-                重新授权
-              </Link>
-            </>
-          ) : (
-            <>
-              尚未绑定抖音，请先
-              <Link to="/platform-accounts" className="mx-1 underline">
-                绑定媒体账号
-              </Link>
-            </>
-          )}
-        </span>
-      </div>
+      {/* 门禁：就绪用 default，阻塞用 destructive；不在业务侧用 className 刷背景色 */}
+      <Alert variant={gateReady ? 'default' : 'destructive'}>
+        {connected && canPublish && !publishBusy ? <CheckCircle2 /> : <Link2 />}
+        <AlertTitle>环境检查</AlertTitle>
+        <AlertDescription>
+          <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>
+              {publishBusy
+                ? 'Agent 正忙，请稍候'
+                : connected
+                  ? canPublish
+                    ? '本机 Agent 已就绪'
+                    : '当前 Agent 无发布能力，请升级'
+                  : agentStatus === 'connecting'
+                    ? '正在连接 Agent…'
+                    : '请启动桌面 Agent'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {activeAccounts.length > 0 ? (
+                <>可用抖音号 {activeAccounts.length} 个</>
+              ) : accounts.length > 0 ? (
+                <>
+                  账号不可用，请
+                  <Link to="/platform-accounts" className="mx-1 underline">
+                    重新授权
+                  </Link>
+                </>
+              ) : (
+                <>
+                  尚未绑定抖音，请先
+                  <Link to="/platform-accounts" className="mx-1 underline">
+                    绑定媒体账号
+                  </Link>
+                </>
+              )}
+            </span>
+          </span>
+        </AlertDescription>
+      </Alert>
 
       {error ? (
-        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertTitle>无法继续</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
       {uploadHint || publishHint ? (
-        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          <p className="min-w-0 flex-1">{publishHint || uploadHint}</p>
+        <Alert>
+          <AlertTitle>{busyPhase === 'uploading' ? '上传进度' : '发布提示'}</AlertTitle>
+          <AlertDescription>{publishHint || uploadHint}</AlertDescription>
           {busyPhase === 'uploading' ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              onClick={() => {
-                cancelUpload();
-              }}
-            >
-              取消上传
-            </Button>
+            <AlertAction>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  cancelUpload();
+                }}
+              >
+                取消上传
+              </Button>
+            </AlertAction>
           ) : null}
-        </div>
+        </Alert>
       ) : null}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -1395,7 +1408,7 @@ export default function PublishVideo() {
                   onDrop={onDropVideo}
                 >
                   <Upload className="size-8 text-muted-foreground" />
-                  <div className="space-y-1">
+                  <div className="flex flex-col gap-1">
                     <p className="text-sm font-medium">拖入或选择 MP4 视频</p>
                     <p className="text-xs text-muted-foreground">
                       ≤1GB · H.264+AAC · 上传后自动生成竖/横封面
@@ -1430,6 +1443,7 @@ export default function PublishVideo() {
               )}
               </div>
 
+              <FieldGroup className="gap-4">
               {/* 有视频后再展开封面与标题 */}
               {hasVideo ? (
                 <>
@@ -1504,8 +1518,8 @@ export default function PublishVideo() {
                   <span>更多设置</span>
                   <ChevronDown
                     className={cn(
-                      'size-4 transition-transform',
-                      moreOpen ? 'rotate-180' : null,
+                      'transition-transform',
+                      moreOpen && 'rotate-180',
                     )}
                   />
                 </CollapsibleTrigger>
@@ -1616,7 +1630,8 @@ export default function PublishVideo() {
                   </Field>
 
                   {selectedAccounts.length > 0 ? (
-                    <div className="flex flex-col gap-2 border-t pt-4">
+                    <div className="flex flex-col gap-2">
+                      <Separator />
                       <p className="text-sm font-medium">按账号差异设置</p>
                       <p className="text-xs text-muted-foreground">
                         展开账号卡片可单独改标题/描述等；留空则用通用设置
@@ -1640,6 +1655,7 @@ export default function PublishVideo() {
                   ) : null}
                 </CollapsibleContent>
               </Collapsible>
+              </FieldGroup>
             </CardContent>
           </Card>
         </div>
@@ -1674,9 +1690,11 @@ export default function PublishVideo() {
                   (a) => selected[a.id],
                 ).length;
                 return (
-                  <div key={group.platform} className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">{group.displayName}</p>
+                  <FieldSet key={group.platform} className="gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <FieldLegend variant="label" className="mb-0">
+                        {group.displayName}
+                      </FieldLegend>
                       <span className="text-xs text-muted-foreground">
                         {groupSelected}/{group.accounts.length}
                       </span>
@@ -1685,9 +1703,11 @@ export default function PublishVideo() {
                       {group.accounts.map((account) => {
                         const usable = account.status === 'active';
                         return (
-                          <div
+                          <Field
                             key={account.id}
-                            className="flex items-center gap-2.5 rounded-sm px-2 py-1.5 hover:bg-muted/60"
+                            orientation="horizontal"
+                            data-disabled={!usable || loading ? true : undefined}
+                            className="rounded-sm px-2 py-1.5 hover:bg-muted/60"
                           >
                             <Checkbox
                               id={`account-${account.id}`}
@@ -1700,33 +1720,33 @@ export default function PublishVideo() {
                                 }));
                               }}
                             />
-                            <label
+                            <FieldLabel
                               htmlFor={`account-${account.id}`}
-                              className={`flex-1 truncate text-sm ${usable ? '' : 'text-muted-foreground'}`}
+                              className="truncate font-normal"
                             >
                               {account.displayName}
-                            </label>
+                            </FieldLabel>
                             {!usable ? (
-                              <Badge
-                                variant="outline"
-                                className="shrink-0 text-muted-foreground"
-                              >
+                              <Badge variant="outline" className="shrink-0">
                                 {ACCOUNT_STATUS_TEXT[account.status]}
                               </Badge>
                             ) : null}
-                          </div>
+                          </Field>
                         );
                       })}
                     </div>
-                  </div>
+                  </FieldSet>
                 );
               })}
 
-              <div className="flex items-center justify-between gap-3 border-t pt-3 text-sm">
-                <span className="text-muted-foreground">发布时机</span>
-                <span>
-                  {scheduleEnabled && scheduledLocal ? '定时' : '立即'}
-                </span>
+              <div className="flex flex-col gap-3">
+                <Separator />
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">发布时机</span>
+                  <span>
+                    {scheduleEnabled && scheduledLocal ? '定时' : '立即'}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1759,7 +1779,11 @@ export default function PublishVideo() {
                 void submit('draft');
               }}
             >
-              <Save />
+              {busyPhase === 'saving' ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <Save data-icon="inline-start" />
+              )}
               {busyPhase === 'saving' ? '保存中…' : '存草稿'}
             </Button>
             <Button
@@ -1768,7 +1792,11 @@ export default function PublishVideo() {
                 void submit('published');
               }}
             >
-              <Send />
+              {busy && busyPhase !== 'idle' ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <Send data-icon="inline-start" />
+              )}
               {busy && busyPhase !== 'idle' ? primaryBusyLabel : '推送到抖音'}
             </Button>
           </div>
