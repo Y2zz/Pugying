@@ -141,7 +141,7 @@ export default function AdminOverview() {
               <dd>{version ?? '—'}</dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt>能力</dt>
+              <dt className="shrink-0">能力</dt>
               <dd className="text-right">{capabilities.length > 0 ? capabilities.join(', ') : '—'}</dd>
             </div>
           </dl>
