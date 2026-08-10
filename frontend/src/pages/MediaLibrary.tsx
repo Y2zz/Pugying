@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Clapperboard, FolderOpen, ImageIcon, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertCircle, Clapperboard, FolderOpen, ImageIcon, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -129,7 +130,12 @@ export default function MediaLibrary() {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {loading ? (
         <div className={MEDIA_GRID_CLASS}>
@@ -320,7 +326,11 @@ function MediaAssetPreviewDialog({ item, onOpenChange }: { item: MediaLibraryIte
           {loading ? (
             <p className="text-sm text-muted-foreground">加载中…</p>
           ) : loadError ? (
-            <p className="px-4 text-center text-sm text-destructive">{loadError}</p>
+            <Alert variant="destructive" className="mx-4 w-auto max-w-md">
+              <AlertCircle />
+              <AlertTitle>预览失败</AlertTitle>
+              <AlertDescription>{loadError}</AlertDescription>
+            </Alert>
           ) : mediaUrl && item ? (
             isVideo ? (
               <video key={mediaUrl} src={mediaUrl} className="max-h-[min(70vh,36rem)] w-full bg-muted object-contain" controls playsInline preload="metadata" />

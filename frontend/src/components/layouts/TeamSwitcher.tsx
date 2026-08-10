@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Building2, ChevronsUpDown, LogOut } from 'lucide-react';
+import { AlertCircle, Building2, ChevronsUpDown, LogOut } from 'lucide-react';
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -121,7 +122,13 @@ export function TeamSwitcher() {
                 : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {leaveError ? <p className="text-sm text-destructive">{leaveError}</p> : null}
+          {leaveError ? (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>离开失败</AlertTitle>
+              <AlertDescription>{leaveError}</AlertDescription>
+            </Alert>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={leaving}>取消</AlertDialogCancel>
             <AlertDialogAction

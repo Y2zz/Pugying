@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  AlertCircle,
   Clapperboard,
   FileText,
   ImageIcon,
@@ -12,6 +13,7 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -253,7 +255,12 @@ export default function Contents() {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -372,7 +379,7 @@ function ContentCard({
               分发 {item.targets.length} 个账号
               {item.scheduledAt ? ` · 定时 ${formatTime(item.scheduledAt)}` : ''}
             </p>
-            <ul className="space-y-0.5 pl-4">
+            <ul className="flex flex-col gap-0.5 pl-4">
               {item.targets.map((target) => (
                 <li key={target.id}>
                   {target.platform} ·{' '}
