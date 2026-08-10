@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Plus, RefreshCw, UserMinus, Users } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, UserMinus, Users } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -235,7 +234,7 @@ export default function AdminMembers() {
                 <TableHead>用户名</TableHead>
                 <TableHead>邮箱</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead className="w-12 text-right">操作</TableHead>
+                <TableHead className="w-56 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -251,7 +250,7 @@ export default function AdminMembers() {
                     <Skeleton className="h-5 w-12" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="ml-auto h-8 w-8" />
+                    <Skeleton className="ml-auto h-8 w-36" />
                   </TableCell>
                 </TableRow>
               ))}
@@ -276,7 +275,7 @@ export default function AdminMembers() {
                 <TableHead>用户名</TableHead>
                 <TableHead>邮箱</TableHead>
                 <TableHead>状态</TableHead>
-                <TableHead className="w-12 text-right">操作</TableHead>
+                <TableHead className="w-56 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,37 +292,33 @@ export default function AdminMembers() {
                     </TableCell>
                     <TableCell className="text-right">
                       {showActions ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={busyId === member.id} />}>
-                            <MoreHorizontal />
-                            <span className="sr-only">操作</span>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuGroup>
-                              {canEditRoles ? (
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    void openEditRoles(member);
-                                  }}
-                                >
-                                  <Pencil />
-                                  编辑角色
-                                </DropdownMenuItem>
-                              ) : null}
-                              {showKick ? (
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={() => {
-                                    setKickTarget(member);
-                                  }}
-                                >
-                                  <UserMinus />
-                                  移出团队
-                                </DropdownMenuItem>
-                              ) : null}
-                            </DropdownMenuGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex justify-end gap-1">
+                          {canEditRoles ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={busyId === member.id}
+                              onClick={() => {
+                                void openEditRoles(member);
+                              }}
+                            >
+                              <Pencil data-icon="inline-start" />
+                              编辑角色
+                            </Button>
+                          ) : null}
+                          {showKick ? (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                setKickTarget(member);
+                              }}
+                            >
+                              <UserMinus data-icon="inline-start" />
+                              移出团队
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </TableCell>
                   </TableRow>

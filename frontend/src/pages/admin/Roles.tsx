@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal, Pencil, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -195,7 +194,7 @@ export default function AdminRoles() {
               <TableRow>
                 <TableHead>角色名</TableHead>
                 <TableHead>权限</TableHead>
-                <TableHead className="w-12 text-right">操作</TableHead>
+                <TableHead className="w-44 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -208,7 +207,7 @@ export default function AdminRoles() {
                     <Skeleton className="h-4 w-48" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="ml-auto h-8 w-8" />
+                    <Skeleton className="ml-auto h-8 w-32" />
                   </TableCell>
                 </TableRow>
               ))}
@@ -232,7 +231,7 @@ export default function AdminRoles() {
               <TableRow>
                 <TableHead>角色名</TableHead>
                 <TableHead>权限</TableHead>
-                <TableHead className="w-12 text-right">操作</TableHead>
+                <TableHead className="w-44 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -256,37 +255,34 @@ export default function AdminRoles() {
                   </TableCell>
                   <TableCell className="text-right">
                     {canUpdate || canDelete ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" disabled={busyId === role.id} />}>
-                          <MoreHorizontal />
-                          <span className="sr-only">操作</span>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuGroup>
-                            {canUpdate ? (
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  openEdit(role);
-                                }}
-                              >
-                                <Pencil />
-                                编辑
-                              </DropdownMenuItem>
-                            ) : null}
-                            {canDelete ? (
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => {
-                                  void handleDelete(role);
-                                }}
-                              >
-                                <Trash2 />
-                                删除
-                              </DropdownMenuItem>
-                            ) : null}
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex justify-end gap-1">
+                        {canUpdate ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busyId === role.id}
+                            onClick={() => {
+                              openEdit(role);
+                            }}
+                          >
+                            <Pencil data-icon="inline-start" />
+                            编辑
+                          </Button>
+                        ) : null}
+                        {canDelete ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={busyId === role.id}
+                            onClick={() => {
+                              void handleDelete(role);
+                            }}
+                          >
+                            <Trash2 data-icon="inline-start" />
+                            删除
+                          </Button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </TableCell>
                 </TableRow>
