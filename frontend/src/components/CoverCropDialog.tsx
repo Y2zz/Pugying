@@ -325,6 +325,11 @@ export function CoverCropDialog({
 
         <div className="flex items-center gap-3">
           <span className="w-10 shrink-0 text-xs text-muted-foreground">缩放</span>
+          {/*
+            Base UI 单拇指可用标量 value={scale}；但本地 ui/slider 用
+            Array.isArray(value) 计拇指数，标量会回退成 [min,max] 渲染双拇指。
+            在禁止改 components/ui 的前提下，单拇指仍传数组以保裁剪缩放可用。
+          */}
           <Slider
             min={1}
             max={3}
