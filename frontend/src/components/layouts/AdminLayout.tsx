@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { Separator } from '@/components/ui/separator';
 import { AdminSidebar } from '@/components/layouts/AdminSidebar';
 import { AgentStatusBadge } from '@/components/AgentStatusBadge';
 
@@ -8,12 +7,11 @@ export function AdminLayout() {
   return (
     <SidebarProvider>
       <AdminSidebar />
-      {/* Same fixed-height + internal-scroll setup as AppLayout (see comment there). */}
+      {/* 与 AppLayout 相同的 inset 固定高度 + 内部滚动 */}
       <SidebarInset className="h-svh overflow-hidden md:peer-data-[variant=inset]:h-[calc(100svh-1rem)]">
-        <header className="flex h-16 shrink-0 items-center gap-2">
+        <header className="flex h-14 shrink-0 items-center gap-2">
           <div className="flex flex-1 items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
             <span className="text-sm font-medium">管理</span>
           </div>
           <div className="px-4">

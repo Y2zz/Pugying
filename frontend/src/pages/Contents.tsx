@@ -13,7 +13,11 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -258,6 +262,7 @@ export default function Contents() {
       {error ? (
         <Alert variant="destructive">
           <AlertCircle />
+          <AlertTitle>加载失败</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
@@ -347,6 +352,7 @@ function ContentCard({
           </div>
         )}
         <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
+          {/* 叠层半透明特例：封面图深浅不一，Badge variant 无法保证叠层可读。 */}
           <Badge
             variant="secondary"
             className="bg-background/80 backdrop-blur"

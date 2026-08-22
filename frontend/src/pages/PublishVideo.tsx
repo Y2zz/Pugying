@@ -1,40 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  AlertCircle,
-  CheckCircle2,
-  ChevronDown,
-  Clapperboard,
-  Crop,
-  Hash,
-  ImagePlus,
-  Link2,
-  MapPin,
-  Save,
-  Send,
-  Upload,
-  X,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Clapperboard, Crop, Hash, ImagePlus, Link2, MapPin, Save, Send, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from '@/components/ui/field';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -51,10 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  CoverCropDialog,
-  type CoverAspect,
-} from '@/components/CoverCropDialog';
+import { CoverCropDialog, type CoverAspect } from '@/components/CoverCropDialog';
+import { DateTimePicker } from '@/components/DateTimePicker';
 import { MediaPreviewImage } from '@/components/MediaPreviewImage';
 import { useAgent } from '@/hooks/use-agent';
 import { agentClient } from '@/lib/agent-client';
@@ -80,11 +52,7 @@ import {
   type PlatformCatalogItem,
 } from '@/lib/api';
 import { sha256File } from '@/lib/file-hash';
-import {
-  describeCaughtError,
-  describePublishError,
-  describePublishPhase,
-} from '@/lib/publish-errors';
+import { describeCaughtError, describePublishError, describePublishPhase } from '@/lib/publish-errors';
 import { extractCoverPairFromVideoFile } from '@/lib/video-cover';
 
 type CoverKind = 'cover' | 'cover_landscape';
@@ -108,7 +76,7 @@ const ACCOUNT_STATUS_TEXT: Record<PlatformAccountItem['status'], string> = {
   revoked: '已失效',
 };
 
-/** ISO → <input type="datetime-local"> 值（本地时区） */
+/** ISO → 日期时间选择器使用的本地时间字符串 */
 function isoToLocalInput(iso: string | null | undefined): string {
   if (!iso) {
     return '';
@@ -192,19 +160,21 @@ function TagInput({ value, onChange, disabled }: { value: string[]; onChange: (t
         <div className="flex flex-wrap gap-1.5">
           {value.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1">
-              <Hash className="size-3" />
+              <Hash />
               {tag}
               {!disabled ? (
-                <button
+                <Button
                   type="button"
-                  className="ml-0.5 rounded-sm opacity-60 hover:opacity-100"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="ml-0.5 size-4 opacity-60 hover:opacity-100"
                   onClick={() => {
                     onChange(value.filter((t) => t !== tag));
                   }}
                 >
                   <X />
                   <span className="sr-only">移除 {tag}</span>
-                </button>
+                </Button>
               ) : null}
             </Badge>
           ))}
@@ -291,131 +261,123 @@ function OverrideCard({
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-muted/50"
-        onClick={() => {
-          setOpen((v) => !v);
-        }}
-      >
-        <Badge variant="outline">{platformLabel}</Badge>
-        <span className="flex-1 truncate text-sm font-medium">{account.displayName}</span>
-        {count > 0 ? (
-          <span className="flex items-center gap-1">
-            {overriddenLabels.map((label) => (
-              <Badge key={label} variant="secondary">
-                {label}
-              </Badge>
-            ))}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">使用通用设置</span>
-        )}
-        <ChevronDown className={cn('shrink-0 text-muted-foreground transition-transform duration-200', open && 'rotate-180')} />
-      </button>
-
-      {open ? (
-        <>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger render={<Button type="button" variant="ghost" className="h-auto w-full justify-start gap-2 rounded-none px-4 py-3 text-left" />}>
+          <Badge variant="outline">{platformLabel}</Badge>
+          <span className="flex-1 truncate text-sm font-medium">{account.displayName}</span>
+          {count > 0 ? (
+            <span className="flex items-center gap-1">
+              {overriddenLabels.map((label) => (
+                <Badge key={label} variant="secondary">
+                  {label}
+                </Badge>
+              ))}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">使用通用设置</span>
+          )}
+          <ChevronDown className={cn('shrink-0 text-muted-foreground transition-transform duration-200', open && 'rotate-180')} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
           <Separator />
           <CardContent className="px-4 py-4">
-          <FieldGroup className="gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup className="gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <div className="flex items-baseline justify-between">
+                    <FieldLabel htmlFor={`ov-${account.id}-title`}>标题</FieldLabel>
+                    <span className="text-xs text-muted-foreground">
+                      {draft.title.length}/{TITLE_MAX}
+                    </span>
+                  </div>
+                  <Input
+                    id={`ov-${account.id}-title`}
+                    placeholder="使用通用标题"
+                    maxLength={TITLE_MAX}
+                    disabled={disabled}
+                    value={draft.title}
+                    onChange={(e) => {
+                      patch({ title: e.target.value });
+                    }}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`ov-${account.id}-cover`}>封面图 URL</FieldLabel>
+                  <Input
+                    id={`ov-${account.id}-cover`}
+                    placeholder="使用通用封面"
+                    disabled={disabled}
+                    value={draft.coverUrl}
+                    onChange={(e) => {
+                      patch({ coverUrl: e.target.value });
+                    }}
+                  />
+                </Field>
+              </div>
+
               <Field>
                 <div className="flex items-baseline justify-between">
-                  <FieldLabel htmlFor={`ov-${account.id}-title`}>标题</FieldLabel>
+                  <FieldLabel htmlFor={`ov-${account.id}-body`}>作品描述</FieldLabel>
                   <span className="text-xs text-muted-foreground">
-                    {draft.title.length}/{TITLE_MAX}
+                    {draft.body.length}/{BODY_MAX}
                   </span>
                 </div>
-                <Input
-                  id={`ov-${account.id}-title`}
-                  placeholder="使用通用标题"
-                  maxLength={TITLE_MAX}
+                <Textarea
+                  id={`ov-${account.id}-body`}
+                  placeholder="使用通用描述"
+                  className="min-h-16"
+                  maxLength={BODY_MAX}
                   disabled={disabled}
-                  value={draft.title}
+                  value={draft.body}
                   onChange={(e) => {
-                    patch({ title: e.target.value });
+                    patch({ body: e.target.value });
                   }}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor={`ov-${account.id}-cover`}>封面图 URL</FieldLabel>
-                <Input
-                  id={`ov-${account.id}-cover`}
-                  placeholder="使用通用封面"
-                  disabled={disabled}
-                  value={draft.coverUrl}
-                  onChange={(e) => {
-                    patch({ coverUrl: e.target.value });
-                  }}
-                />
-              </Field>
-            </div>
 
-            <Field>
-              <div className="flex items-baseline justify-between">
-                <FieldLabel htmlFor={`ov-${account.id}-body`}>作品描述</FieldLabel>
-                <span className="text-xs text-muted-foreground">
-                  {draft.body.length}/{BODY_MAX}
-                </span>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor={`ov-${account.id}-tags`}>话题（空格/逗号分隔）</FieldLabel>
+                  <Input
+                    id={`ov-${account.id}-tags`}
+                    placeholder="使用通用话题"
+                    disabled={disabled}
+                    value={draft.tagsText}
+                    onChange={(e) => {
+                      patch({ tagsText: e.target.value });
+                    }}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`ov-${account.id}-schedule`}>定时发布时间</FieldLabel>
+                  <DateTimePicker
+                    id={`ov-${account.id}-schedule`}
+                    disabled={disabled}
+                    value={draft.scheduledLocal}
+                    onChange={(value) => {
+                      patch({ scheduledLocal: value });
+                    }}
+                  />
+                </Field>
               </div>
-              <Textarea
-                id={`ov-${account.id}-body`}
-                placeholder="使用通用描述"
-                className="min-h-16"
-                maxLength={BODY_MAX}
-                disabled={disabled}
-                value={draft.body}
-                onChange={(e) => {
-                  patch({ body: e.target.value });
-                }}
-              />
-            </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor={`ov-${account.id}-tags`}>话题（空格/逗号分隔）</FieldLabel>
-                <Input
-                  id={`ov-${account.id}-tags`}
-                  placeholder="使用通用话题"
-                  disabled={disabled}
-                  value={draft.tagsText}
-                  onChange={(e) => {
-                    patch({ tagsText: e.target.value });
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">留空的字段使用通用设置；定时同样需满足 2 小时至 14 天规则</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled || count === 0}
+                  onClick={() => {
+                    onDraftChange(emptyDraft());
                   }}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`ov-${account.id}-schedule`}>定时发布时间</FieldLabel>
-                <Input
-                  id={`ov-${account.id}-schedule`}
-                  type="datetime-local"
-                  disabled={disabled}
-                  value={draft.scheduledLocal}
-                  onChange={(e) => {
-                    patch({ scheduledLocal: e.target.value });
-                  }}
-                />
-              </Field>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">留空的字段使用通用设置；定时同样需满足 2 小时至 14 天规则</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={disabled || count === 0}
-                onClick={() => {
-                  onDraftChange(emptyDraft());
-                }}
-              >
-                清空差异
-              </Button>
-            </div>
-          </FieldGroup>
+                >
+                  清空差异
+                </Button>
+              </div>
+            </FieldGroup>
           </CardContent>
-        </>
-      ) : null}
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
@@ -434,9 +396,7 @@ export default function PublishVideo() {
   const [coverUrl, setCoverUrl] = useState('');
   const [coverLandscapeUrl, setCoverLandscapeUrl] = useState('');
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
-  const [coverLandscapePreviewUrl, setCoverLandscapePreviewUrl] = useState<
-    string | null
-  >(null);
+  const [coverLandscapePreviewUrl, setCoverLandscapePreviewUrl] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [location, setLocation] = useState('');
@@ -464,16 +424,14 @@ export default function PublishVideo() {
   const [dragOver, setDragOver] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [duplicateHit, setDuplicateHit] = useState<MediaDuplicateHit | null>(
-    null,
-  );
+  const [duplicateHit, setDuplicateHit] = useState<MediaDuplicateHit | null>(null);
   const pendingVideoRef = useRef<File | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const videoSectionRef = useRef<HTMLDivElement>(null);
   const coverSectionRef = useRef<HTMLDivElement>(null);
   const accountsSectionRef = useRef<HTMLDivElement>(null);
-  const scheduleInputRef = useRef<HTMLInputElement>(null);
+  const scheduleInputRef = useRef<HTMLButtonElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
   // 新建保存后的内容 id（可先于 URL ?id=），避免部分失败后再次「存草稿」重复创建
   const [ownedContentId, setOwnedContentId] = useState<string | null>(editId);
@@ -521,10 +479,7 @@ export default function PublishVideo() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [platforms, accountList] = await Promise.all([
-          fetchPlatformCatalog(),
-          fetchPlatformAccounts(),
-        ]);
+        const [platforms, accountList] = await Promise.all([fetchPlatformCatalog(), fetchPlatformAccounts()]);
         if (cancelled) {
           return;
         }
@@ -559,9 +514,7 @@ export default function PublishVideo() {
               continue;
             }
             nextSelected[target.platformAccountId] = true;
-            nextDrafts[target.platformAccountId] = overridesToDraft(
-              target.overrides,
-            );
+            nextDrafts[target.platformAccountId] = overridesToDraft(target.overrides);
           }
           setSelected(nextSelected);
           setDrafts(nextDrafts);
@@ -622,15 +575,7 @@ export default function PublishVideo() {
     });
 
   /** 校验失败时滚到第一个阻塞项，折叠里的定时需先展开 */
-  const focusBlock = (
-    kind:
-      | 'video'
-      | 'cover'
-      | 'title'
-      | 'accounts'
-      | 'schedule'
-      | 'agent',
-  ) => {
+  const focusBlock = (kind: 'video' | 'cover' | 'title' | 'accounts' | 'schedule' | 'agent') => {
     const scroll = (el: HTMLElement | null) => {
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
@@ -765,28 +710,20 @@ export default function PublishVideo() {
 
       setPublishHint('正在向后端申请发布…');
       const started = await publishContent(contentId);
-      const accountLabel = (accountId: string) =>
-        accounts.find((a) => a.id === accountId)?.displayName ??
-        `账号 ${accountId.slice(0, 8)}`;
+      const accountLabel = (accountId: string) => accounts.find((a) => a.id === accountId)?.displayName ?? `账号 ${accountId.slice(0, 8)}`;
       const labelForTarget = (targetId: string) => {
         const hit = started.dispatches.find((d) => d.targetId === targetId);
         return hit ? accountLabel(hit.accountId) : '抖音';
       };
       const unsub = agentClient.subscribePublishProgress((event) => {
-        setPublishHint(
-          `${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ''}`,
-        );
+        setPublishHint(`${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ''}`);
       });
 
       try {
-        const outcomes: Array<{ ok: boolean; code?: string; message?: string }> =
-          [];
+        const outcomes: Array<{ ok: boolean; code?: string; message?: string }> = [];
         for (const dispatch of started.dispatches) {
           setPublishHint(`开始推送「${accountLabel(dispatch.accountId)}」…`);
-          const { dispatch: live } = await startContentTarget(
-            contentId,
-            dispatch.targetId,
-          );
+          const { dispatch: live } = await startContentTarget(contentId, dispatch.targetId);
           const result = await agentClient.startPublish({
             targetId: live.targetId,
             platform: live.platform,
@@ -824,7 +761,7 @@ export default function PublishVideo() {
         setError(
           failed.length === outcomes.length
             ? describePublishError(first.code, first.message)
-            : `部分成功（${outcomes.length - failed.length}/${outcomes.length}）。${describePublishError(first.code, first.message)} 可在内容列表重试失败账号。`,
+            : `部分成功（${outcomes.length - failed.length}/${outcomes.length}）。${describePublishError(first.code, first.message)} 可在内容列表重试失败账号。`
         );
         // 发布已落库后再同步 URL，避免中途 replace 触发整页重载打断进度
         if (!editId && contentId) {
@@ -846,18 +783,12 @@ export default function PublishVideo() {
     }
   };
 
-  const ingestVideoFile = async (
-    file: File,
-    mode: 'upload' | 'reuse',
-    existing?: { url: string; originalName?: string },
-  ) => {
+  const ingestVideoFile = async (file: File, mode: 'upload' | 'reuse', existing?: { url: string; originalName?: string }) => {
     setError('');
     const abort = new AbortController();
     uploadAbortRef.current = abort;
     beginBusy('uploading');
-    setUploadHint(
-      mode === 'reuse' ? '使用团队库已有视频…' : '上传视频中…',
-    );
+    setUploadHint(mode === 'reuse' ? '使用团队库已有视频…' : '上传视频中…');
     try {
       const objectUrl = URL.createObjectURL(file);
       const durationSec = await new Promise<number>((resolve) => {
@@ -877,14 +808,11 @@ export default function PublishVideo() {
         throw new DOMException('上传已取消', 'AbortError');
       }
       if (durationSec > WARN_DURATION_SEC) {
-        setUploadHint(
-          `时长约 ${Math.round(durationSec / 60)} 分钟（超过 15 分钟仅警告，仍可继续）`,
-        );
+        setUploadHint(`时长约 ${Math.round(durationSec / 60)} 分钟（超过 15 分钟仅警告，仍可继续）`);
       }
 
       let videoAssetUrl = existing?.url?.trim() ?? '';
-      let videoLabel =
-        existing?.originalName?.trim() || file.name;
+      let videoLabel = existing?.originalName?.trim() || file.name;
       if (mode === 'upload') {
         const asset = await uploadMediaFile(
           file,
@@ -892,7 +820,7 @@ export default function PublishVideo() {
           (ratio) => {
             setUploadHint(`上传视频 ${(ratio * 100).toFixed(0)}%`);
           },
-          abort.signal,
+          abort.signal
         );
         videoAssetUrl = asset.url;
         videoLabel = asset.originalName;
@@ -933,7 +861,7 @@ export default function PublishVideo() {
           (ratio) => {
             setUploadHint(`上传竖封面 ${(ratio * 100).toFixed(0)}%`);
           },
-          abort.signal,
+          abort.signal
         );
         setCoverUrl(coverAsset.url);
 
@@ -946,36 +874,23 @@ export default function PublishVideo() {
           (ratio) => {
             setUploadHint(`上传横封面 ${(ratio * 100).toFixed(0)}%`);
           },
-          abort.signal,
+          abort.signal
         );
         setCoverLandscapeUrl(landscapeAsset.url);
         setUploadHint(
-          mode === 'reuse'
-            ? `已复用团队库视频，并重新生成封面（来源：${videoLabel}）`
-            : '视频与竖/横封面已入库（封面来自视频截帧，可分别换本地图重裁）',
+          mode === 'reuse' ? `已复用团队库视频，并重新生成封面（来源：${videoLabel}）` : '视频与竖/横封面已入库（封面来自视频截帧，可分别换本地图重裁）'
         );
       } catch (coverErr) {
-        if (
-          coverErr instanceof DOMException &&
-          coverErr.name === 'AbortError'
-        ) {
+        if (coverErr instanceof DOMException && coverErr.name === 'AbortError') {
           throw coverErr;
         }
         setUploadHint(
-          mode === 'reuse'
-            ? `已复用团队库视频；自动提取封面失败，请本地选图并裁剪`
-            : `视频已入库：${videoLabel}；自动提取封面失败，请本地选图并裁剪`,
+          mode === 'reuse' ? `已复用团队库视频；自动提取封面失败，请本地选图并裁剪` : `视频已入库：${videoLabel}；自动提取封面失败，请本地选图并裁剪`
         );
-        setError(
-          coverErr instanceof Error
-            ? `自动提取封面失败：${coverErr.message}`
-            : '自动提取封面失败，请本地选图并裁剪',
-        );
+        setError(coverErr instanceof Error ? `自动提取封面失败：${coverErr.message}` : '自动提取封面失败，请本地选图并裁剪');
       }
     } catch (err) {
-      const cancelled =
-        (err instanceof DOMException && err.name === 'AbortError') ||
-        (err instanceof Error && err.message === '上传已取消');
+      const cancelled = (err instanceof DOMException && err.name === 'AbortError') || (err instanceof Error && err.message === '上传已取消');
       if (cancelled) {
         setUploadHint('已取消上传');
         setError('');
@@ -1030,9 +945,7 @@ export default function PublishVideo() {
       }
       await ingestVideoFile(file, 'upload');
     } catch (err) {
-      const cancelled =
-        (err instanceof DOMException && err.name === 'AbortError') ||
-        (err instanceof Error && err.message === '上传已取消');
+      const cancelled = (err instanceof DOMException && err.name === 'AbortError') || (err instanceof Error && err.message === '上传已取消');
       if (cancelled) {
         setUploadHint('已取消上传');
         setError('');
@@ -1057,10 +970,7 @@ export default function PublishVideo() {
     return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
-  const onPickCover = (
-    file: File | null,
-    kind: CoverKind,
-  ) => {
+  const onPickCover = (file: File | null, kind: CoverKind) => {
     if (!file) {
       return;
     }
@@ -1076,10 +986,7 @@ export default function PublishVideo() {
   };
 
   const onCropExistingCover = async (kind: CoverKind) => {
-    const ref =
-      kind === 'cover'
-        ? coverPreviewUrl || coverUrl
-        : coverLandscapePreviewUrl || coverLandscapeUrl;
+    const ref = kind === 'cover' ? coverPreviewUrl || coverUrl : coverLandscapePreviewUrl || coverLandscapeUrl;
     if (!ref?.trim()) {
       setError('暂无可裁剪的封面，请先上传视频或替换本地图');
       return;
@@ -1130,20 +1037,16 @@ export default function PublishVideo() {
         (ratio) => {
           setUploadHint(`上传封面 ${(ratio * 100).toFixed(0)}%`);
         },
-        abort.signal,
+        abort.signal
       );
       if (kind === 'cover') {
         setCoverUrl(asset.url);
       } else {
         setCoverLandscapeUrl(asset.url);
       }
-      setUploadHint(
-        kind === 'cover' ? '竖版封面已裁剪替换并入库' : '横版封面已裁剪替换并入库',
-      );
+      setUploadHint(kind === 'cover' ? '竖版封面已裁剪替换并入库' : '横版封面已裁剪替换并入库');
     } catch (err) {
-      const cancelled =
-        (err instanceof DOMException && err.name === 'AbortError') ||
-        (err instanceof Error && err.message === '上传已取消');
+      const cancelled = (err instanceof DOMException && err.name === 'AbortError') || (err instanceof Error && err.message === '上传已取消');
       if (cancelled) {
         setUploadHint('已取消上传');
         setError('');
@@ -1157,9 +1060,7 @@ export default function PublishVideo() {
     }
   };
 
-  const activeDouyinSelected = selectedAccounts.filter(
-    ({ account }) => account.status === 'active',
-  ).length;
+  const activeDouyinSelected = selectedAccounts.filter(({ account }) => account.status === 'active').length;
 
   const prechecks = [
     {
@@ -1219,11 +1120,7 @@ export default function PublishVideo() {
     {
       id: 'canPublish' as const,
       ok: canPublish,
-      fix: publishBusy
-        ? 'Agent 正忙于其它发布任务，请稍候'
-        : connected
-          ? '当前 Agent 无发布能力，请升级'
-          : '需先连接 Agent',
+      fix: publishBusy ? 'Agent 正忙于其它发布任务，请稍候' : connected ? '当前 Agent 无发布能力，请升级' : '需先连接 Agent',
       env: true,
     },
   ] as const;
@@ -1231,12 +1128,9 @@ export default function PublishVideo() {
   const publishBlocked = prechecks.some((item) => !item.ok);
   const firstBlock = prechecks.find((item) => !item.ok);
   // 门禁条已覆盖环境类阻塞时，底栏改展示摘要，避免与顶栏红字重复打架
-  const showBottomBlock =
-    firstBlock && (!firstBlock.env || firstBlock.id === 'accounts');
+  const showBottomBlock = firstBlock && (!firstBlock.env || firstBlock.id === 'accounts');
   const summaryText = [
-    selectedAccounts.length > 0
-      ? `分发 ${selectedAccounts.length} 个账号`
-      : '未选择分发账号',
+    selectedAccounts.length > 0 ? `分发 ${selectedAccounts.length} 个账号` : '未选择分发账号',
     scheduleEnabled && scheduledLocal ? '定时发布' : '立即发布',
   ].join(' · ');
 
@@ -1244,18 +1138,9 @@ export default function PublishVideo() {
   const gateReady = connected && canPublish && activeAccounts.length > 0;
   const hasVideo = Boolean(videoUrl.trim());
   const coversReady = Boolean(coverUrl.trim() && coverLandscapeUrl.trim());
-  const coverHint = !coversReady
-    ? '竖/横封面未就绪：可重新上传视频自动截帧，或悬停封面选图裁剪'
-    : '封面已就绪；移入可裁剪或替换本地图';
+  const coverHint = !coversReady ? '竖/横封面未就绪：可重新上传视频自动截帧，或悬停封面选图裁剪' : '封面已就绪；移入可裁剪或替换本地图';
 
-  const primaryBusyLabel =
-    busyPhase === 'uploading'
-      ? '上传中…'
-      : busyPhase === 'saving'
-        ? '保存中…'
-        : busyPhase === 'publishing'
-          ? '发布中…'
-          : '处理中…';
+  const primaryBusyLabel = busyPhase === 'uploading' ? '上传中…' : busyPhase === 'saving' ? '保存中…' : busyPhase === 'publishing' ? '发布中…' : '处理中…';
 
   const onDropVideo = (event: React.DragEvent) => {
     event.preventDefault();
@@ -1289,9 +1174,7 @@ export default function PublishVideo() {
           <Clapperboard className="size-6" />
           {editId ? '编辑视频' : '发布视频'}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          拖入或选择 MP4，将自动生成抖音所需封面并推送到所选账号
-        </p>
+        <p className="text-sm text-muted-foreground">拖入或选择 MP4，将自动生成抖音所需封面并推送到所选账号</p>
       </div>
 
       {/* 门禁：就绪用 default，阻塞用 destructive；不在业务侧用 className 刷背景色 */}
@@ -1380,299 +1263,268 @@ export default function PublishVideo() {
                 }}
               />
               <div ref={videoSectionRef}>
-              {!hasVideo ? (
-                <button
-                  type="button"
-                  disabled={loading || busy}
-                  className={cn(
-                    'flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-10 text-center transition-colors',
-                    dragOver
-                      ? 'border-primary bg-primary/5'
-                      : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/40',
-                    'disabled:pointer-events-none disabled:opacity-60',
-                  )}
-                  onClick={() => {
-                    videoInputRef.current?.click();
-                  }}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragLeave={() => {
-                    setDragOver(false);
-                  }}
-                  onDrop={onDropVideo}
-                >
-                  <Upload className="size-8 text-muted-foreground" />
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium">拖入或选择 MP4 视频</p>
-                    <p className="text-xs text-muted-foreground">
-                      ≤1GB · H.264+AAC · 上传后自动生成竖/横封面
-                    </p>
-                  </div>
-                </button>
-              ) : (
-                <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">视频已就绪</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {videoFileName || '未命名视频'}
-                        {videoFileSize != null
-                          ? ` · ${formatBytes(videoFileSize)}`
-                          : ''}
-                      </p>
+                {!hasVideo ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loading || busy}
+                    className={cn(
+                      'min-h-48 w-full flex-col gap-3 border-dashed px-4 py-10 text-center whitespace-normal',
+                      dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/40',
+                      'disabled:opacity-60'
+                    )}
+                    onClick={() => {
+                      videoInputRef.current?.click();
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragLeave={() => {
+                      setDragOver(false);
+                    }}
+                    onDrop={onDropVideo}
+                  >
+                    <Upload className="size-8 text-muted-foreground" />
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-medium">拖入或选择 MP4 视频</p>
+                      <p className="text-xs text-muted-foreground">≤1GB · H.264+AAC · 上传后自动生成竖/横封面</p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={loading || busy}
-                      onClick={() => {
-                        videoInputRef.current?.click();
-                      }}
-                    >
-                      更换视频
-                    </Button>
+                  </Button>
+                ) : (
+                  <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">视频已就绪</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {videoFileName || '未命名视频'}
+                          {videoFileSize != null ? ` · ${formatBytes(videoFileSize)}` : ''}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={loading || busy}
+                        onClick={() => {
+                          videoInputRef.current?.click();
+                        }}
+                      >
+                        更换视频
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               </div>
 
               <FieldGroup className="gap-4">
-              {/* 有视频后再展开封面与标题 */}
-              {hasVideo ? (
-                <>
-                  <Field ref={coverSectionRef}>
-                    <FieldLabel>封面</FieldLabel>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <CoverHoverCard
-                        label="竖版 3:4"
-                        ready={Boolean(coverUrl)}
-                        src={coverPreviewUrl || coverUrl}
-                        objectFit="contain"
-                        previewClassName="h-40 max-h-40 w-full"
-                        disabled={loading || busy}
-                        onCrop={() => {
-                          void onCropExistingCover('cover');
-                        }}
-                        onReplace={(file) => {
-                          onPickCover(file, 'cover');
-                        }}
-                      />
-                      <CoverHoverCard
-                        label="横版 16:9"
-                        ready={Boolean(coverLandscapeUrl)}
-                        src={coverLandscapePreviewUrl || coverLandscapeUrl}
-                        aspectRatio={16 / 9}
-                        previewClassName="w-full"
-                        disabled={loading || busy}
-                        onCrop={() => {
-                          void onCropExistingCover('cover_landscape');
-                        }}
-                        onReplace={(file) => {
-                          onPickCover(file, 'cover_landscape');
-                        }}
-                      />
-                    </div>
-                    <FieldDescription>{coverHint}</FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <div className="flex items-baseline justify-between">
-                      <FieldLabel htmlFor="video-title">标题</FieldLabel>
-                      <span className="text-xs text-muted-foreground">
-                        {title.length}/{TITLE_MAX}
-                      </span>
-                    </div>
-                    <Input
-                      id="video-title"
-                      ref={titleInputRef}
-                      placeholder="填写作品标题"
-                      maxLength={TITLE_MAX}
-                      disabled={loading}
-                      value={title}
-                      onChange={(e) => {
-                        setTitle(e.target.value);
-                      }}
-                    />
-                  </Field>
-                </>
-              ) : null}
-
-              <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
-                <CollapsibleTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-between px-2"
-                    />
-                  }
-                >
-                  <span>更多设置</span>
-                  <ChevronDown
-                    className={cn(
-                      'transition-transform',
-                      moreOpen && 'rotate-180',
-                    )}
-                  />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="flex flex-col gap-4 pt-3">
-                  <Field>
-                    <div className="flex items-baseline justify-between">
-                      <FieldLabel htmlFor="video-body">作品描述</FieldLabel>
-                      <span className="text-xs text-muted-foreground">
-                        {body.length}/{BODY_MAX}
-                      </span>
-                    </div>
-                    <Textarea
-                      id="video-body"
-                      placeholder="添加作品描述（可选）"
-                      className="min-h-24"
-                      maxLength={BODY_MAX}
-                      disabled={loading}
-                      value={body}
-                      onChange={(e) => {
-                        setBody(e.target.value);
-                      }}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="video-location" className="flex items-center gap-1">
-                      <MapPin />
-                      位置
-                    </FieldLabel>
-                    <Input
-                      id="video-location"
-                      placeholder="添加位置信息（可选）"
-                      maxLength={100}
-                      disabled={loading}
-                      value={location}
-                      onChange={(e) => {
-                        setLocation(e.target.value);
-                      }}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>话题</FieldLabel>
-                    <TagInput value={tags} onChange={setTags} disabled={loading} />
-                  </Field>
-                  <Field>
-                    <FieldLabel>谁可以看</FieldLabel>
-                    <Select
-                      value={visibility}
-                      onValueChange={(value) => {
-                        setVisibility((value as ContentVisibility) ?? 'public');
-                      }}
-                      items={VISIBILITY_OPTIONS}
-                    >
-                      <SelectTrigger className="w-full" disabled={loading}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {VISIBILITY_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <div className="flex items-center justify-between gap-4">
-                      <FieldContent>
-                        <FieldLabel htmlFor="video-schedule">定时发布</FieldLabel>
-                        <FieldDescription>2 小时后至 14 天内</FieldDescription>
-                      </FieldContent>
-                      <Switch
-                        id="video-schedule"
-                        disabled={loading}
-                        checked={scheduleEnabled}
-                        onCheckedChange={(checked) => {
-                          setScheduleEnabled(checked === true);
-                        }}
-                      />
-                    </div>
-                    {scheduleEnabled ? (
-                      <Input
-                        ref={scheduleInputRef}
-                        type="datetime-local"
-                        disabled={loading}
-                        value={scheduledLocal}
-                        onChange={(e) => {
-                          setScheduledLocal(e.target.value);
-                        }}
-                      />
-                    ) : null}
-                  </Field>
-                  <Field orientation="horizontal">
-                    <FieldContent>
-                      <FieldLabel htmlFor="video-allow-download">
-                        允许他人保存视频
-                      </FieldLabel>
-                    </FieldContent>
-                    <Switch
-                      id="video-allow-download"
-                      disabled={loading}
-                      checked={allowDownload}
-                      onCheckedChange={(checked) => {
-                        setAllowDownload(checked === true);
-                      }}
-                    />
-                  </Field>
-
-                  {selectedAccounts.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                      <Separator />
-                      <p className="text-sm font-medium">按账号差异设置</p>
-                      <p className="text-xs text-muted-foreground">
-                        展开账号卡片可单独改标题/描述等；留空则用通用设置
-                      </p>
-                      {selectedAccounts.map(({ account, platformLabel }) => (
-                        <OverrideCard
-                          key={account.id}
-                          account={account}
-                          platformLabel={platformLabel}
-                          draft={getDraft(account.id)}
+                {/* 有视频后再展开封面与标题 */}
+                {hasVideo ? (
+                  <>
+                    <Field ref={coverSectionRef}>
+                      <FieldLabel>封面</FieldLabel>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <CoverHoverCard
+                          label="竖版 3:4"
+                          ready={Boolean(coverUrl)}
+                          src={coverPreviewUrl || coverUrl}
+                          objectFit="contain"
+                          previewClassName="h-40 max-h-40 w-full"
                           disabled={loading || busy}
-                          onDraftChange={(draft) => {
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [account.id]: draft,
-                            }));
+                          onCrop={() => {
+                            void onCropExistingCover('cover');
+                          }}
+                          onReplace={(file) => {
+                            onPickCover(file, 'cover');
                           }}
                         />
-                      ))}
-                    </div>
-                  ) : null}
-                </CollapsibleContent>
-              </Collapsible>
+                        <CoverHoverCard
+                          label="横版 16:9"
+                          ready={Boolean(coverLandscapeUrl)}
+                          src={coverLandscapePreviewUrl || coverLandscapeUrl}
+                          aspectRatio={16 / 9}
+                          previewClassName="w-full"
+                          disabled={loading || busy}
+                          onCrop={() => {
+                            void onCropExistingCover('cover_landscape');
+                          }}
+                          onReplace={(file) => {
+                            onPickCover(file, 'cover_landscape');
+                          }}
+                        />
+                      </div>
+                      <FieldDescription>{coverHint}</FieldDescription>
+                    </Field>
+
+                    <Field>
+                      <div className="flex items-baseline justify-between">
+                        <FieldLabel htmlFor="video-title">标题</FieldLabel>
+                        <span className="text-xs text-muted-foreground">
+                          {title.length}/{TITLE_MAX}
+                        </span>
+                      </div>
+                      <Input
+                        id="video-title"
+                        ref={titleInputRef}
+                        placeholder="填写作品标题"
+                        maxLength={TITLE_MAX}
+                        disabled={loading}
+                        value={title}
+                        onChange={(e) => {
+                          setTitle(e.target.value);
+                        }}
+                      />
+                    </Field>
+                  </>
+                ) : null}
+
+                <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
+                  <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="w-full justify-between px-2" />}>
+                    <span>更多设置</span>
+                    <ChevronDown className={cn('transition-transform', moreOpen && 'rotate-180')} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="flex flex-col gap-4 pt-3">
+                    <Field>
+                      <div className="flex items-baseline justify-between">
+                        <FieldLabel htmlFor="video-body">作品描述</FieldLabel>
+                        <span className="text-xs text-muted-foreground">
+                          {body.length}/{BODY_MAX}
+                        </span>
+                      </div>
+                      <Textarea
+                        id="video-body"
+                        placeholder="添加作品描述（可选）"
+                        className="min-h-24"
+                        maxLength={BODY_MAX}
+                        disabled={loading}
+                        value={body}
+                        onChange={(e) => {
+                          setBody(e.target.value);
+                        }}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="video-location" className="flex items-center gap-1">
+                        <MapPin />
+                        位置
+                      </FieldLabel>
+                      <Input
+                        id="video-location"
+                        placeholder="添加位置信息（可选）"
+                        maxLength={100}
+                        disabled={loading}
+                        value={location}
+                        onChange={(e) => {
+                          setLocation(e.target.value);
+                        }}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>话题</FieldLabel>
+                      <TagInput value={tags} onChange={setTags} disabled={loading} />
+                    </Field>
+                    <Field>
+                      <FieldLabel>谁可以看</FieldLabel>
+                      <Select
+                        value={visibility}
+                        onValueChange={(value) => {
+                          setVisibility((value as ContentVisibility) ?? 'public');
+                        }}
+                        items={VISIBILITY_OPTIONS}
+                      >
+                        <SelectTrigger className="w-full" disabled={loading}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {VISIBILITY_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field>
+                      <div className="flex items-center justify-between gap-4">
+                        <FieldContent>
+                          <FieldLabel htmlFor="video-schedule">定时发布</FieldLabel>
+                          <FieldDescription>2 小时后至 14 天内</FieldDescription>
+                        </FieldContent>
+                        <Switch
+                          id="video-schedule"
+                          disabled={loading}
+                          checked={scheduleEnabled}
+                          onCheckedChange={(checked) => {
+                            setScheduleEnabled(checked === true);
+                          }}
+                        />
+                      </div>
+                      {scheduleEnabled ? (
+                        <DateTimePicker
+                          ref={scheduleInputRef}
+                          disabled={loading}
+                          value={scheduledLocal}
+                          onChange={(value) => {
+                            setScheduledLocal(value);
+                          }}
+                        />
+                      ) : null}
+                    </Field>
+                    <Field orientation="horizontal">
+                      <FieldContent>
+                        <FieldLabel htmlFor="video-allow-download">允许他人保存视频</FieldLabel>
+                      </FieldContent>
+                      <Switch
+                        id="video-allow-download"
+                        disabled={loading}
+                        checked={allowDownload}
+                        onCheckedChange={(checked) => {
+                          setAllowDownload(checked === true);
+                        }}
+                      />
+                    </Field>
+
+                    {selectedAccounts.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        <Separator />
+                        <p className="text-sm font-medium">按账号差异设置</p>
+                        <p className="text-xs text-muted-foreground">展开账号卡片可单独改标题/描述等；留空则用通用设置</p>
+                        {selectedAccounts.map(({ account, platformLabel }) => (
+                          <OverrideCard
+                            key={account.id}
+                            account={account}
+                            platformLabel={platformLabel}
+                            draft={getDraft(account.id)}
+                            disabled={loading || busy}
+                            onDraftChange={(draft) => {
+                              setDrafts((prev) => ({
+                                ...prev,
+                                [account.id]: draft,
+                              }));
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </CollapsibleContent>
+                </Collapsible>
               </FieldGroup>
             </CardContent>
           </Card>
         </div>
 
         {/* 右栏：发到哪里 */}
-        <div
-          ref={accountsSectionRef}
-          className="flex flex-col gap-4 lg:sticky lg:top-4"
-        >
+        <div ref={accountsSectionRef} className="flex flex-col gap-4 lg:sticky lg:top-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">发布到</CardTitle>
-              <CardDescription>
-                {selectedAccounts.length > 0
-                  ? `已选 ${selectedAccounts.length} 个抖音账号`
-                  : '选择要推送的抖音账号'}
-              </CardDescription>
+              <CardDescription>{selectedAccounts.length > 0 ? `已选 ${selectedAccounts.length} 个抖音账号` : '选择要推送的抖音账号'}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               {!loading && accounts.length === 0 ? (
@@ -1686,9 +1538,7 @@ export default function PublishVideo() {
               ) : null}
 
               {grouped.map((group) => {
-                const groupSelected = group.accounts.filter(
-                  (a) => selected[a.id],
-                ).length;
+                const groupSelected = group.accounts.filter((a) => selected[a.id]).length;
                 return (
                   <FieldSet key={group.platform} className="gap-1.5">
                     <div className="flex items-center justify-between gap-2">
@@ -1720,10 +1570,7 @@ export default function PublishVideo() {
                                 }));
                               }}
                             />
-                            <FieldLabel
-                              htmlFor={`account-${account.id}`}
-                              className="truncate font-normal"
-                            >
+                            <FieldLabel htmlFor={`account-${account.id}`} className="truncate font-normal">
                               {account.displayName}
                             </FieldLabel>
                             {!usable ? (
@@ -1743,9 +1590,7 @@ export default function PublishVideo() {
                 <Separator />
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">发布时机</span>
-                  <span>
-                    {scheduleEnabled && scheduledLocal ? '定时' : '立即'}
-                  </span>
+                  <span>{scheduleEnabled && scheduledLocal ? '定时' : '立即'}</span>
                 </div>
               </div>
             </CardContent>
@@ -1758,15 +1603,17 @@ export default function PublishVideo() {
         <div className="flex flex-col gap-2 rounded-lg border bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <p className="min-w-0 truncate text-sm text-muted-foreground">
             {publishBlocked && showBottomBlock && firstBlock ? (
-              <button
+              <Button
                 type="button"
-                className="max-w-full truncate text-left text-destructive underline-offset-2 hover:underline"
+                variant="link"
+                size="xs"
+                className="h-auto max-w-full justify-start truncate p-0 text-left text-destructive"
                 onClick={() => {
                   onBottomBlockActivate();
                 }}
               >
                 {firstBlock.fix}
-              </button>
+              </Button>
             ) : (
               summaryText
             )}
@@ -1779,11 +1626,7 @@ export default function PublishVideo() {
                 void submit('draft');
               }}
             >
-              {busyPhase === 'saving' ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <Save data-icon="inline-start" />
-              )}
+              {busyPhase === 'saving' ? <Spinner data-icon="inline-start" /> : <Save data-icon="inline-start" />}
               {busyPhase === 'saving' ? '保存中…' : '存草稿'}
             </Button>
             <Button
@@ -1792,11 +1635,7 @@ export default function PublishVideo() {
                 void submit('published');
               }}
             >
-              {busy && busyPhase !== 'idle' ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <Send data-icon="inline-start" />
-              )}
+              {busy && busyPhase !== 'idle' ? <Spinner data-icon="inline-start" /> : <Send data-icon="inline-start" />}
               {busy && busyPhase !== 'idle' ? primaryBusyLabel : '推送到抖音'}
             </Button>
           </div>
@@ -1878,10 +1717,7 @@ export default function PublishVideo() {
             setCropFile(null);
             setCropSourceUrl((prev) => {
               if (prev?.startsWith('blob:')) {
-                if (
-                  prev !== coverPreviewUrl &&
-                  prev !== coverLandscapePreviewUrl
-                ) {
+                if (prev !== coverPreviewUrl && prev !== coverLandscapePreviewUrl) {
                   URL.revokeObjectURL(prev);
                 }
               }
@@ -1949,12 +1785,7 @@ function CoverHoverCard({
   const hasImage = Boolean(src?.trim());
 
   return (
-    <div
-      className={cn(
-        'group flex flex-col gap-2 rounded-lg border p-2',
-        disabled ? 'opacity-60' : null,
-      )}
-    >
+    <div className={cn('group flex flex-col gap-2 rounded-lg border p-2', disabled ? 'opacity-60' : null)}>
       <span className="text-xs text-muted-foreground">
         {label}
         {ready ? '' : ' · 待生成'}
@@ -1970,18 +1801,10 @@ function CoverHoverCard({
         <div
           className={cn(
             'absolute inset-0 flex items-center justify-center gap-2 bg-muted/80 opacity-0 backdrop-blur-[1px] transition-opacity',
-            disabled
-              ? 'pointer-events-none'
-              : 'group-hover:opacity-100 group-focus-within:opacity-100',
+            disabled ? 'pointer-events-none' : 'group-focus-within:opacity-100 group-hover:opacity-100'
           )}
         >
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={disabled || !hasImage}
-            onClick={onCrop}
-          >
+          <Button type="button" size="sm" variant="secondary" disabled={disabled || !hasImage} onClick={onCrop}>
             <Crop data-icon="inline-start" />
             裁剪
           </Button>

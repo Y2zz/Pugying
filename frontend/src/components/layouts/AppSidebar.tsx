@@ -1,9 +1,9 @@
 import { FolderOpen, LayoutGrid, Link2, SquareTerminal } from 'lucide-react';
 
+import { AppBrand } from '@/components/layouts/AppBrand';
 import { NavMain } from '@/components/layouts/NavMain';
 import { NavPublish } from '@/components/layouts/NavPublish';
 import { NavUser } from '@/components/layouts/NavUser';
-import { TeamSwitcher } from '@/components/layouts/TeamSwitcher';
 
 import {
   Sidebar,
@@ -51,7 +51,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher />
+        <AppBrand />
       </SidebarHeader>
 
       <SidebarContent>
@@ -59,6 +59,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
       </SidebarContent>
 
+      {/* footer：用户菜单（团队切换 / 管理 / 退出登录均在下拉内） */}
       <SidebarFooter>
         <NavUser user={user} />
       </SidebarFooter>

@@ -1,0 +1,172 @@
+import { createWriteStream, promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { net } from 'electron';
+import type {
+  PlatformPublishProgressPayload,
+  PlatformPublishResultPayload,
+  PlatformPublishStartPayload,
+} from '../publish-protocol';
+import { DouyinHttpClient, DouyinHttpError } from './douyin-http-client';
+
+type ProgressFn = (progress: PlatformPublishProgressPayload) => void;
+
+export interface DouyinHttpMediaFiles {
+  videoPath: string;
+  coverPath: string;
+  coverLandscapePath: string;
+}
+
+export interface DouyinHttpPipelineResult {
+  platformPostId?: string;
+  platformUrl?: string;
+}
+
+/**
+ * 抓包对齐后的映射模块实现此接口。创作者中心后台 HTTP 不是开放平台官方契约，
+ * endpoint、载荷和签名都易变，必须以用户自有已授权账号的实际网络请求为准。
+ */
+export interface DouyinHttpPublishPipeline {
+  publish(options: {
+    payload: PlatformPublishStartPayload;
+    media: DouyinHttpMediaFiles;
+    client: DouyinHttpClient;
+    signal: { cancelled: boolean };
+    onProgress: ProgressFn;
+  }): Promise<DouyinHttpPipelineResult>;
+}
+
+export const DOUYIN_HTTP_NOT_CONFIGURED = 'HTTP_PIPELINE_NOT_CONFIGURED';
+
+/**
+ * HTTP 发布骨架先拉取后端签名媒体，再把本机文件与 Cookie HTTP 客户端交给映射流水线。
+ * 未注入流水线时明确失败，绝不把“尚未配置”当作发布成功。
+ */
+export async function runDouyinHttpPublish(options: {
+  payload: PlatformPublishStartPayload;
+  onProgress: ProgressFn;
+  signal: { cancelled: boolean };
+  pipeline?: DouyinHttpPublishPipeline;
+}): Promise<PlatformPublishResultPayload> {
+  const { payload, onProgress, signal, pipeline } = options;
+  const base = {
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    platform: payload.platform,
+  };
+  const emit = (
+    phase: PlatformPublishProgressPayload['phase'],
+    message?: string,
+  ) => {
+    if (!signal.cancelled) {
+      onProgress({ ...base, phase, message });
+    }
+  };
+
+  emit('accepted', '已进入抖音 HTTP 发布策略');
+  if (!pipeline) {
+    return fail(
+      base,
+      DOUYIN_HTTP_NOT_CONFIGURED,
+      '抖音 HTTP 发布流水线尚未配置；请先按自有账号抓包结果补齐接口映射',
+    );
+  }
+
+  const workDir = join(tmpdir(), `pugying-http-publish-${payload.requestId}`);
+  try {
+    await fs.mkdir(workDir, { recursive: true });
+    if (signal.cancelled) {
+      return fail(base, 'cancelled', '已取消');
+    }
+
+    emit('fetching_media', '拉取团队库视频与封面');
+    const media: DouyinHttpMediaFiles = {
+      videoPath: join(workDir, 'video.mp4'),
+      coverPath: join(workDir, 'cover.jpg'),
+      coverLandscapePath: join(workDir, 'cover-landscape.jpg'),
+    };
+    await Promise.all([
+      downloadToFile(payload.mediaUrl, media.videoPath),
+      downloadToFile(payload.coverUrl, media.coverPath),
+      downloadToFile(payload.coverLandscapeUrl, media.coverLandscapePath),
+    ]);
+
+    if (signal.cancelled) {
+      return fail(base, 'cancelled', '已取消');
+    }
+
+    emit('opening_creator', '连接创作者中心后台 HTTP（Cookie 会话）');
+    const result = await pipeline.publish({
+      payload,
+      media,
+      client: new DouyinHttpClient(payload.cookies),
+      signal,
+      onProgress,
+    });
+    if (signal.cancelled) {
+      return fail(base, 'cancelled', '已取消');
+    }
+
+    emit('done', '发布完成');
+    return { ...base, ok: true, ...result };
+  } catch (error) {
+    if (error instanceof DouyinHttpError) {
+      return fail(base, error.code, error.message);
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    if (signal.cancelled || message === 'cancelled') {
+      return fail(base, 'cancelled', '已取消');
+    }
+    if (
+      message.includes('ENOTFOUND') ||
+      message.includes('ECONNREFUSED') ||
+      message.startsWith('download_failed:')
+    ) {
+      return fail(
+        base,
+        'MEDIA_UNREACHABLE',
+        '无法拉取团队库资源，请检查 MEDIA_PUBLIC_BASE_URL 是否对本机可达',
+      );
+    }
+    return fail(base, 'PUBLISH_FAILED', message);
+  } finally {
+    await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function fail(
+  base: { requestId: string; targetId: string; platform: string },
+  errorCode: string,
+  error: string,
+): PlatformPublishResultPayload {
+  return { ...base, ok: false, errorCode, error };
+}
+
+async function downloadToFile(url: string, destination: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = net.request(url);
+    request.on('response', (response) => {
+      const status = response.statusCode ?? 0;
+      if (status < 200 || status >= 300) {
+        reject(new Error(`download_failed:${status}`));
+        response.on('data', () => undefined);
+        response.on('end', () => undefined);
+        return;
+      }
+      const file = createWriteStream(destination);
+      response.on('data', (chunk) => {
+        file.write(chunk);
+      });
+      response.on('end', () => {
+        file.end(resolve);
+      });
+      response.on('error', (error) => {
+        file.destroy();
+        reject(error);
+      });
+      file.on('error', reject);
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}

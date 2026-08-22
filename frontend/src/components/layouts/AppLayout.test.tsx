@@ -1,6 +1,6 @@
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { AdminLayout } from '@/components/layouts/AdminLayout';
+import { AppLayout } from '@/components/layouts/AppLayout';
 
 function createLocalStorageStub(entries: Record<string, string>): Storage {
   let store = new Map<string, string>(Object.entries(entries));
@@ -50,11 +50,13 @@ beforeEach(() => {
         email: 'admin@pugying.local',
         username: 'admin',
         teamId: 't1',
-        permissions: [
-          'TeamManagement.Teams.View',
-          'Identity.Users.View',
-          'Identity.Roles.View',
-        ],
+        permissions: ['Content.Contents.View'],
+      }),
+      pugying_team_id: 't1',
+      pugying_team_info: JSON.stringify({
+        id: 't1',
+        name: 'default',
+        displayName: '默认团队',
       }),
     }),
     writable: true,
@@ -77,40 +79,39 @@ afterEach(() => {
 
 function renderLayout(): string {
   return renderToString(
-    <MemoryRouter initialEntries={['/admin']}>
-      <AdminLayout />
+    <MemoryRouter initialEntries={['/dashboard']}>
+      <AppLayout />
     </MemoryRouter>
   );
 }
 
-describe('AdminLayout (SSR)', () => {
-  it('renders the admin sidebar navigation entries', () => {
+describe('AppLayout (SSR)', () => {
+  it('renders brand in sidebar header and user menu in sidebar footer', () => {
     const html = renderLayout();
 
-    expect(html).toContain('团队管理');
-    expect(html).toContain('概览');
-    expect(html).toContain('成员');
-    expect(html).toContain('角色');
-    expect(html).toContain('团队设置');
-    expect(html).toContain('返回应用');
-    // 「返回应用」在侧栏顶部，先于团队管理导航
-    expect(html.indexOf('返回应用')).toBeLessThan(html.indexOf('团队管理'));
-  });
-
-  it('renders the header with the agent status badge', () => {
-    const html = renderLayout();
-
-    expect(html).toContain('管理');
-    expect(html).toContain('Agent 未连接');
-    expect(html).toContain('返回应用');
     expect(html).toContain('href="/dashboard"');
+    expect(html).toContain('Pugying');
+    expect(html).toContain('蒲公英');
+    expect(html).toContain('Agent 未连接');
+    // footer 仅 NavUser 触发器；团队切换在用户下拉二级子菜单内（SSR 不展开下拉）
+    expect(html).toContain('admin@pugying.local');
+    expect(html).toContain('data-sidebar="footer"');
   });
 
-  it('does not render the user menu in the admin sidebar', () => {
+  it('renders the app sidebar navigation entries', () => {
     const html = renderLayout();
 
-    // 管理区侧栏不展示 NavUser（无邮箱、无退出登录入口）
-    expect(html).not.toContain('admin@pugying.local');
-    expect(html).not.toContain('data-sidebar="footer"');
+    expect(html).toContain('Dashboard');
+    expect(html).toContain('内容管理');
+    expect(html).toContain('媒体库');
+    expect(html).toContain('媒体账号');
+  });
+
+  it('renders user identity and expandable user menu in sidebar footer', () => {
+    const html = renderLayout();
+
+    expect(html).toContain('admin@pugying.local');
+    // 用户菜单始终可展开（ChevronsUpDown 指示下拉），退出登录在下拉内
+    expect(html).toContain('lucide-chevrons-up-down');
   });
 });

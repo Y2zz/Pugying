@@ -91,9 +91,9 @@ export function startPublishJob(options: {
     return { ok: true };
   }
 
-  void import('./platforms/publish-douyin')
-    .then(({ runDouyinPublish }) => {
-      return runDouyinPublish({
+  void import('./platforms/publish-douyin-strategy')
+    .then(({ runDouyinPublishByMode }) => {
+      return runDouyinPublishByMode({
         payload,
         onProgress: options.onProgress,
         signal,

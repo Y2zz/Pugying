@@ -5,6 +5,9 @@ const KNOWN_CODES = new Set([
   'MEDIA_UNREACHABLE',
   'ADAPTER_UI_CHANGED',
   'ADAPTER_PARTIAL',
+  'HTTP_PIPELINE_NOT_CONFIGURED',
+  'HTTP_TIMEOUT',
+  'HTTP_REQUEST_FAILED',
   'PUBLISH_FAILED',
   'cancelled',
   'busy',
@@ -25,6 +28,11 @@ export function describePublishError(
       return '抖音创作者页结构有变，未能自动定位控件；已打开窗口时可手动完成，或稍后更新 Agent';
     case 'ADAPTER_PARTIAL':
       return '已尽量自动填写，请在打开的抖音窗口确认封面并点击发布；完成后可在内容列表查看或重试';
+    case 'HTTP_PIPELINE_NOT_CONFIGURED':
+      return 'Agent 尚未配置抖音 HTTP 发布映射，请改用 DOM 模式或先完成抓包对齐';
+    case 'HTTP_TIMEOUT':
+    case 'HTTP_REQUEST_FAILED':
+      return fallback?.trim() || '抖音后台 HTTP 请求失败，可重试或切换 DOM 模式';
     case 'PUBLISH_FAILED':
       return fallback?.trim() || '发布未成功，可在内容列表重试';
     case 'cancelled':
@@ -90,6 +98,9 @@ export function isRetryablePublishError(
     errorCode === 'AUTH_EXPIRED' ||
     errorCode === 'ADAPTER_PARTIAL' ||
     errorCode === 'ADAPTER_UI_CHANGED' ||
+    errorCode === 'HTTP_PIPELINE_NOT_CONFIGURED' ||
+    errorCode === 'HTTP_TIMEOUT' ||
+    errorCode === 'HTTP_REQUEST_FAILED' ||
     errorCode === 'MEDIA_UNREACHABLE' ||
     errorCode === 'PUBLISH_FAILED' ||
     errorCode === 'cancelled'

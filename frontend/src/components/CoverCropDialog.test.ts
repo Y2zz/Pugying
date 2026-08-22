@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { clampOffset } from '@/components/CoverCropDialog';
+import { clampOffset, fitViewport } from '@/components/CoverCropDialog';
+
+describe('fitViewport', () => {
+  // 台面尺寸恒定（416x320），不同比例只改变裁剪框，不改变外壳
+  const stageW = 416;
+  const stageH = 320;
+
+  it('fits a portrait 3:4 frame by stage height', () => {
+    expect(fitViewport(stageW, stageH, 3 / 4)).toEqual({ w: 240, h: 320 });
+  });
+
+  it('fits a landscape 16:9 frame by stage width', () => {
+    const frame = fitViewport(stageW, stageH, 16 / 9);
+    expect(frame.w).toBe(416);
+    expect(frame.h).toBeCloseTo(234, 0);
+  });
+
+  it('never exceeds the stage in either direction', () => {
+    for (const ratio of [3 / 4, 1, 16 / 9, 4, 0.2]) {
+      const frame = fitViewport(stageW, stageH, ratio);
+      expect(frame.w).toBeLessThanOrEqual(stageW);
+      expect(frame.h).toBeLessThanOrEqual(stageH);
+      expect(frame.w / frame.h).toBeCloseTo(ratio, 5);
+    }
+  });
+
+  it('returns zero size before the stage is measured', () => {
+    expect(fitViewport(0, 0, 3 / 4)).toEqual({ w: 0, h: 0 });
+  });
+});
 
 describe('clampOffset', () => {
   it('keeps offset at origin when image exactly fills the viewport', () => {

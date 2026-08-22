@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Field, FieldContent, FieldLabel } from '@/components/ui/field';
 import { Slider } from '@/components/ui/slider';
 
 export type CoverAspect = '3:4' | '16:9';
@@ -16,6 +17,12 @@ const ASPECT_RATIO: Record<CoverAspect, number> = {
   '3:4': 3 / 4,
   '16:9': 16 / 9,
 };
+
+/**
+ * 裁剪台固定高度（px）。裁剪框按比例「contain」进这个固定台面，
+ * 因此 3:4 与 16:9 切换、以及不同源图尺寸下 Dialog 外壳高度都不变。
+ */
+const STAGE_HEIGHT = 320;
 
 interface CoverCropDialogProps {
   open: boolean;
@@ -41,12 +48,13 @@ export function CoverCropDialog({
   onConfirm,
 }: CoverCropDialogProps) {
   const ratio = ASPECT_RATIO[aspect];
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
   const [natural, setNatural] = useState({ w: 0, h: 0 });
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  // 台面尺寸：宽度随 Dialog 响应式变化，高度恒为 STAGE_HEIGHT
+  const [stage, setStage] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{
@@ -70,7 +78,7 @@ export function CoverCropDialog({
         setImageUrl(null);
         setLoadError('');
         setNatural({ w: 0, h: 0 });
-        setViewport({ w: 0, h: 0 });
+        setStage({ w: 0, h: 0 });
         setScale(1);
         setOffset({ x: 0, y: 0 });
       }, 0);
@@ -145,35 +153,31 @@ export function CoverCropDialog({
     let raf = 0;
     let tries = 0;
 
+    const sync = () => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+      setStage((prev) =>
+        prev.w === rect.width && prev.h === rect.height
+          ? prev
+          : { w: rect.width, h: rect.height },
+      );
+    };
+
     const measure = () => {
-      const el = viewportRef.current;
+      const el = stageRef.current;
       if (!el) {
+        // Dialog 挂载有一帧延迟，重试直到拿到台面节点
         if (tries < 20) {
           tries += 1;
           raf = requestAnimationFrame(measure);
         }
         return;
       }
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setViewport((prev) =>
-          prev.w === rect.width && prev.h === rect.height
-            ? prev
-            : { w: rect.width, h: rect.height },
-        );
-      }
+      sync();
       if (!observer) {
-        observer = new ResizeObserver(() => {
-          const next = viewportRef.current?.getBoundingClientRect();
-          if (!next || next.width <= 0 || next.height <= 0) {
-            return;
-          }
-          setViewport((prev) =>
-            prev.w === next.width && prev.h === next.height
-              ? prev
-              : { w: next.width, h: next.height },
-          );
-        });
+        observer = new ResizeObserver(sync);
         observer.observe(el);
       }
     };
@@ -183,8 +187,10 @@ export function CoverCropDialog({
       cancelAnimationFrame(raf);
       observer?.disconnect();
     };
-  }, [open, aspect, imageUrl, natural.w]);
+  }, [open]);
 
+  // 裁剪框：按目标比例在固定台面内做 contain，外壳尺寸与比例、源图无关
+  const viewport = fitViewport(stage.w, stage.h, ratio);
   const frame = fitFrame(natural.w, natural.h, viewport.w, viewport.h, scale);
 
   useEffect(() => {
@@ -291,58 +297,77 @@ export function CoverCropDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* 固定高度台面：切换 3:4 / 16:9 时只有内部裁剪框变形，Dialog 高度不变 */}
         <div
-          ref={viewportRef}
-          className="relative mx-auto w-full max-w-sm touch-none overflow-hidden bg-muted select-none"
-          style={{ aspectRatio: `${ratio}` }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
+          ref={stageRef}
+          className="flex w-full items-center justify-center overflow-hidden rounded-md bg-muted/40"
+          style={{ height: STAGE_HEIGHT }}
         >
-          {showImage ? (
-            <img
-              src={imageUrl!}
-              alt=""
-              draggable={false}
-              className="pointer-events-none absolute top-1/2 left-1/2 max-w-none"
-              style={{
-                width: frame.displayW,
-                height: frame.displayH,
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-              }}
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-              {loadError
-                ? loadError
-                : imageUrl
-                  ? '加载中…'
-                  : '未选择图片'}
-            </div>
-          )}
+          <div
+            className="relative touch-none overflow-hidden bg-muted select-none"
+            style={{ width: viewport.w || '100%', height: viewport.h || '100%' }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+          >
+            {showImage ? (
+              <img
+                src={imageUrl!}
+                alt=""
+                draggable={false}
+                className="pointer-events-none absolute top-1/2 left-1/2 max-w-none"
+                style={{
+                  width: frame.displayW,
+                  height: frame.displayH,
+                  transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                }}
+              />
+            ) : (
+              <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
+                {loadError
+                  ? loadError
+                  : imageUrl
+                    ? '加载中…'
+                    : '未选择图片'}
+              </div>
+            )}
+            {/*
+              裁剪边界虚线：绝对定位覆盖层，不参与布局也不吃指针事件，
+              因此裁剪框自身尺寸（fitViewport / clampOffset / 导出画布）不受影响。
+              固定用 cyan-300 而非语义 token：Zinc 主题的 accent/ring 近乎灰色，
+              叠在任意封面图上难以辨识；辅助线需要恒定高对比的亮青色。
+              不取更浅的 cyan-200：饱和度已明显下降，在浅色封面上反而更糊。
+            */}
+            <div className="pointer-events-none absolute inset-0 border border-dashed border-cyan-300" />
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="w-10 shrink-0 text-xs text-muted-foreground">缩放</span>
-          {/*
-            Base UI 单拇指可用标量 value={scale}；但本地 ui/slider 用
-            Array.isArray(value) 计拇指数，标量会回退成 [min,max] 渲染双拇指。
-            在禁止改 components/ui 的前提下，单拇指仍传数组以保裁剪缩放可用。
-          */}
-          <Slider
-            min={1}
-            max={3}
-            step={0.01}
-            value={[scale]}
-            onValueChange={(value) => {
-              const next = Array.isArray(value) ? value[0] : value;
-              if (typeof next === 'number') {
-                setScale(next);
-              }
-            }}
-          />
-        </div>
+        {/* 纵向 Field：标签独占一行，Slider 才能吃满整行宽度（horizontal 下标签 flex-auto 会挤窄滑条） */}
+        <Field orientation="vertical">
+          <FieldLabel htmlFor="cover-crop-scale">缩放</FieldLabel>
+          <FieldContent className="w-full">
+            {/*
+              Base UI 单拇指可用标量 value={scale}；但本地 ui/slider 用
+              Array.isArray(value) 计拇指数，标量会回退成 [min,max] 渲染双拇指。
+              在禁止改 components/ui 的前提下，单拇指仍传数组以保裁剪缩放可用。
+            */}
+            <Slider
+              id="cover-crop-scale"
+              className="w-full"
+              min={1}
+              max={3}
+              step={0.01}
+              value={[scale]}
+              onValueChange={(value) => {
+                const next = Array.isArray(value) ? value[0] : value;
+                if (typeof next === 'number') {
+                  setScale(next);
+                }
+              }}
+            />
+          </FieldContent>
+        </Field>
 
         <DialogFooter>
           <Button
@@ -360,6 +385,23 @@ export function CoverCropDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * 裁剪框尺寸：在固定台面内按目标比例 contain。
+ * 高度受台面高度约束、宽度受台面宽度约束，两者取更严的一侧，
+ * 保证任何比例下裁剪框都完整落在同一块台面里（外壳尺寸恒定）。
+ */
+export function fitViewport(
+  stageW: number,
+  stageH: number,
+  ratio: number,
+): { w: number; h: number } {
+  if (stageW <= 0 || stageH <= 0 || ratio <= 0) {
+    return { w: 0, h: 0 };
+  }
+  const w = Math.min(stageW, stageH * ratio);
+  return { w, h: w / ratio };
 }
 
 /** 以 cover 方式铺满视窗，再乘用户缩放（≥1 保证始终盖住） */

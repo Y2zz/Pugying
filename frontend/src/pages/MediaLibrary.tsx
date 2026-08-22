@@ -133,6 +133,7 @@ export default function MediaLibrary() {
       {error ? (
         <Alert variant="destructive">
           <AlertCircle />
+          <AlertTitle>加载失败</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
@@ -195,17 +196,15 @@ function MediaAssetCard({ item, busy, onPreview, onDelete }: { item: MediaLibrar
 
   return (
     <Card className="gap-3 overflow-hidden pt-0 pb-4">
-      <button
+      <Button
         type="button"
-        className="block w-full cursor-pointer text-left transition-opacity outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        variant="ghost"
+        className="h-auto w-full justify-start rounded-none p-0 text-left transition-opacity hover:bg-transparent hover:opacity-90"
         onClick={onPreview}
         aria-label={`预览 ${item.originalName}`}
       >
         {isVideo ? (
-          <MediaVideoPoster
-            src={item.url}
-            className="relative aspect-video w-full overflow-hidden rounded-none border-0 border-b"
-          />
+          <MediaVideoPoster src={item.url} className="relative aspect-video w-full overflow-hidden rounded-none border-0 border-b" />
         ) : (
           // 列表卡片统一 16:9；竖/横原图不符时 cover 居中裁剪，不用 contain 留灰边
           <MediaPreviewImage
@@ -216,7 +215,7 @@ function MediaAssetCard({ item, busy, onPreview, onDelete }: { item: MediaLibrar
             objectFit="cover"
           />
         )}
-      </button>
+      </Button>
       <CardContent className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <div
@@ -243,7 +242,7 @@ function MediaAssetCard({ item, busy, onPreview, onDelete }: { item: MediaLibrar
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary" className="gap-1 font-normal">
-            <TypeIcon className="size-3" />
+            <TypeIcon />
             {isVideo ? '视频' : '图片'}
           </Badge>
           {!isVideo ? (
