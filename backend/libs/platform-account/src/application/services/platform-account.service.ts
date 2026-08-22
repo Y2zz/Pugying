@@ -61,8 +61,11 @@ export class PlatformAccountService {
     return PLATFORM_CATALOG;
   }
 
-  async findAll(): Promise<PlatformAccountPublic[]> {
-    const rows = await this.repository.findAllForCurrentTeam();
+  async findAll(platform?: string): Promise<PlatformAccountPublic[]> {
+    if (platform !== undefined && !isPlatformId(platform)) {
+      throw new BadRequestException(`Unsupported platform: ${platform}`);
+    }
+    const rows = await this.repository.findAllForCurrentTeam(platform);
     return rows.map((row) => this.toPublic(row));
   }
 

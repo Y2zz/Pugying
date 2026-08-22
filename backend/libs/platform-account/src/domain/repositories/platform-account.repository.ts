@@ -3,7 +3,7 @@ import type { PlatformId } from '@pugying/platform-account/domain/platform-catal
 
 export interface IPlatformAccountRepository {
   create(data: Partial<PlatformAccount>): PlatformAccount;
-  findAllForCurrentTeam(): Promise<PlatformAccount[]>;
+  findAllForCurrentTeam(platform?: PlatformId): Promise<PlatformAccount[]>;
   findById(id: string): Promise<PlatformAccount | null>;
   findByPlatformUser(
     teamId: string,

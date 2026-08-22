@@ -7,10 +7,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -39,9 +41,15 @@ export class PlatformAccountController {
   @Get()
   @RequirePermission(PlatformAccountPermissions.Accounts.View)
   @ApiOperation({ summary: '当前团队的平台账号列表' })
+  @ApiQuery({
+    name: 'platform',
+    required: false,
+    enum: ['douyin', 'toutiao', 'channels', 'bilibili', 'xiaohongshu'],
+    description: '按平台筛选；省略则返回全部',
+  })
   @ApiResponse({ status: 200, description: '不含凭证明文' })
-  findAll() {
-    return this.service.findAll();
+  findAll(@Query('platform') platform?: string) {
+    return this.service.findAll(platform);
   }
 
   @Post()

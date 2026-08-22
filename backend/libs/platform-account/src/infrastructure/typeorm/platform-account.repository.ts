@@ -28,9 +28,10 @@ export class TypeOrmPlatformAccountRepository
     return this.repo.create(data);
   }
 
-  async findAllForCurrentTeam(): Promise<PlatformAccount[]> {
+  async findAllForCurrentTeam(platform?: PlatformId): Promise<PlatformAccount[]> {
     return this.repo.find(
       this.teamFilter.applyMany<PlatformAccount>({
+        where: platform ? { platform } : undefined,
         order: { createdAt: 'DESC' },
       }),
     );

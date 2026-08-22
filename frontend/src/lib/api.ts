@@ -287,8 +287,13 @@ export async function fetchPlatformCatalog(): Promise<PlatformCatalogItem[]> {
   return apiFetch<PlatformCatalogItem[]>('/platform-accounts/platforms');
 }
 
-export async function fetchPlatformAccounts(): Promise<PlatformAccountItem[]> {
-  return apiFetch<PlatformAccountItem[]>('/platform-accounts');
+export async function fetchPlatformAccounts(params?: {
+  platform?: PlatformId;
+}): Promise<PlatformAccountItem[]> {
+  const query = params?.platform
+    ? `?platform=${encodeURIComponent(params.platform)}`
+    : '';
+  return apiFetch<PlatformAccountItem[]>(`/platform-accounts${query}`);
 }
 
 export async function bindPlatformAccount(body: {

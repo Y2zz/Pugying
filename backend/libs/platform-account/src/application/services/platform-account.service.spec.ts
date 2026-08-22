@@ -65,6 +65,18 @@ describe('PlatformAccountService', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]).not.toHaveProperty('credentialCipher');
       expect(rows[0].displayName).toBe('我的抖音号');
+      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith(undefined);
+    });
+
+    it('forwards platform filter to the repository', async () => {
+      await service.findAll('douyin');
+
+      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith('douyin');
+    });
+
+    it('rejects unsupported platform filters', async () => {
+      await expect(service.findAll('weibo')).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.findAllForCurrentTeam).not.toHaveBeenCalled();
     });
   });
 
