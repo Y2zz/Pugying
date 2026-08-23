@@ -101,7 +101,19 @@ describe('ContentService', () => {
     it('passes the type filter to the repository', async () => {
       await service.findAll('video');
 
-      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith('video');
+      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith({
+        type: 'video',
+        q: undefined,
+      });
+    });
+
+    it('passes the keyword filter to the repository', async () => {
+      await service.findAll(undefined, '封面');
+
+      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith({
+        type: undefined,
+        q: '封面',
+      });
     });
 
     it('groups targets by content id', async () => {

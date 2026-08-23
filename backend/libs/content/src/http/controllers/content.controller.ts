@@ -38,8 +38,13 @@ export class ContentController {
   @RequirePermission(ContentPermissions.Contents.View)
   @ApiOperation({ summary: '当前团队的内容列表' })
   @ApiQuery({ name: 'type', required: false, enum: ['article', 'video'] })
-  findAll(@Query('type') type?: string) {
-    return this.service.findAll(type);
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: '关键词：匹配标题、正文、标签',
+  })
+  findAll(@Query('type') type?: string, @Query('q') q?: string) {
+    return this.service.findAll(type, q);
   }
 
   @Get(':id')

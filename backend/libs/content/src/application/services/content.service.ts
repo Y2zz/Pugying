@@ -49,11 +49,17 @@ export class ContentService {
     private readonly currentTeam: CurrentTeam,
   ) {}
 
-  async findAll(type?: string): Promise<ContentWithTargets[]> {
-    if (type !== undefined && !isContentType(type)) {
+  async findAll(
+    type?: string,
+    q?: string,
+  ): Promise<ContentWithTargets[]> {
+    if (type !== undefined && type !== '' && !isContentType(type)) {
       throw new BadRequestException(`Unsupported content type: ${type}`);
     }
-    const rows = await this.repository.findAllForCurrentTeam(type);
+    const rows = await this.repository.findAllForCurrentTeam({
+      type: type && isContentType(type) ? type : undefined,
+      q,
+    });
     if (rows.length === 0) {
       return [];
     }
