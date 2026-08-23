@@ -89,7 +89,7 @@ export default function PublishArticle() {
             <FileText />
             {editId ? '编辑图文' : '发布图文'}
           </CardTitle>
-          <CardDescription>填写标题与正文，可附上封面与图片素材链接；保存后可在「内容管理」中查看</CardDescription>
+          <CardDescription>填写标题与正文，可附上封面与图片素材链接；保存后可在「作品管理」中查看</CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup className="gap-4">

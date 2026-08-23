@@ -23,7 +23,7 @@ const data = {
       isActive: true,
     },
     {
-      title: '内容管理',
+      title: '作品管理',
       url: '/contents',
       icon: LayoutGrid,
     },

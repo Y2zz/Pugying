@@ -102,7 +102,7 @@ describe('AppLayout (SSR)', () => {
     const html = renderLayout();
 
     expect(html).toContain('Dashboard');
-    expect(html).toContain('内容管理');
+    expect(html).toContain('作品管理');
     expect(html).toContain('媒体库');
     expect(html).toContain('媒体账号');
   });
