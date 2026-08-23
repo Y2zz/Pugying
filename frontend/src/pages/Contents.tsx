@@ -5,7 +5,9 @@ import {
   Clapperboard,
   Clock,
   FileText,
+  Grid2x2,
   ImageIcon,
+  LayoutGrid,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -54,6 +56,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MediaPreviewImage } from '@/components/MediaPreviewImage';
 import { agentClient } from '@/lib/agent-client';
 import {
@@ -71,6 +74,32 @@ import {
 import { describeCaughtError, describePublishError } from '@/lib/publish-errors';
 
 type TypeFilter = 'all' | ContentType;
+type ContentDensity = 'comfortable' | 'compact';
+
+const DENSITY_STORAGE_KEY = 'pugying.contents.density';
+
+/**
+ * auto-fill + minmax：内容区变宽自动加列，单卡宽度落在下限附近，避免 27″ 上海报级大卡。
+ * 舒适 / 紧凑用不同下限实现密度切换。
+ */
+const CONTENT_GRID_CLASS: Record<ContentDensity, string> = {
+  comfortable:
+    'grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]',
+  compact:
+    'grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]',
+};
+
+function readStoredDensity(): ContentDensity {
+  try {
+    const raw = localStorage.getItem(DENSITY_STORAGE_KEY);
+    if (raw === 'comfortable' || raw === 'compact') {
+      return raw;
+    }
+  } catch {
+    // 隐私模式等读失败时回退默认
+  }
+  return 'comfortable';
+}
 
 const TYPE_META: Record<ContentType, { label: string; icon: typeof FileText }> =
   {
@@ -236,10 +265,23 @@ export default function Contents() {
   const [items, setItems] = useState<ContentItem[]>([]);
   const [filter, setFilter] = useState<TypeFilter>('all');
   const [query, setQuery] = useState('');
+  const [density, setDensity] = useState<ContentDensity>(readStoredDensity);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const loadSeqRef = useRef(0);
+
+  const gridClass = CONTENT_GRID_CLASS[density];
+  const compact = density === 'compact';
+
+  const setDensityPersisted = (next: ContentDensity) => {
+    setDensity(next);
+    try {
+      localStorage.setItem(DENSITY_STORAGE_KEY, next);
+    } catch {
+      // 写失败不影响当次切换
+    }
+  };
 
   // 服务端筛选：type + q；显式传入 next，避免 setState 异步读到旧值
   const reload = async (
@@ -407,7 +449,7 @@ export default function Contents() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <InputGroup className="min-w-0 max-w-xs flex-1">
             <InputGroupInput
               id="content-search"
@@ -464,26 +506,48 @@ export default function Contents() {
             </Button>
           ) : null}
         </div>
-        <Button
-          variant="outline"
-          disabled={loading}
-          onClick={() => {
-            void reload();
-          }}
-        >
-          <RefreshCw data-icon="inline-start" />
-          刷新
-        </Button>
+        <div className="flex shrink-0 items-center justify-center gap-2">
+          <Tabs
+            value={density}
+            onValueChange={(value) => {
+              if (value === 'comfortable' || value === 'compact') {
+                setDensityPersisted(value);
+              }
+            }}
+            className="w-fit gap-0"
+          >
+            <TabsList aria-label="列表密度">
+              <TabsTrigger value="comfortable">
+                <LayoutGrid data-icon="inline-start" />
+                舒适
+              </TabsTrigger>
+              <TabsTrigger value="compact">
+                <Grid2x2 data-icon="inline-start" />
+                紧凑
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button
+            variant="outline"
+            disabled={loading}
+            onClick={() => {
+              void reload();
+            }}
+          >
+            <RefreshCw data-icon="inline-start" />
+            刷新
+          </Button>
+        </div>
       </div>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="pt-0">
-              <Skeleton className="aspect-[4/3] w-full rounded-none" />
+        <div className={gridClass}>
+          {Array.from({ length: compact ? 8 : 5 }).map((_, i) => (
+            <Card key={i} size={compact ? 'sm' : 'default'} className="pt-0">
+              <Skeleton className="aspect-video w-full rounded-none" />
               <CardHeader>
                 <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+                {compact ? null : <Skeleton className="h-4 w-1/2" />}
               </CardHeader>
             </Card>
           ))}
@@ -513,11 +577,12 @@ export default function Contents() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className={gridClass}>
           {items.map((item) => (
             <ContentCard
               key={item.id}
               item={item}
+              density={density}
               busy={busyId === item.id || busyId?.startsWith(`${item.id}:`) === true}
               onRevertDraft={() => {
                 void handleRevertDraft(item);
@@ -538,12 +603,14 @@ export default function Contents() {
 
 function ContentCard({
   item,
+  density,
   busy,
   onRevertDraft,
   onRetryTarget,
   onDelete,
 }: {
   item: ContentItem;
+  density: ContentDensity;
   busy: boolean;
   onRevertDraft: () => void;
   onRetryTarget: (target: ContentTargetItem) => void;
@@ -553,6 +620,7 @@ function ContentCard({
   const meta = TYPE_META[item.type];
   const TypeIcon = meta.icon;
   const published = item.status === 'published';
+  const compact = density === 'compact';
   const dist = summarizeTargets(item.targets);
   const glance = glanceStatus(item);
   const failedTargets = item.targets.filter(
@@ -561,6 +629,14 @@ function ContentCard({
   const authExpiredTargets = failedTargets.filter((t) => t.errorCode === 'AUTH_EXPIRED');
   const retryableTargets = failedTargets.filter((t) => t.errorCode !== 'AUTH_EXPIRED');
   const editTo = editPath(item);
+  const timeLabel = published
+    ? item.publishedAt
+      ? formatScheduleTime(item.publishedAt)
+      : '—'
+    : formatScheduleTime(item.updatedAt);
+  const timeFull = published
+    ? `发布于 ${formatTime(item.publishedAt)}`
+    : `更新于 ${formatTime(item.updatedAt)}`;
 
   const handleRetryFailed = () => {
     const target = retryableTargets[0];
@@ -570,9 +646,9 @@ function ContentCard({
   };
 
   return (
-    // 默认 size → CardTitle 即为 text-base；pt-0 仅用于封面顶齐
-    <Card className="h-full pt-0">
-      <div className="relative aspect-[4/3] bg-muted">
+    // pt-0 仅用于封面顶齐；紧凑用 size=sm 压间距
+    <Card size={compact ? 'sm' : 'default'} className="h-full gap-3 pt-0">
+      <div className="relative aspect-video bg-muted">
         <Link
           to={editTo}
           className="absolute inset-0 block"
@@ -587,7 +663,7 @@ function ContentCard({
             />
           ) : (
             <div className="flex size-full items-center justify-center text-muted-foreground">
-              <TypeIcon className="size-8" />
+              <TypeIcon className={compact ? 'size-6' : 'size-8'} />
             </div>
           )}
         </Link>
@@ -595,7 +671,7 @@ function ContentCard({
           {/* 叠层半透明特例：封面图深浅不一，Badge variant 无法保证叠层可读。 */}
           <Badge variant="secondary" className="bg-background/80 backdrop-blur">
             <TypeIcon />
-            {meta.label}
+            {compact ? null : meta.label}
           </Badge>
           <Badge
             variant={
@@ -625,8 +701,8 @@ function ContentCard({
             {item.title}
           </Link>
         </CardTitle>
-        {item.body ? (
-          <CardDescription className="line-clamp-2">{item.body}</CardDescription>
+        {!compact && item.body ? (
+          <CardDescription className="line-clamp-1">{item.body}</CardDescription>
         ) : null}
       </CardHeader>
 
@@ -647,12 +723,13 @@ function ContentCard({
       </CardContent>
 
       <CardFooter className="mt-auto gap-2">
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+        <span
+          className="min-w-0 flex-1 truncate text-muted-foreground"
+          title={timeFull}
+        >
           {published ? '已发布' : '草稿'}
           {' · '}
-          {published
-            ? `发布于 ${formatTime(item.publishedAt)}`
-            : `更新于 ${formatTime(item.updatedAt)}`}
+          {compact ? timeLabel : timeFull}
         </span>
         {authExpiredTargets.length > 0 ? (
           <Button size="sm" variant="outline" render={<Link to="/platform-accounts" />}>
