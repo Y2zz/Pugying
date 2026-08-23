@@ -544,11 +544,20 @@ export async function deleteMediaAsset(id: string): Promise<void> {
   await apiFetch(`/media/assets/${id}`, { method: 'DELETE' });
 }
 
-export async function fetchContents(
-  type?: ContentType,
-): Promise<ContentItem[]> {
-  const query = type ? `?type=${type}` : '';
-  return apiFetch<ContentItem[]>(`/contents${query}`);
+export async function fetchContents(params?: {
+  type?: ContentType;
+  q?: string;
+}): Promise<ContentItem[]> {
+  const search = new URLSearchParams();
+  if (params?.type) {
+    search.set('type', params.type);
+  }
+  const q = params?.q?.trim();
+  if (q) {
+    search.set('q', q);
+  }
+  const query = search.toString();
+  return apiFetch<ContentItem[]>(`/contents${query ? `?${query}` : ''}`);
 }
 
 export async function fetchContent(id: string): Promise<ContentItem> {

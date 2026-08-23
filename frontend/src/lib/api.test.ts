@@ -436,13 +436,22 @@ describe('auth and team flows', () => {
     expect(getStoredTeam()).toEqual(sampleTeam);
   });
 
-  it('fetchContents appends the type query only when provided', async () => {
-    stubFetch(fakeResponse(200, []), fakeResponse(200, []));
+  it('fetchContents appends type and q query params when provided', async () => {
+    stubFetch(
+      fakeResponse(200, []),
+      fakeResponse(200, []),
+      fakeResponse(200, []),
+      fakeResponse(200, []),
+    );
 
     await fetchContents();
-    await fetchContents('article');
+    await fetchContents({ type: 'article' });
+    await fetchContents({ q: '封面' });
+    await fetchContents({ type: 'video', q: '  草稿  ' });
 
     expect(fetchCalls[0].url.endsWith('/contents')).toBe(true);
     expect(fetchCalls[1].url.endsWith('/contents?type=article')).toBe(true);
+    expect(fetchCalls[2].url.endsWith('/contents?q=%E5%B0%81%E9%9D%A2')).toBe(true);
+    expect(fetchCalls[3].url.endsWith('/contents?type=video&q=%E8%8D%89%E7%A8%BF')).toBe(true);
   });
 });
