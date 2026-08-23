@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, SearchIcon, Trash2 } from 'lucide-react';
+import { Check, ExternalLink, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCcw, SearchIcon, Trash2, XIcon } from 'lucide-react';
 import { PlatformIcon } from '@/components/PlatformIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import {
   Pagination,
   PaginationContent,
@@ -30,9 +30,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AgentNeededDialog } from '@/components/AgentNeededDialog';
@@ -254,6 +254,15 @@ export default function PlatformAccounts() {
     return false;
   };
 
+  // 平台下拉选项：默认「全部平台」，其余来自目录；切平台时仍走服务端筛选
+  const platformFilterOptions: Array<{ value: PlatformFilter; label: string }> = [
+    { value: 'all', label: '全部平台' },
+    ...catalog.map((item) => ({ value: item.id as PlatformFilter, label: item.displayName })),
+  ];
+
+  // 关键词或平台任一偏离默认时，允许一键重置
+  const hasSearchFilters = Boolean(accountQuery.trim()) || platformFilter !== 'all';
+
   const loadSeqRef = useRef(0);
   const reload = async (filter: PlatformFilter = platformFilter) => {
     const seq = ++loadSeqRef.current;
@@ -282,6 +291,13 @@ export default function PlatformAccounts() {
         setLoading(false);
       }
     }
+  };
+
+  const resetSearchFilters = () => {
+    setAccountQuery('');
+    setPlatformFilter('all');
+    setPage(1);
+    void reload('all');
   };
 
   // Latest reload in a ref so the one-shot effect below never goes stale.
@@ -471,15 +487,78 @@ export default function PlatformAccounts() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">媒体账号</h1>
-          <p className="text-sm text-muted-foreground">通过桌面 Agent 打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站 / 小红书绑定</p>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">媒体账号</h1>
+        <p className="text-sm text-muted-foreground">通过桌面 Agent 打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站 / 小红书绑定</p>
+      </div>
+
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <InputGroup className="min-w-0 max-w-xs flex-1">
+            <InputGroupInput
+              id="account-search"
+              value={accountQuery}
+              placeholder="搜索账号名称"
+              onChange={(e) => {
+                setAccountQuery(e.target.value);
+                setPage(1);
+              }}
+            />
+            <InputGroupAddon>
+              <SearchIcon />
+            </InputGroupAddon>
+            {accountQuery ? (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="清除搜索"
+                  onClick={() => {
+                    setAccountQuery('');
+                    setPage(1);
+                  }}
+                >
+                  <XIcon />
+                </InputGroupButton>
+              </InputGroupAddon>
+            ) : null}
+          </InputGroup>
+          <Select
+            value={platformFilter}
+            onValueChange={(value) => {
+              const next = (value as PlatformFilter) ?? 'all';
+              setPlatformFilter(next);
+              setPage(1);
+              // 显式传入 next：setState 异步，不能依赖尚未更新的 platformFilter
+              void reload(next);
+            }}
+            items={platformFilterOptions}
+          >
+            <SelectTrigger className="w-36 shrink-0" aria-label="平台">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {platformFilterOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {hasSearchFilters ? (
+            <Button type="button" variant="ghost" className="shrink-0" onClick={resetSearchFilters}>
+              <RotateCcw data-icon="inline-start" />
+              重置
+            </Button>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             disabled={loading || busy}
             onClick={() => {
               void reload();
@@ -489,13 +568,12 @@ export default function PlatformAccounts() {
             刷新
           </Button>
           <Button
-            size="sm"
             disabled={busy}
             onClick={() => {
               if (!requireAgent()) {
                 return;
               }
-              // 从某平台 Tab 点「添加」时预选该平台，减少二次选择
+              // 从某平台筛选点「添加」时预选该平台，减少二次选择
               if (platformFilter !== 'all') {
                 setSelectedPlatform(platformFilter);
               }
@@ -507,44 +585,6 @@ export default function PlatformAccounts() {
             添加账号
           </Button>
         </div>
-      </div>
-
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          value={platformFilter}
-          onValueChange={(value) => {
-            const next = (value as PlatformFilter) ?? 'all';
-            setPlatformFilter(next);
-            setPage(1);
-            // 显式传入 next：setState 异步，不能依赖尚未更新的 platformFilter
-            void reload(next);
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="all">全部</TabsTrigger>
-            {catalog.map((item) => (
-              <TabsTrigger key={item.id} value={item.id}>
-                {item.displayName}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <InputGroup className="w-full max-w-xs">
-          <InputGroupInput
-            id="account-search"
-            value={accountQuery}
-            placeholder="搜索账号名称"
-            onChange={(e) => {
-              setAccountQuery(e.target.value);
-              setPage(1);
-            }}
-          />
-          <InputGroupAddon>
-            <SearchIcon />
-          </InputGroupAddon>
-        </InputGroup>
       </div>
 
       {loading ? (
@@ -574,7 +614,7 @@ export default function PlatformAccounts() {
             <EmptyDescription>
               {platformFilter === 'all'
                 ? '点击右上角「添加账号」，通过桌面 Agent 完成平台登录后即可绑定。'
-                : `当前没有「${platformLabel(platformFilter)}」账号，可切换到「全部」或添加该平台账号。`}
+                : `当前没有「${platformLabel(platformFilter)}」账号，可改回「全部平台」或添加该平台账号。`}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -585,7 +625,7 @@ export default function PlatformAccounts() {
               <SearchIcon />
             </EmptyMedia>
             <EmptyTitle>未找到匹配账号</EmptyTitle>
-            <EmptyDescription>换个关键词试试，或清空搜索查看全部账号。</EmptyDescription>
+            <EmptyDescription>换个关键词试试，或点「重置」清空搜索条件查看全部账号。</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -702,6 +742,20 @@ export default function PlatformAccounts() {
                 <InputGroupAddon>
                   <SearchIcon />
                 </InputGroupAddon>
+                {platformQuery ? (
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label="清除搜索"
+                      onClick={() => {
+                        setPlatformQuery('');
+                      }}
+                    >
+                      <XIcon />
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                ) : null}
               </InputGroup>
             </Field>
             <Field>
@@ -1012,7 +1066,7 @@ function AccountCard({
 
   return (
     // h-full + 底栏 mt-auto：同排卡片等高，底栏始终贴底，
-    // 不受名称/平台文本行数影响（内容管理页曾踩过的坑）。
+    // 不受名称/平台文本行数影响（作品管理页曾踩过的坑）。
     <Card className="h-full gap-3">
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
