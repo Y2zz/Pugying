@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Clapperboard, FolderOpen, ImageIcon, RefreshCw, RotateCcw, SearchIcon, Trash2, XIcon } from 'lucide-react';
+import { AlertCircle, Clapperboard, FolderOpen, Grid2x2, ImageIcon, LayoutGrid, RefreshCw, RotateCcw, SearchIcon, Trash2, XIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -20,6 +20,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MediaPreviewImage } from '@/components/MediaPreviewImage';
 import { toast } from '@/components/AppToaster';
 import { deleteMediaAsset, fetchMediaAssets, fetchMediaSignedUrl, parseMediaAssetId, type MediaLibraryCategory, type MediaLibraryItem } from '@/lib/api';
@@ -27,8 +28,32 @@ import { cn } from '@/lib/utils';
 
 type TypeFilter = 'all' | MediaLibraryCategory;
 
-/** 媒体库卡片网格：宽屏最多 5 列，避免卡片过碎、文件名难读 */
-const MEDIA_GRID_CLASS = 'grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5';
+type MediaDensity = 'comfortable' | 'compact';
+
+const DENSITY_STORAGE_KEY = 'pugying.media-library.density';
+
+/**
+ * auto-fill + minmax：内容区变宽自动加列，单卡宽度落在下限附近，避免大屏上海报级大卡。
+ * 与作品管理同一套舒适 / 紧凑下限。
+ */
+const MEDIA_GRID_CLASS: Record<MediaDensity, string> = {
+  comfortable:
+    'grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]',
+  compact:
+    'grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]',
+};
+
+function readStoredDensity(): MediaDensity {
+  try {
+    const raw = localStorage.getItem(DENSITY_STORAGE_KEY);
+    if (raw === 'comfortable' || raw === 'compact') {
+      return raw;
+    }
+  } catch {
+    // 隐私模式等读失败时回退默认
+  }
+  return 'comfortable';
+}
 
 const TYPE_FILTER_OPTIONS: Array<{ value: TypeFilter; label: string }> = [
   { value: 'all', label: '全部类型' },
@@ -77,6 +102,21 @@ function formatTime(value: string): string {
   }
 }
 
+/** 紧凑密度用短时间，避免元信息撑开窄卡 */
+function formatShortTime(value: string): string {
+  try {
+    return new Date(value).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return value;
+  }
+}
+
 /** 列表缩略图统一 4:3，避免混排时高低不一 */
 function thumbAspect(): { className: string; ratio: number } {
   return { className: 'aspect-[4/3]', ratio: 4 / 3 };
@@ -91,6 +131,19 @@ export default function MediaLibrary() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MediaLibraryItem | null>(null);
+  const [density, setDensity] = useState<MediaDensity>(readStoredDensity);
+
+  const gridClass = MEDIA_GRID_CLASS[density];
+  const compact = density === 'compact';
+
+  const setDensityPersisted = (next: MediaDensity) => {
+    setDensity(next);
+    try {
+      localStorage.setItem(DENSITY_STORAGE_KEY, next);
+    } catch {
+      // 写失败不影响当次切换
+    }
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -184,7 +237,7 @@ export default function MediaLibrary() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <InputGroup className="min-w-0 max-w-xs flex-1">
             <InputGroupInput
               id="media-search"
@@ -239,26 +292,48 @@ export default function MediaLibrary() {
             </Button>
           ) : null}
         </div>
-        <Button
-          variant="outline"
-          disabled={loading}
-          onClick={() => {
-            void reload();
-          }}
-        >
-          <RefreshCw data-icon="inline-start" />
-          刷新
-        </Button>
+        <div className="flex shrink-0 items-center justify-center gap-2">
+          <Tabs
+            value={density}
+            onValueChange={(value) => {
+              if (value === 'comfortable' || value === 'compact') {
+                setDensityPersisted(value);
+              }
+            }}
+            className="w-fit gap-0"
+          >
+            <TabsList aria-label="列表密度">
+              <TabsTrigger value="comfortable">
+                <LayoutGrid data-icon="inline-start" />
+                舒适
+              </TabsTrigger>
+              <TabsTrigger value="compact">
+                <Grid2x2 data-icon="inline-start" />
+                紧凑
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button
+            variant="outline"
+            disabled={loading}
+            onClick={() => {
+              void reload();
+            }}
+          >
+            <RefreshCw data-icon="inline-start" />
+            刷新
+          </Button>
+        </div>
       </div>
 
       {loading ? (
-        <div className={MEDIA_GRID_CLASS}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="gap-3 overflow-hidden pt-0 pb-4">
+        <div className={gridClass}>
+          {Array.from({ length: compact ? 8 : 6 }).map((_, i) => (
+            <Card key={i} size={compact ? 'sm' : 'default'} className="gap-3 overflow-hidden pt-0 pb-4">
               <Skeleton className="aspect-[4/3] w-full rounded-none" />
               <CardContent className="flex flex-col gap-2">
                 <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+                {compact ? null : <Skeleton className="h-4 w-1/2" />}
               </CardContent>
             </Card>
           ))}
@@ -291,11 +366,12 @@ export default function MediaLibrary() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className={MEDIA_GRID_CLASS}>
+        <div className={gridClass}>
           {visible.map((item) => (
             <MediaAssetCard
               key={item.id}
               item={item}
+              density={density}
               busy={busyId === item.id}
               onPreview={() => {
                 setPreviewItem(item);
@@ -360,21 +436,26 @@ export default function MediaLibrary() {
 
 function MediaAssetCard({
   item,
+  density,
   busy,
   onPreview,
   onRequestDelete,
 }: {
   item: MediaLibraryItem;
+  density: MediaDensity;
   busy: boolean;
   onPreview: () => void;
   onRequestDelete: () => void;
 }) {
   const isVideo = item.category === 'video';
+  const compact = density === 'compact';
   const aspect = thumbAspect();
   const TypeIcon = isVideo ? Clapperboard : ImageIcon;
+  const timeFull = formatTime(item.createdAt);
+  const timeLabel = compact ? formatShortTime(item.createdAt) : timeFull;
 
   return (
-    <Card className="gap-3 overflow-hidden pt-0 pb-4">
+    <Card size={compact ? 'sm' : 'default'} className="gap-3 overflow-hidden pt-0 pb-4">
       {/* group：悬停露出删除；类型角标叠在缩略图上，正文只留文件名与体积时间 */}
       <div className="group/media relative">
         <button
@@ -397,7 +478,7 @@ function MediaAssetCard({
         </button>
         <Badge variant="secondary" className="pointer-events-none absolute top-2 left-2 gap-1 font-normal shadow-xs">
           <TypeIcon />
-          {KIND_BADGE[item.kind]}
+          {compact ? null : KIND_BADGE[item.kind]}
         </Badge>
         <Button
           type="button"
@@ -424,8 +505,8 @@ function MediaAssetCard({
         >
           {item.originalName}
         </button>
-        <p className="text-xs text-muted-foreground">
-          {formatBytes(item.sizeBytes)} · {formatTime(item.createdAt)}
+        <p className="text-xs text-muted-foreground" title={`${formatBytes(item.sizeBytes)} · ${timeFull}`}>
+          {formatBytes(item.sizeBytes)} · {timeLabel}
         </p>
       </CardContent>
     </Card>
