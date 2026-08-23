@@ -84,6 +84,8 @@ interface FetchCall {
 let fetchCalls: FetchCall[] = [];
 
 function fakeResponse(status: number, body?: unknown): Response {
+  const text =
+    body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body);
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -93,6 +95,7 @@ function fakeResponse(status: number, body?: unknown): Response {
       }
       return Promise.resolve(body);
     },
+    text: (): Promise<string> => Promise.resolve(text),
   } as unknown as Response;
 }
 
@@ -288,6 +291,12 @@ describe('apiFetch', () => {
     stubFetch(fakeResponse(204));
 
     await expect(apiFetch('/x', { method: 'DELETE' })).resolves.toBeUndefined();
+  });
+
+  it('resolves undefined for 200 responses with an empty body', async () => {
+    stubFetch(fakeResponse(200));
+
+    await expect(apiFetch('/media/assets/1', { method: 'DELETE' })).resolves.toBeUndefined();
   });
 });
 

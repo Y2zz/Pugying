@@ -153,11 +153,17 @@ export async function apiFetch<T>(
     throw new Error(message);
   }
 
-  if (response.status === 204) {
+  // Nest 的 void DELETE 常为 200 + 空 body；仅认 204 会误走 json() 抛 Unexpected end of JSON input
+  if (response.status === 204 || response.status === 205) {
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export function isLoginRequiresTeamSelection(
