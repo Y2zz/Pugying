@@ -563,13 +563,13 @@ function wireIpcOnce(): void {
   ipcMain.handle(IPC.clearCache, (event) =>
     withJob(event, async (handle) => {
       await handle.authSession.clearCache();
+      // Electron 44 起 storages 不再包含 websql（WebSQL 已移除）
       await handle.authSession.clearStorageData({
         storages: [
           'filesystem',
           'indexdb',
           'localstorage',
           'shadercache',
-          'websql',
           'serviceworkers',
           'cachestorage',
         ],

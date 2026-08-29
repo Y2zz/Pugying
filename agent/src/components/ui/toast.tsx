@@ -177,16 +177,8 @@ function ToastIcon({ type }: { type: string | undefined }) {
   )
 }
 
-function ToastList({
-  onActiveChange,
-}: {
-  onActiveChange?: (active: boolean) => void
-}) {
+function ToastList() {
   const { toasts } = ToastPrimitive.useToastManager()
-
-  React.useEffect(() => {
-    onActiveChange?.(toasts.length > 0)
-  }, [toasts.length, onActiveChange])
 
   return toasts.map((toastItem) => (
     <Toast key={toastItem.id} toast={toastItem}>
@@ -205,18 +197,15 @@ function ToastList({
 
 function Toaster({
   children,
-  toastManager: toastManagerProp = toast,
-  onActiveChange,
+  toastManager = toast,
   ...props
-}: ToastPrimitive.Provider.Props & {
-  onActiveChange?: (active: boolean) => void
-}) {
+}: ToastPrimitive.Provider.Props) {
   return (
-    <ToastProvider toastManager={toastManagerProp} {...props}>
+    <ToastProvider toastManager={toastManager} {...props}>
       {children}
       <ToastPortal>
         <ToastViewport>
-          <ToastList onActiveChange={onActiveChange} />
+          <ToastList />
         </ToastViewport>
       </ToastPortal>
     </ToastProvider>
@@ -225,8 +214,6 @@ function Toaster({
 
 const createToastManager = ToastPrimitive.createToastManager
 const useToastManager = ToastPrimitive.useToastManager
-/** Imperative manager for non-React callers (IPC listeners). */
-const toastManager = toast
 
 export {
   Toaster,
@@ -241,6 +228,5 @@ export {
   ToastViewport,
   createToastManager,
   toast,
-  toastManager,
   useToastManager,
 }

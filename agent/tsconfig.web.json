@@ -17,6 +17,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+    // TS6 起 baseUrl 弃用；paths 别名仍依赖它，与 frontend/backend 同样静默至 6.0
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],

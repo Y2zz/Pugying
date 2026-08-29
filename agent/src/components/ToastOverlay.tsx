@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { Toaster, toastManager } from '@/components/ui/toast';
+import { Toaster, toast, useToastManager } from '@/components/ui/toast';
 import { getChromeShell } from '@/lib/chrome-api';
 
 /**
@@ -13,7 +13,7 @@ export function ToastOverlay() {
 
   useEffect(() => {
     const offNotice = api.onNotice(({ text, type }) => {
-      toastManager.add({
+      toast.add({
         description: text,
         type: type ?? 'info',
         timeout: 3000,
@@ -22,7 +22,7 @@ export function ToastOverlay() {
     // One toast tracks the whole clear-cache flow; the invoke's promise
     // settles when the main-process handler finishes or throws.
     const offClearCache = api.onClearCacheRun(() => {
-      void toastManager
+      void toast
         .promise(api.clearCache(), {
           loading: { description: '正在清除缓存…' },
           success: {
@@ -51,5 +51,24 @@ export function ToastOverlay() {
     [api],
   );
 
-  return <Toaster onActiveChange={handleActiveChange} />;
+  // 不改 ui/toast：在业务层监听栈长度，驱动主进程显示/隐藏 toast 窗
+  return (
+    <Toaster>
+      <ToastActivityReporter onActiveChange={handleActiveChange} />
+    </Toaster>
+  );
+}
+
+function ToastActivityReporter({
+  onActiveChange,
+}: {
+  onActiveChange: (active: boolean) => void;
+}) {
+  const { toasts } = useToastManager();
+
+  useEffect(() => {
+    onActiveChange(toasts.length > 0);
+  }, [toasts.length, onActiveChange]);
+
+  return null;
 }
