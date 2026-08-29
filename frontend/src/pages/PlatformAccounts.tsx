@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ExternalLink, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCcw, SearchIcon, Trash2, XIcon } from 'lucide-react';
+import { PageHeader } from '@/components/layouts/PageHeader';
 import { PlatformIcon } from '@/components/PlatformIcon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -18,7 +19,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import {
@@ -487,12 +488,12 @@ export default function PlatformAccounts() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">媒体账号</h1>
-        <p className="text-sm text-muted-foreground">通过桌面 Agent 打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站 / 小红书绑定</p>
-      </div>
+      <PageHeader
+        title="媒体账号"
+        description="通过桌面 Agent 打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站 / 小红书绑定"
+      />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <FieldError>{error}</FieldError> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">

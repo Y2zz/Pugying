@@ -94,15 +94,15 @@ export default function Login() {
       <div className="flex w-full max-w-sm flex-col gap-6 rounded-xl border bg-background p-6 shadow-sm">
         <div className="flex flex-col items-center gap-2 text-center">
           <Logo className="size-10" />
-          <h1 className="text-xl font-semibold">登录 Pugying</h1>
-          <p className="text-sm text-muted-foreground">admin@pugying.local / Admin123!（加入 default + demo，可测选团队）</p>
+          <h1 className="font-heading text-2xl tracking-tight">登录 Pugying</h1>
+          <p className="text-muted-foreground">admin@pugying.local / Admin123!（加入 default + demo，可测选团队）</p>
         </div>
 
-        {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+        {notice ? <p className="text-muted-foreground">{notice}</p> : null}
 
         {teams && loginTicket ? (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">请选择要进入的团队</p>
+            <p className="text-muted-foreground">请选择要进入的团队</p>
             {teams.map((team) => (
               <Button
                 key={team.id}
@@ -166,7 +166,7 @@ export default function Login() {
               </FieldGroup>
             </form>
 
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-muted-foreground">
               还没有账号？{' '}
               <Link to="/register" className="text-foreground underline-offset-4 hover:underline">
                 自行注册

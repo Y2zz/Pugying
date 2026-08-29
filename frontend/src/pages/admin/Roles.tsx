@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/layouts/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
@@ -154,38 +155,38 @@ export default function AdminRoles() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">角色</h1>
-          <p className="text-sm text-muted-foreground">管理当前团队的角色及其权限</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => {
-              void reload();
-            }}
-          >
-            <RefreshCw data-icon="inline-start" />
-            刷新
-          </Button>
-          {canCreate ? (
+      <PageHeader
+        title="角色"
+        description="管理当前团队的角色及其权限"
+        action={
+          <>
             <Button
+              variant="outline"
               size="sm"
+              disabled={loading}
               onClick={() => {
-                openCreate();
+                void reload();
               }}
             >
-              <Plus data-icon="inline-start" />
-              新建角色
+              <RefreshCw data-icon="inline-start" />
+              刷新
             </Button>
-          ) : null}
-        </div>
-      </div>
+            {canCreate ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  openCreate();
+                }}
+              >
+                <Plus data-icon="inline-start" />
+                新建角色
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <FieldError>{error}</FieldError> : null}
 
       {loading ? (
         <div className="rounded-lg border">
@@ -242,12 +243,12 @@ export default function AdminRoles() {
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="mr-1 text-xs text-muted-foreground">{role.permissions.length} 项</span>
                       {role.permissions.slice(0, 3).map((permission) => (
-                        <Badge key={permission} variant="secondary" className="max-w-40 truncate text-[10px]">
+                        <Badge key={permission} variant="secondary" className="max-w-40 truncate text-xs">
                           {permission}
                         </Badge>
                       ))}
                       {role.permissions.length > 3 ? (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-xs">
                           +{role.permissions.length - 3}
                         </Badge>
                       ) : null}

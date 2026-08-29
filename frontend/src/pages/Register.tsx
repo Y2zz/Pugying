@@ -56,8 +56,8 @@ export default function Register() {
       <div className="flex w-full max-w-sm flex-col gap-6 rounded-xl border bg-background p-6 shadow-sm">
         <div className="flex flex-col items-center gap-2 text-center">
           <Logo className="size-10" />
-          <h1 className="text-xl font-semibold">注册 Pugying</h1>
-          <p className="text-sm text-muted-foreground">注册后需管理员邀请加入团队，才能登录使用</p>
+          <h1 className="font-heading text-2xl tracking-tight">注册 Pugying</h1>
+          <p className="text-muted-foreground">注册后需管理员邀请加入团队，才能登录使用</p>
         </div>
 
         <form
@@ -134,7 +134,7 @@ export default function Register() {
           </FieldGroup>
         </form>
 
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-muted-foreground">
           已有账号？{' '}
           <Link to="/login" className="text-foreground underline-offset-4 hover:underline">
             去登录

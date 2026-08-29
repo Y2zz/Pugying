@@ -324,7 +324,7 @@ export function CoverCropDialog({
                 }}
               />
             ) : (
-              <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
+              <div className="flex size-full items-center justify-center text-muted-foreground">
                 {loadError
                   ? loadError
                   : imageUrl

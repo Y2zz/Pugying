@@ -19,6 +19,7 @@ export default function PublishArticle() {
   const [imageUrls, setImageUrls] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(Boolean(editId));
+  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function PublishArticle() {
         setBody(item.body ?? '');
         setCoverUrl(item.coverUrl ?? '');
         setImageUrls(item.mediaUrls.join('\n'));
+        setContentStatus(item.status);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -66,7 +68,8 @@ export default function PublishArticle() {
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean),
-      status,
+      // 已发布作品保存时不得退回草稿
+      ...(status === 'draft' && contentStatus === 'published' ? {} : { status }),
     };
     try {
       if (editId) {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PageHeader } from '@/components/layouts/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -96,18 +97,15 @@ export default function AdminTeamSettings() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">团队设置</h1>
-        <p className="text-sm text-muted-foreground">更新当前团队的显示名称、标识与启用状态</p>
-      </div>
+      <PageHeader title="团队设置" description="更新当前团队的显示名称、标识与启用状态" />
 
       {error ? <FieldError>{error}</FieldError> : null}
-      {success ? <p className="text-sm text-muted-foreground">{success}</p> : null}
+      {success ? <p className="text-muted-foreground">{success}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">加载中…</p>
+        <p className="text-muted-foreground">加载中…</p>
       ) : !team ? (
-        <p className="text-sm text-muted-foreground">无法加载团队信息</p>
+        <p className="text-muted-foreground">无法加载团队信息</p>
       ) : (
         <section className="max-w-lg rounded-lg border p-4">
           <FieldGroup className="gap-4">

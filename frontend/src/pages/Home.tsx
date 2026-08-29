@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PageHeader } from '@/components/layouts/PageHeader';
 import { Input } from '@/components/ui/input';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
@@ -53,7 +54,7 @@ function BasicContactForm() {
           <CardDescription>表单提交成功！</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2 text-sm">
+          <div className="flex flex-col gap-2">
             <p>
               <span className="font-medium">姓名：</span>
               {form.name}
@@ -175,7 +176,7 @@ function ContentPublishForm() {
           <CardDescription>提交结果预览</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2 text-sm">
+          <div className="flex flex-col gap-2">
             <p>
               <span className="font-medium">标题：</span>
               {form.title}
@@ -376,7 +377,7 @@ function LoginForm() {
               />
             </Field>
 
-            {result ? <p className="text-sm text-muted-foreground">{result}</p> : null}
+            {result ? <p className="text-muted-foreground">{result}</p> : null}
 
             <Button type="submit" disabled={!isValid || loading} className="w-full">
               {loading ? '登录中...' : '登录'}
@@ -442,11 +443,8 @@ function InputTypesDemo() {
 
 export function Home() {
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">表单演示</h1>
-        <p className="text-sm text-muted-foreground">基于 shadcn/ui（Base UI）组件的表单示例集合</p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="表单演示" description="基于 shadcn/ui（Base UI）组件的表单示例集合" />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BasicContactForm />

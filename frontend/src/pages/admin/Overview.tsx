@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PageHeader } from '@/components/layouts/PageHeader';
 import { AgentStatusBadge } from '@/components/AgentStatusBadge';
 import { useAgent } from '@/hooks/use-agent';
 import { fetchContents, fetchPlatformAccounts, fetchRoles, fetchTeamMembers, getStoredTeam, getStoredUser } from '@/lib/api';
@@ -75,9 +76,9 @@ export default function AdminOverview() {
     );
 
     tasks.push(
-      fetchContents()
-        .then((list) => {
-          next.contents = list.length;
+      fetchContents({ page: 1, pageSize: 1 })
+        .then((result) => {
+          next.contents = result.total;
         })
         .catch(() => {
           next.contents = null;
@@ -107,15 +108,12 @@ export default function AdminOverview() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">管理概览</h1>
-        <p className="text-sm text-muted-foreground">团队管理与桌面 Agent 连接状态</p>
-      </div>
+      <PageHeader title="管理概览" description="团队管理与桌面 Agent 连接状态" />
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="flex flex-col gap-2 rounded-lg border p-4">
           <h2 className="text-sm font-medium">当前团队</h2>
-          <p className="text-lg font-semibold">{team?.displayName ?? '未选择团队'}</p>
+          <p className="font-medium">{team?.displayName ?? '未选择团队'}</p>
           <p className="text-xs text-muted-foreground">{team?.name ? `标识：${team.name}` : null}</p>
           <p className="text-xs text-muted-foreground">登录用户：{user?.email ?? '—'}</p>
         </section>
@@ -125,7 +123,7 @@ export default function AdminOverview() {
             <h2 className="text-sm font-medium">桌面 Agent</h2>
             <AgentStatusBadge />
           </div>
-          <dl className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <dl className="flex flex-col gap-1 text-muted-foreground">
             <div className="flex justify-between gap-4">
               <dt>状态</dt>
               <dd>
@@ -171,7 +169,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <section className="rounded-lg border p-4">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 font-heading text-2xl tracking-tight">{value}</p>
     </section>
   );
 }

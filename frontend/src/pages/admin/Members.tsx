@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, RefreshCw, UserMinus, Users } from 'lucide-react';
+import { PageHeader } from '@/components/layouts/PageHeader';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
@@ -193,38 +194,38 @@ export default function AdminMembers() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">成员</h1>
-          <p className="text-sm text-muted-foreground">查看当前团队成员，邀请已有用户入队并分配角色</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => {
-              void reload();
-            }}
-          >
-            <RefreshCw data-icon="inline-start" />
-            刷新
-          </Button>
-          {canInvite ? (
+      <PageHeader
+        title="成员"
+        description="查看当前团队成员，邀请已有用户入队并分配角色"
+        action={
+          <>
             <Button
+              variant="outline"
               size="sm"
+              disabled={loading}
               onClick={() => {
-                setInviteOpen(true);
+                void reload();
               }}
             >
-              <Plus data-icon="inline-start" />
-              邀请成员
+              <RefreshCw data-icon="inline-start" />
+              刷新
             </Button>
-          ) : null}
-        </div>
-      </div>
+            {canInvite ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setInviteOpen(true);
+                }}
+              >
+                <Plus data-icon="inline-start" />
+                邀请成员
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <FieldError>{error}</FieldError> : null}
 
       {loading ? (
         <div className="rounded-lg border">
@@ -389,7 +390,7 @@ export default function AdminMembers() {
           </DialogHeader>
           <FieldGroup className="gap-3">
             {roles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">当前团队暂无角色</p>
+              <p className="text-muted-foreground">当前团队暂无角色</p>
             ) : (
               roles.map((role) => {
                 const checked = memberRoleIds.includes(role.id);
