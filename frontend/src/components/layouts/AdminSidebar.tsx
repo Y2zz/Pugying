@@ -10,6 +10,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -18,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { AgentStatusBadge } from '@/components/AgentStatusBadge';
 import { getStoredUser } from '@/lib/api';
 import { hasPermission, Permissions } from '@/lib/permissions';
 
@@ -66,7 +68,6 @@ export function AdminSidebar() {
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      {/* 管理区无用户菜单；顶部提供返回业务区入口 */}
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -104,6 +105,10 @@ export function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter>
+        <AgentStatusBadge placement="sidebar" />
+      </SidebarFooter>
     </Sidebar>
   );
 }

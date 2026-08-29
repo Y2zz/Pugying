@@ -93,7 +93,7 @@ describe('AppLayout (SSR)', () => {
     expect(html).toContain('Pugying');
     expect(html).toContain('蒲公英');
     expect(html).toContain('Agent 未连接');
-    // footer 仅 NavUser 触发器；团队切换在用户下拉二级子菜单内（SSR 不展开下拉）
+    // footer：Agent 状态 + NavUser；团队切换在用户下拉二级子菜单内（SSR 不展开下拉）
     expect(html).toContain('admin@pugying.local');
     expect(html).toContain('data-sidebar="footer"');
   });

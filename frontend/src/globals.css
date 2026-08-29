@@ -8,6 +8,7 @@
 
 @theme inline {
   --font-heading: var(--font-sans);
+  /* 拉丁 Inter + 中文 Noto Sans SC；其余回退系统黑体，避免各端 CJK 字形不一致 */
   --font-sans: 'Inter Variable', 'Noto Sans SC Variable', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -50,74 +51,72 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #09090b;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --popover: #ffffff;
-  --popover-foreground: #09090b;
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717b;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --destructive: #e8000b;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #9f9fa9;
-  --chart-1: #d4d4d8;
-  --chart-2: #71717b;
-  --chart-3: #52525c;
-  --chart-4: #3f3f46;
-  --chart-5: #27272a;
-  --radius: 0.45rem;
-  /* zinc 默认 sidebar token：底 #fafafa，accent 对齐 muted，hover 相对底栏可辨 */
-  --sidebar: #fafafa;
-  --sidebar-foreground: #09090b;
-  --sidebar-primary: #18181b;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #9f9fa9;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #e4e4e7;
-  --primary-foreground: #18181b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #9f9fa9;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #ff6467;
-  --border: #ffffff1a;
-  --input: #ffffff26;
-  --ring: #71717b;
-  --chart-1: #d4d4d8;
-  --chart-2: #71717b;
-  --chart-3: #52525c;
-  --chart-4: #3f3f46;
-  --chart-5: #27272a;
-  /* zinc 深色默认：侧栏底与 card 同档，accent 对齐 muted，略亮于底栏 */
-  --sidebar: #18181b;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #0047e6;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #27272a;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #ffffff1a;
-  --sidebar-ring: #71717b;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -125,41 +124,25 @@
     @apply border-border outline-ring/50;
   }
 
-  body {
-    /* overscroll-none: stop the root rubber-band bounce from flashing the
-       white body background above/below the app canvas. */
-    @apply overscroll-none bg-background text-foreground;
-    @apply text-sm;
-  }
-
-  button:not(:disabled),
-  [role='button']:not(:disabled) {
-    cursor: pointer;
-  }
-
+  /* vega：不覆盖 html 根字号（浏览器默认 16px）；正文 text-base，控件 text-sm 由 shadcn 组件自带 */
+  /* inset 侧栏外缘 / 橡皮筋滚动露底时与 sidebar 同色，避免露出白底 */
   html {
-    @apply font-sans;
-    @apply text-base;
+    @apply bg-sidebar font-sans;
   }
 
-  /* DialogTitle 未设字号，与 Description 同为 text-sm；中文仅靠字重区分不够。
-     对齐 AlertDialogTitle，用主题层覆盖，不改动 components/ui。 */
-  [data-slot='dialog-title'] {
-    @apply text-base;
+  body {
+    @apply bg-sidebar text-foreground;
+    @apply text-sm;
   }
 }
 
-/* 按钮按下效果（active:translate-y-px 下沉 1px）来自 shadcn Button 工具类，
-   位于 utilities 层；此处用层外规则覆盖即可取消，不改动 components/ui。
+/* 取消 shadcn Button 按下位移（vega 默认 active:translate-y-px） */
+[data-slot="button"]:active:not([aria-haspopup]) {
+  transform: none !important;
+  translate: none !important;
+}
 
-   命中条件须看 DOM 上的 data-slot，而非是否用了 Button 组件：
-   - CollapsibleTrigger 等 `render={<Button/>}`：Base UI 合并后触发器的 slot 会覆盖
-     Button 的 data-slot='button'；
-   - SidebarTrigger 等直接在 Button 上传入 data-slot（如 sidebar-trigger），DOM 上
-     同样不是 button，但会继承 Button 的 active:translate-y-px。
-   以上 slot 若未列入，按下时仍会下沉 1px。 */
-[data-slot='button']:active,
-[data-slot='collapsible-trigger']:active,
-[data-slot='sidebar-trigger']:active {
-  translate: none;
+/* Dialog 标题：DialogContent 为 text-sm，标题统一 text-base */
+[data-slot="dialog-title"] {
+  @apply text-base;
 }

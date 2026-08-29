@@ -97,13 +97,14 @@ describe('AdminLayout (SSR)', () => {
     expect(html.indexOf('返回应用')).toBeLessThan(html.indexOf('团队管理'));
   });
 
-  it('renders the header with the agent status badge', () => {
+  it('renders the sidebar footer with the agent status badge', () => {
     const html = renderLayout();
 
-    expect(html).toContain('管理');
+    expect(html).toContain('团队管理');
     expect(html).toContain('Agent 未连接');
     expect(html).toContain('返回应用');
     expect(html).toContain('href="/dashboard"');
+    expect(html).toContain('data-sidebar="footer"');
   });
 
   it('does not render the user menu in the admin sidebar', () => {
@@ -111,6 +112,5 @@ describe('AdminLayout (SSR)', () => {
 
     // 管理区侧栏不展示 NavUser（无邮箱、无退出登录入口）
     expect(html).not.toContain('admin@pugying.local');
-    expect(html).not.toContain('data-sidebar="footer"');
   });
 });

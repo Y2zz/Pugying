@@ -4,6 +4,7 @@ import { AppBrand } from '@/components/layouts/AppBrand';
 import { NavMain } from '@/components/layouts/NavMain';
 import { NavPublish } from '@/components/layouts/NavPublish';
 import { NavUser } from '@/components/layouts/NavUser';
+import { AgentStatusBadge } from '@/components/AgentStatusBadge';
 
 import {
   Sidebar,
@@ -20,7 +21,7 @@ const data = {
       title: 'Dashboard',
       url: '/dashboard',
       icon: SquareTerminal,
-      isActive: true,
+      end: true,
     },
     {
       title: '作品管理',
@@ -59,8 +60,9 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
       </SidebarContent>
 
-      {/* footer：用户菜单（团队切换 / 管理 / 退出登录均在下拉内） */}
+      {/* footer：本机 Agent + 用户菜单 */}
       <SidebarFooter>
+        <AgentStatusBadge placement="sidebar" />
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>

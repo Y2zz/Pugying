@@ -1,4 +1,4 @@
-import { ChevronsUpDown, LogOut, Settings } from 'lucide-react';
+import { ChevronsUpDown, LogOut, Settings, SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { NavUserTeamMenu } from '@/components/layouts/NavUserTeamMenu';
@@ -48,7 +48,7 @@ export function NavUser({
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        {/* 始终可展开：用户信息区点击展开团队子菜单；管理入口按权限显示 */}
+        {/* 始终可展开：用户信息区点击展开团队子菜单；偏好 / 管理 / 退出在下拉内 */}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -71,9 +71,16 @@ export function NavUser({
               <NavUserTeamMenu user={user} />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            {/* 顺序：管理（有权限）→ 分隔线 → 退出登录 */}
-            {showAdmin ? (
-              <DropdownMenuGroup>
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={() => {
+                  void navigate('/preferences');
+                }}
+              >
+                <SlidersHorizontal />
+                偏好设置
+              </DropdownMenuItem>
+              {showAdmin ? (
                 <DropdownMenuItem
                   onClick={() => {
                     void navigate('/admin');
@@ -82,8 +89,8 @@ export function NavUser({
                   <Settings />
                   管理
                 </DropdownMenuItem>
-              </DropdownMenuGroup>
-            ) : null}
+              ) : null}
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={handleLogout}>
