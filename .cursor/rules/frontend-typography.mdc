@@ -1,0 +1,49 @@
+---
+description: 前端字号约定——对齐 shadcn vega，浏览器默认 1rem=16px
+globs: frontend/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# 前端字号约定（vega）
+
+## 核心原则
+
+1. **不覆盖 `html` 根字号**，沿用浏览器默认 **16px**（`1rem = 16px`）
+2. **不重映射** Tailwind 的 `--text-sm` / `--text-xs`；保持 shadcn / Tailwind 默认阶梯
+3. shadcn 控件大量写死 **`text-sm`（≈14px）**；页面正文继承 **`text-base`（≈16px）**
+
+| 类名 | 默认尺寸 | 典型用途 |
+|------|----------|----------|
+| `text-xs` | 12px | 时间戳、Badge、极次要 hint |
+| `text-sm` | 14px | Button、Input、Card、Table、侧栏（shadcn 默认） |
+| `text-base` | 16px | 正文、页面说明（继承 body） |
+| `text-2xl` | 24px | 页标题 `h1` |
+
+## 何时才写字号类
+
+| 场景 | 做法 |
+|------|------|
+| 页面级说明（Card 外） | **不写**，继承 body `text-base` |
+| 与 shadcn 控件同密度的文案 | `text-sm`（与 Button / Label 对齐） |
+| 次要 / 辅助信息 | `text-xs text-muted-foreground` |
+| 页面标题 `h1` | `font-heading text-2xl tracking-tight` |
+| Input / Textarea | 保持组件自带 `text-base md:text-sm`（防 iOS 缩放） |
+
+## 必须遵守
+
+- **禁止** `html { font-size: 14px }` 或 `--text-sm: 1rem` 等破坏 vega 刻度的覆盖
+- **禁止** `text-[Npx]` 固定像素
+- **不要改** `components/ui/`；业务层用 `className` 调整
+
+## 反例
+
+```tsx
+// ❌ 在 16px 根下给普通说明套 text-sm（会比正文小一号，除非刻意对齐控件）
+<p className="text-sm text-muted-foreground">团队管理与 Agent 状态</p>
+
+// ✅ 页面说明继承 16px
+<p className="text-muted-foreground">团队管理与 Agent 状态</p>
+
+// ✅ 表格行内、侧栏等同密度区域用 text-sm
+<span className="text-sm text-muted-foreground">3 分钟前</span>
+```
