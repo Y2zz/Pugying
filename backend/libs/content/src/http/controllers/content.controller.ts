@@ -43,8 +43,18 @@ export class ContentController {
     required: false,
     description: '关键词：匹配标题、正文、标签',
   })
-  findAll(@Query('type') type?: string, @Query('q') q?: string) {
-    return this.service.findAll(type, q);
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, example: 20 })
+  findAll(
+    @Query('type') type?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const parsedPage = page !== undefined && page !== '' ? Number(page) : 1;
+    const parsedPageSize =
+      pageSize !== undefined && pageSize !== '' ? Number(pageSize) : 20;
+    return this.service.findAll(type, q, parsedPage, parsedPageSize);
   }
 
   @Get(':id')

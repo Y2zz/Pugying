@@ -59,7 +59,7 @@ describe('ContentService', () => {
   beforeEach(() => {
     repository = {
       create: jest.fn((data: Partial<Content>) => Object.assign(new Content(), { id: 'content-1' }, data)),
-      findAllForCurrentTeam: jest.fn().mockResolvedValue([]),
+      findPagedForCurrentTeam: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
       findById: jest.fn().mockResolvedValue(null),
       save: jest.fn(async (content: Content) => content),
       remove: jest.fn().mockResolvedValue(undefined),
@@ -90,34 +90,52 @@ describe('ContentService', () => {
   describe('findAll', () => {
     it('rejects unsupported type filters', async () => {
       await expect(service.findAll('audio')).rejects.toBeInstanceOf(BadRequestException);
-      expect(repository.findAllForCurrentTeam).not.toHaveBeenCalled();
+      expect(repository.findPagedForCurrentTeam).not.toHaveBeenCalled();
     });
 
-    it('returns [] without querying targets when there is no content', async () => {
-      await expect(service.findAll()).resolves.toEqual([]);
+    it('rejects invalid page', async () => {
+      await expect(service.findAll(undefined, undefined, 0)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.findAll(undefined, undefined, 1, 0)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.findAll(undefined, undefined, 1, 101)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('returns empty page without querying targets when there is no content', async () => {
+      await expect(service.findAll()).resolves.toEqual({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+      });
       expect(targetRepository.findByContents).not.toHaveBeenCalled();
     });
 
     it('passes the type filter to the repository', async () => {
       await service.findAll('video');
 
-      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith({
+      expect(repository.findPagedForCurrentTeam).toHaveBeenCalledWith({
         type: 'video',
         q: undefined,
+        page: 1,
+        pageSize: 20,
       });
     });
 
     it('passes the keyword filter to the repository', async () => {
       await service.findAll(undefined, '封面');
 
-      expect(repository.findAllForCurrentTeam).toHaveBeenCalledWith({
+      expect(repository.findPagedForCurrentTeam).toHaveBeenCalledWith({
         type: undefined,
         q: '封面',
+        page: 1,
+        pageSize: 20,
       });
     });
 
     it('groups targets by content id', async () => {
-      repository.findAllForCurrentTeam.mockResolvedValue([createContent({ id: 'content-1' }), createContent({ id: 'content-2' })]);
+      repository.findPagedForCurrentTeam.mockResolvedValue({
+        rows: [createContent({ id: 'content-1' }), createContent({ id: 'content-2' })],
+        total: 2,
+      });
       targetRepository.findByContents.mockResolvedValue([
         Object.assign(new ContentTarget(), {
           id: 'target-1',
@@ -129,11 +147,12 @@ describe('ContentService', () => {
         }),
       ]);
 
-      const rows = await service.findAll();
+      const result = await service.findAll();
 
       expect(targetRepository.findByContents).toHaveBeenCalledWith(['content-1', 'content-2']);
-      expect(rows[0].targets.map((target) => target.id)).toEqual(['target-1', 'target-2']);
-      expect(rows[1].targets).toEqual([]);
+      expect(result.items[0].targets.map((target) => target.id)).toEqual(['target-1', 'target-2']);
+      expect(result.items[1].targets).toEqual([]);
+      expect(result.total).toBe(2);
     });
   });
 
@@ -284,13 +303,12 @@ describe('ContentService', () => {
       expect(content.publishedAt).toBeInstanceOf(Date);
     });
 
-    it('clears publishedAt when reverting to draft', async () => {
+    it('rejects reverting published content to draft', async () => {
       repository.findById.mockResolvedValue(createContent({ status: 'published', publishedAt: new Date() }));
 
-      const content = await service.update('content-1', { status: 'draft' });
-
-      expect(content.status).toBe('draft');
-      expect(content.publishedAt).toBeNull();
+      await expect(
+        service.update('content-1', { status: 'draft' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('keeps existing targets when the dto omits them', async () => {

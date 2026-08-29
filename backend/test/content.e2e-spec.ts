@@ -130,7 +130,8 @@ describe('Contents (e2e)', () => {
 
   it('lists team contents, optionally filtered by type', async () => {
     const all = await request(server()).get('/contents').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(200);
-    expect((all.body as Array<unknown>).length).toBe(2);
+    expect((all.body as { items: Array<unknown>; total: number }).items.length).toBe(2);
+    expect((all.body as { total: number }).total).toBe(2);
 
     const articles = await request(server())
       .get('/contents')
@@ -138,8 +139,9 @@ describe('Contents (e2e)', () => {
       .set('Authorization', `Bearer ${admin.accessToken}`)
       .set('X-Team-Id', admin.teamId)
       .expect(200);
-    expect((articles.body as Array<{ type: string }>).every((c) => c.type === 'article')).toBe(true);
-    expect((articles.body as Array<unknown>).length).toBe(1);
+    const articleItems = (articles.body as { items: Array<{ type: string }> }).items;
+    expect(articleItems.every((c) => c.type === 'article')).toBe(true);
+    expect(articleItems.length).toBe(1);
 
     await request(server())
       .get('/contents')
@@ -164,7 +166,7 @@ describe('Contents (e2e)', () => {
     await request(server()).get(`/contents/${randomUUID()}`).set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(404);
   });
 
-  it('publish / unpublish toggles publishedAt', async () => {
+  it('rejects reverting published content to draft', async () => {
     const published = await request(server())
       .patch(`/contents/${articleId}`)
       .set('Authorization', `Bearer ${admin.accessToken}`)
@@ -173,15 +175,40 @@ describe('Contents (e2e)', () => {
       .expect(200);
     expect(published.body.publishedAt).toBeTruthy();
 
-    const drafted = await request(server())
+    await request(server())
       .patch(`/contents/${articleId}`)
       .set('Authorization', `Bearer ${admin.accessToken}`)
       .set('X-Team-Id', admin.teamId)
       .send({ status: 'draft', title: '第一篇图文（改）' })
+      .expect(400);
+
+    const unchanged = await request(server())
+      .get(`/contents/${articleId}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('X-Team-Id', admin.teamId)
       .expect(200);
-    expect(drafted.body.status).toBe('draft');
-    expect(drafted.body.publishedAt).toBeNull();
-    expect(drafted.body.title).toBe('第一篇图文（改）');
+    expect(unchanged.body.status).toBe('published');
+    expect(unchanged.body.publishedAt).toBeTruthy();
+    expect(unchanged.body.title).not.toBe('第一篇图文（改）');
+  });
+
+  it('allows updating published content without changing status', async () => {
+    await request(server())
+      .patch(`/contents/${articleId}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('X-Team-Id', admin.teamId)
+      .send({ status: 'published' })
+      .expect(200);
+
+    const updated = await request(server())
+      .patch(`/contents/${articleId}`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('X-Team-Id', admin.teamId)
+      .send({ title: '第一篇图文（改）' })
+      .expect(200);
+    expect(updated.body.status).toBe('published');
+    expect(updated.body.publishedAt).toBeTruthy();
+    expect(updated.body.title).toBe('第一篇图文（改）');
   });
 
   it('updating targets replaces them entirely', async () => {
@@ -217,7 +244,12 @@ describe('Contents (e2e)', () => {
       .set('Authorization', `Bearer ${adminDemo.accessToken}`)
       .set('X-Team-Id', adminDemo.teamId)
       .expect(200);
-    expect(demoList.body).toEqual([]);
+    expect(demoList.body).toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    });
 
     await request(server())
       .get(`/contents/${articleId}`)
@@ -250,7 +282,7 @@ describe('Contents (e2e)', () => {
     await request(server()).get(`/contents/${articleId}`).set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(404);
 
     const list = await request(server()).get('/contents').set('Authorization', `Bearer ${admin.accessToken}`).set('X-Team-Id', admin.teamId).expect(200);
-    const ids = (list.body as Array<{ id: string }>).map((c) => c.id);
+    const ids = (list.body as { items: Array<{ id: string }> }).items.map((c) => c.id);
     expect(ids).toEqual([videoId]);
 
     await request(server())

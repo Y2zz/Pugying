@@ -37,6 +37,13 @@ import {
 
 export type ContentWithTargets = Content & { targets: ContentTarget[] };
 
+export type ContentListPage = {
+  items: ContentWithTargets[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 @Injectable()
 export class ContentService {
   constructor(
@@ -52,16 +59,26 @@ export class ContentService {
   async findAll(
     type?: string,
     q?: string,
-  ): Promise<ContentWithTargets[]> {
+    page = 1,
+    pageSize = 20,
+  ): Promise<ContentListPage> {
     if (type !== undefined && type !== '' && !isContentType(type)) {
       throw new BadRequestException(`Unsupported content type: ${type}`);
     }
-    const rows = await this.repository.findAllForCurrentTeam({
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be a positive integer');
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+      throw new BadRequestException('pageSize must be between 1 and 100');
+    }
+    const { rows, total } = await this.repository.findPagedForCurrentTeam({
       type: type && isContentType(type) ? type : undefined,
       q,
+      page,
+      pageSize,
     });
     if (rows.length === 0) {
-      return [];
+      return { items: [], total, page, pageSize };
     }
     const targets = await this.targetRepository.findByContents(
       rows.map((row) => row.id),
@@ -72,9 +89,10 @@ export class ContentService {
       list.push(target);
       grouped.set(target.contentId, list);
     }
-    return rows.map((row) =>
+    const items = rows.map((row) =>
       Object.assign(row, { targets: grouped.get(row.id) ?? [] }),
     );
+    return { items, total, page, pageSize };
   }
 
   async findById(id: string): Promise<ContentWithTargets> {
@@ -290,6 +308,10 @@ export class ContentService {
   }
 
   private applyStatus(content: Content, status: ContentStatus): void {
+    // 已发布作品不可退回草稿，状态单向 draft → published
+    if (content.status === 'published' && status === 'draft') {
+      throw new BadRequestException('Published content cannot be reverted to draft');
+    }
     if (status === 'published' && content.status !== 'published') {
       content.publishedAt = new Date();
     }
