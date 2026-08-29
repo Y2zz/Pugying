@@ -24,6 +24,14 @@ describe('AppController', () => {
     });
   });
 
+  describe('version', () => {
+    it('returns unified product version', () => {
+      const info = appController.getProductVersion();
+      expect(info.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(info.minAgentVersion).toBe(info.version);
+    });
+  });
+
   describe('commercial-modules', () => {
     it('returns an empty list when no module registered', () => {
       expect(appController.listCommercialModules()).toEqual([]);

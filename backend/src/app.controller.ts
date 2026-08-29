@@ -21,6 +21,13 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Public()
+  @Get('version')
+  @ApiOperation({ summary: '统一发版产品版本（供前端检测更新）' })
+  getProductVersion() {
+    return this.appService.getProductVersion();
+  }
+
   @Get('commercial-modules')
   @ApiBearerAuth()
   @RequirePermission('TeamManagement.Teams.View')
