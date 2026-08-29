@@ -69,11 +69,24 @@ function isEditableTarget(target: EventTarget | null) {
   return false;
 }
 
-export function ThemeProvider({ children, defaultTheme = 'system', storageKey = 'theme', disableTransitionOnChange = true, ...props }: ThemeProviderProps) {
+export function ThemeProvider({
+  children,
+  defaultTheme = 'light',
+  storageKey = 'pugying.ui.theme',
+  disableTransitionOnChange = true,
+  ...props
+}: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
     const storedTheme = localStorage.getItem(storageKey);
     if (isTheme(storedTheme)) {
       return storedTheme;
+    }
+    // 兼容旧键 theme
+    const legacy = localStorage.getItem('theme');
+    if (isTheme(legacy)) {
+      localStorage.setItem(storageKey, legacy);
+      localStorage.removeItem('theme');
+      return legacy;
     }
 
     return defaultTheme;

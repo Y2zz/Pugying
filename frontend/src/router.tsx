@@ -16,6 +16,7 @@ import Contents from '@/pages/Contents.tsx';
 import MediaLibrary from '@/pages/MediaLibrary.tsx';
 import PublishArticle from '@/pages/PublishArticle.tsx';
 import PublishVideo from '@/pages/PublishVideo.tsx';
+import Preferences from '@/pages/Preferences.tsx';
 
 export const router = createBrowserRouter([
   {
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           { path: 'media-library', element: <MediaLibrary /> },
           { path: 'publish/article', element: <PublishArticle /> },
           { path: 'publish/video', element: <PublishVideo /> },
+          { path: 'preferences', element: <Preferences /> },
         ],
       },
       {
