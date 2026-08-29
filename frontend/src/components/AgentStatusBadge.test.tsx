@@ -1,6 +1,7 @@
 import { renderToString } from 'react-dom/server';
 import { beforeEach, vi } from 'vitest';
 import { AgentStatusBadge } from '@/components/AgentStatusBadge';
+import { Sidebar, SidebarProvider } from '@/components/ui/sidebar';
 import type { AgentConnectionStatus } from '@/lib/agent-client';
 
 const useAgentMock = vi.hoisted(() =>
@@ -82,5 +83,19 @@ describe('AgentStatusBadge (SSR)', () => {
     const html = renderToString(<AgentStatusBadge className="my-badge" />);
 
     expect(html).toContain('my-badge');
+  });
+
+  it('renders sidebar placement in the footer menu', () => {
+    const html = renderToString(
+      <SidebarProvider>
+        <Sidebar>
+          <AgentStatusBadge placement="sidebar" />
+        </Sidebar>
+      </SidebarProvider>,
+    );
+
+    expect(html).toContain('Agent 未连接');
+    expect(html).toContain('data-sidebar="menu-button"');
+    expect(html).toContain('lucide-monitor');
   });
 });
