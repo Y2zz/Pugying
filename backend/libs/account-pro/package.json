@@ -6,10 +6,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "peerDependencies": {
-    "@nestjs/common": "11.1.28",
-    "@nestjs/core": "11.1.28",
+    "@nestjs/common": "11.2.3",
+    "@nestjs/core": "11.2.3",
     "@nestjs/jwt": "11.0.2",
-    "@nestjs/swagger": "11.4.6",
+    "@nestjs/swagger": "11.4.7",
     "@nestjs/typeorm": "11.0.3",
     "@pugying/core": "0.0.1",
     "@pugying/identity": "0.0.1",
