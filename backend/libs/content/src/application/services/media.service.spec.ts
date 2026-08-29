@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import type { CurrentTeam } from '@pugying/core';
 import { MediaAsset } from '@pugying/content/domain/entities/media-asset.entity';
 import type { IMediaAssetRepository } from '@pugying/content/domain/repositories/media-asset.repository';
@@ -37,8 +37,66 @@ class FakeAssets implements IMediaAssetRepository {
     return this.findById(id);
   }
 
-  async findAllForCurrentTeam(): Promise<MediaAsset[]> {
-    return [...this.items.values()];
+  async findPagedForCurrentTeam(
+    filter: {
+      kinds?: MediaAsset['kind'][];
+      q?: string;
+      page?: number;
+      pageSize?: number;
+      sortBy?: 'originalName' | 'kind' | 'sizeBytes' | 'createdAt';
+      sortOrder?: 'asc' | 'desc';
+    } = {},
+  ): Promise<{ rows: MediaAsset[]; total: number }> {
+    let rows = [...this.items.values()];
+    if (filter.kinds && filter.kinds.length > 0) {
+      rows = rows.filter((item) => filter.kinds!.includes(item.kind));
+    }
+    const q = filter.q?.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (item) =>
+          item.originalName.toLowerCase().includes(q) ||
+          item.mimeType.toLowerCase().includes(q),
+      );
+    }
+    const sortBy = filter.sortBy ?? 'createdAt';
+    const sortOrder = filter.sortOrder ?? 'desc';
+    const factor = sortOrder === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      switch (sortBy) {
+        case 'originalName':
+          return factor * a.originalName.localeCompare(b.originalName, 'zh-CN');
+        case 'kind':
+          return factor * a.kind.localeCompare(b.kind);
+        case 'sizeBytes':
+          return factor * (a.sizeBytes - b.sizeBytes);
+        case 'createdAt':
+        default:
+          return factor * (a.createdAt.getTime() - b.createdAt.getTime());
+      }
+    });
+    const total = rows.length;
+    const page = filter.page ?? 1;
+    const pageSize = filter.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+    return { rows: rows.slice(skip, skip + pageSize), total };
+  }
+
+  async findKindStatsForCurrentTeam(): Promise<
+    Array<{ kind: MediaAsset['kind']; count: number; bytes: number }>
+  > {
+    const byKind = new Map<MediaAsset['kind'], { count: number; bytes: number }>();
+    for (const item of this.items.values()) {
+      const bucket = byKind.get(item.kind) ?? { count: 0, bytes: 0 };
+      bucket.count += 1;
+      bucket.bytes += item.sizeBytes;
+      byKind.set(item.kind, bucket);
+    }
+    return [...byKind.entries()].map(([kind, stat]) => ({
+      kind,
+      count: stat.count,
+      bytes: stat.bytes,
+    }));
   }
 
   async findByChecksumForCurrentTeam(
@@ -161,5 +219,127 @@ describe('MediaService signed URL', () => {
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     );
     expect(miss.duplicate).toBeNull();
+  });
+
+  it('lists assets with server-side sort', async () => {
+    const assets = new FakeAssets();
+    await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'video',
+        originalName: 'b.mp4',
+        mimeType: 'video/mp4',
+        sizeBytes: 20,
+        storageKey: 'video/b',
+        checksumSha256: null,
+        createdAt: new Date('2026-01-02T00:00:00Z'),
+      }),
+    );
+    await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'cover',
+        originalName: 'a.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 10,
+        storageKey: 'cover/a',
+        checksumSha256: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      }),
+    );
+    const service = createService(assets);
+    const byName = await service.listAssets(
+      undefined,
+      undefined,
+      1,
+      20,
+      'originalName',
+      'asc',
+    );
+    expect(byName.items.map((row) => row.originalName)).toEqual(['a.jpg', 'b.mp4']);
+
+    await expect(
+      service.listAssets(undefined, undefined, 1, 20, 'bad' as 'originalName', 'asc'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('aggregates library stats by video and image', async () => {
+    const assets = new FakeAssets();
+    await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'video',
+        originalName: 'a.mp4',
+        mimeType: 'video/mp4',
+        sizeBytes: 100,
+        storageKey: 'video/a',
+        checksumSha256: null,
+      }),
+    );
+    await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'cover',
+        originalName: 'b.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 30,
+        storageKey: 'cover/b',
+        checksumSha256: null,
+      }),
+    );
+    await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'cover_landscape',
+        originalName: 'c.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 20,
+        storageKey: 'cover/c',
+        checksumSha256: null,
+      }),
+    );
+    const service = createService(assets);
+    const stats = await service.getLibraryStats();
+    expect(stats.totalCount).toBe(3);
+    expect(stats.totalBytes).toBe(150);
+    expect(stats.byCategory.video).toEqual({ count: 1, bytes: 100 });
+    expect(stats.byCategory.image).toEqual({ count: 2, bytes: 50 });
+  });
+
+  it('batch removes existing assets and reports missing ids', async () => {
+    const assets = new FakeAssets();
+    const a = await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'video',
+        originalName: 'a.mp4',
+        mimeType: 'video/mp4',
+        sizeBytes: 10,
+        storageKey: 'video/a',
+        checksumSha256: null,
+      }),
+    );
+    const b = await assets.save(
+      assets.create({
+        teamId: 'team-a',
+        kind: 'cover',
+        originalName: 'b.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 20,
+        storageKey: 'cover/b',
+        checksumSha256: null,
+      }),
+    );
+    const service = createService(assets);
+    const result = await service.removeAssets([
+      a.id,
+      b.id,
+      '00000000-0000-4000-8000-000000000099',
+    ]);
+    expect(result.deletedIds).toEqual([a.id, b.id]);
+    expect(result.missingIds).toEqual([
+      '00000000-0000-4000-8000-000000000099',
+    ]);
+    expect(assets.items.size).toBe(0);
   });
 });

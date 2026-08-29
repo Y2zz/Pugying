@@ -14,7 +14,10 @@ import {
 } from '@pugying/content/domain/content-types';
 import {
   MEDIA_ASSET_REPOSITORY,
+  MEDIA_ASSET_SORT_FIELDS,
   type IMediaAssetRepository,
+  type MediaAssetSortField,
+  type MediaAssetSortOrder,
 } from '@pugying/content/domain/repositories/media-asset.repository';
 import {
   MEDIA_STORAGE,
@@ -277,11 +280,18 @@ export class MediaService {
   }
 
   /**
-   * 列出当前团队媒体库资源。
+   * 列出当前团队媒体库资源（分页）。
    * type=video → kind=video；type=image → cover / cover_landscape。
    */
-  async listAssets(type?: string): Promise<
-    Array<{
+  async listAssets(
+    type?: string,
+    q?: string,
+    page = 1,
+    pageSize = 20,
+    sortBy: MediaAssetSortField = 'createdAt',
+    sortOrder: MediaAssetSortOrder = 'desc',
+  ): Promise<{
+    items: Array<{
       id: string;
       kind: MediaAssetKind;
       category: 'video' | 'image';
@@ -291,8 +301,26 @@ export class MediaService {
       url: string;
       createdAt: Date;
       updatedAt: Date;
-    }>
-  > {
+    }>;
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be a positive integer');
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+      throw new BadRequestException('pageSize must be between 1 and 100');
+    }
+    if (!MEDIA_ASSET_SORT_FIELDS.includes(sortBy)) {
+      throw new BadRequestException(
+        `sortBy must be one of: ${MEDIA_ASSET_SORT_FIELDS.join(', ')}`,
+      );
+    }
+    if (sortOrder !== 'asc' && sortOrder !== 'desc') {
+      throw new BadRequestException('sortOrder must be asc or desc');
+    }
+
     let kinds: MediaAssetKind[] | undefined;
     if (type === 'video') {
       kinds = ['video'];
@@ -304,18 +332,60 @@ export class MediaService {
       );
     }
 
-    const rows = await this.assets.findAllForCurrentTeam(kinds);
-    return rows.map((asset) => ({
-      id: asset.id,
-      kind: asset.kind,
-      category: asset.kind === 'video' ? 'video' : 'image',
-      originalName: asset.originalName,
-      mimeType: asset.mimeType,
-      sizeBytes: asset.sizeBytes,
-      url: this.buildAssetApiPath(asset.id),
-      createdAt: asset.createdAt,
-      updatedAt: asset.updatedAt,
-    }));
+    const { rows, total } = await this.assets.findPagedForCurrentTeam({
+      kinds,
+      q,
+      page,
+      pageSize,
+      sortBy,
+      sortOrder,
+    });
+    const items = rows.map((asset) => {
+      const category: 'video' | 'image' =
+        asset.kind === 'video' ? 'video' : 'image';
+      return {
+        id: asset.id,
+        kind: asset.kind,
+        category,
+        originalName: asset.originalName,
+        mimeType: asset.mimeType,
+        sizeBytes: asset.sizeBytes,
+        url: this.buildAssetApiPath(asset.id),
+        createdAt: asset.createdAt,
+        updatedAt: asset.updatedAt,
+      };
+    });
+    return { items, total, page, pageSize };
+  }
+
+  /**
+   * 团队媒体库汇总：库内未软删资产的字节与数量（不含磁盘临时分片）。
+   */
+  async getLibraryStats(): Promise<{
+    totalCount: number;
+    totalBytes: number;
+    byCategory: {
+      video: { count: number; bytes: number };
+      image: { count: number; bytes: number };
+    };
+  }> {
+    const rows = await this.assets.findKindStatsForCurrentTeam();
+    const video = { count: 0, bytes: 0 };
+    const image = { count: 0, bytes: 0 };
+    for (const row of rows) {
+      if (row.kind === 'video') {
+        video.count += row.count;
+        video.bytes += row.bytes;
+      } else {
+        image.count += row.count;
+        image.bytes += row.bytes;
+      }
+    }
+    return {
+      totalCount: video.count + image.count,
+      totalBytes: video.bytes + image.bytes,
+      byCategory: { video, image },
+    };
   }
 
   async removeAsset(id: string): Promise<void> {
@@ -324,6 +394,32 @@ export class MediaService {
       throw new NotFoundException('资源不存在');
     }
     await this.assets.softRemove(asset);
+  }
+
+  /** 批量软删；跳过当前团队库中不存在的 id，全部缺失时 404 */
+  async removeAssets(ids: string[]): Promise<{
+    deletedIds: string[];
+    missingIds: string[];
+  }> {
+    const uniqueIds = [...new Set(ids)];
+    const deletedIds: string[] = [];
+    const missingIds: string[] = [];
+
+    for (const id of uniqueIds) {
+      const asset = await this.assets.findById(id);
+      if (!asset) {
+        missingIds.push(id);
+        continue;
+      }
+      await this.assets.softRemove(asset);
+      deletedIds.push(id);
+    }
+
+    if (deletedIds.length === 0) {
+      throw new NotFoundException('资源不存在');
+    }
+
+    return { deletedIds, missingIds };
   }
 
   async createSignedDownloadUrlForTeam(

@@ -249,15 +249,16 @@ describe('Content publish runtime (e2e)', () => {
       .get('/media/assets')
       .set(auth())
       .expect(200);
-    expect(Array.isArray(all.body)).toBe(true);
-    expect(all.body.length).toBeGreaterThanOrEqual(2);
+    expect(all.body.items).toBeDefined();
+    expect(all.body.total).toBeGreaterThanOrEqual(2);
+    expect(all.body.page).toBe(1);
 
     const videos = await request(server())
       .get('/media/assets?type=video')
       .set(auth())
       .expect(200);
     expect(
-      (videos.body as Array<{ category: string }>).every(
+      (videos.body.items as Array<{ category: string }>).every(
         (row) => row.category === 'video',
       ),
     ).toBe(true);
@@ -267,15 +268,45 @@ describe('Content publish runtime (e2e)', () => {
       .set(auth())
       .expect(200);
     expect(
-      (images.body as Array<{ category: string }>).every(
+      (images.body.items as Array<{ category: string }>).every(
         (row) => row.category === 'image',
       ),
     ).toBe(true);
 
+    const stats = await request(server())
+      .get('/media/assets/stats')
+      .set(auth())
+      .expect(200);
+    expect(stats.body.totalCount).toBeGreaterThanOrEqual(2);
+    expect(stats.body.byCategory.video.count).toBeGreaterThanOrEqual(1);
+    expect(stats.body.byCategory.image.count).toBeGreaterThanOrEqual(1);
+    expect(stats.body.totalBytes).toBeGreaterThan(0);
+
     const doomed = await uploadTinyAsset('cover', 'to-delete.jpg', 'image/jpeg');
     const doomedId = doomed.split('/').pop()!;
+    const doomed2 = await uploadTinyAsset('cover', 'to-delete-2.jpg', 'image/jpeg');
+    const doomed2Id = doomed2.split('/').pop()!;
+
     await request(server())
-      .delete(`/media/assets/${doomedId}`)
+      .post('/media/assets/batch-delete')
+      .set(auth())
+      .send({ ids: [doomedId, doomed2Id] })
+      .expect(201);
+
+    const afterBatch = await request(server())
+      .get('/media/assets?type=image')
+      .set(auth())
+      .expect(200);
+    expect(
+      (afterBatch.body.items as Array<{ id: string }>).some(
+        (row) => row.id === doomedId || row.id === doomed2Id,
+      ),
+    ).toBe(false);
+
+    const doomedSingle = await uploadTinyAsset('cover', 'to-delete-single.jpg', 'image/jpeg');
+    const doomedSingleId = doomedSingle.split('/').pop()!;
+    await request(server())
+      .delete(`/media/assets/${doomedSingleId}`)
       .set(auth())
       .expect(200);
 
@@ -284,7 +315,7 @@ describe('Content publish runtime (e2e)', () => {
       .set(auth())
       .expect(200);
     expect(
-      (after.body as Array<{ id: string }>).some((row) => row.id === doomedId),
+      (after.body.items as Array<{ id: string }>).some((row) => row.id === doomedSingleId),
     ).toBe(false);
   });
 

@@ -28,6 +28,7 @@ import { Public, RequirePermission } from '@pugying/core';
 import { ContentPermissions } from '@pugying/content/content.permissions';
 import { InitMediaUploadDto } from '@pugying/content/application/dtos/init-media-upload.dto';
 import { CheckMediaDuplicateDto } from '@pugying/content/application/dtos/check-media-duplicate.dto';
+import { DeleteMediaAssetsDto } from '@pugying/content/application/dtos/delete-media-assets.dto';
 import { MediaService } from '@pugying/content/application/services/media.service';
 
 @ApiTags('media')
@@ -45,8 +46,52 @@ export class MediaController {
     enum: ['all', 'video', 'image'],
     description: 'video=视频；image=封面图；默认全部',
   })
-  listAssets(@Query('type') type?: string) {
-    return this.mediaService.listAssets(type);
+  @ApiQuery({ name: 'q', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, example: 20 })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['originalName', 'kind', 'sizeBytes', 'createdAt'],
+    description: '排序字段；默认 createdAt',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: '排序方向；默认 desc',
+  })
+  listAssets(
+    @Query('type') type?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
+    const parsedPage = page !== undefined && page !== '' ? Number(page) : 1;
+    const parsedPageSize =
+      pageSize !== undefined && pageSize !== '' ? Number(pageSize) : 20;
+    const parsedSortBy =
+      sortBy !== undefined && sortBy !== '' ? sortBy : 'createdAt';
+    const parsedSortOrder =
+      sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : 'desc';
+    return this.mediaService.listAssets(
+      type,
+      q,
+      parsedPage,
+      parsedPageSize,
+      parsedSortBy as 'originalName' | 'kind' | 'sizeBytes' | 'createdAt',
+      parsedSortOrder,
+    );
+  }
+
+  @Get('assets/stats')
+  @ApiBearerAuth()
+  @RequirePermission(ContentPermissions.Contents.View)
+  @ApiOperation({ summary: '当前团队媒体库统计（库内未删资源）' })
+  libraryStats() {
+    return this.mediaService.getLibraryStats();
   }
 
   @Post('assets/check-duplicate')
@@ -108,6 +153,14 @@ export class MediaController {
   @ApiOperation({ summary: '签发短时下载 URL（供 Agent 拉取）' })
   sign(@Param('id', ParseUUIDPipe) id: string) {
     return this.mediaService.createSignedDownloadUrlForTeam(id);
+  }
+
+  @Post('assets/batch-delete')
+  @ApiBearerAuth()
+  @RequirePermission(ContentPermissions.Contents.Delete)
+  @ApiOperation({ summary: '批量软删媒体库资源' })
+  batchRemove(@Body() dto: DeleteMediaAssetsDto) {
+    return this.mediaService.removeAssets(dto.ids);
   }
 
   @Delete('assets/:id')
