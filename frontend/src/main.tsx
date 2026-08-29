@@ -17,5 +17,10 @@ createRoot(document.getElementById('root')!).render(
         </TooltipProvider>
       </AppToaster>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );
+
+// 部署后旧标签页懒加载 chunk 404 时兜底提示刷新
+window.addEventListener('vite:preloadError', () => {
+  window.dispatchEvent(new CustomEvent('pugying:spa-stale'));
+});

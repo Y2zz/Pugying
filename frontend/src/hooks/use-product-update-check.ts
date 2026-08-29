@@ -1,0 +1,118 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { PRODUCT_VERSION } from '@/lib/app-version';
+import { fetchProductVersion, isAuthenticated } from '@/lib/api';
+import { isVersionNewer } from '@/lib/product-version';
+import { useAgent } from '@/hooks/use-agent';
+
+const POLL_MS = 10 * 60 * 1000;
+const DISMISS_KEY = 'pugying_update_dismissed';
+
+function readDismissedVersion(): string | null {
+  return localStorage.getItem(DISMISS_KEY);
+}
+
+function writeDismissedVersion(version: string): void {
+  localStorage.setItem(DISMISS_KEY, version);
+}
+
+export function useProductUpdateCheck() {
+  const { status, version: agentVersion } = useAgent();
+  const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
+  const [minAgentVersion, setMinAgentVersion] = useState<string | null>(null);
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(() =>
+    readDismissedVersion(),
+  );
+  const [chunkStale, setChunkStale] = useState(false);
+  const seqRef = useRef(0);
+
+  const check = useCallback(async () => {
+    if (!isAuthenticated()) {
+      return;
+    }
+    const seq = ++seqRef.current;
+    try {
+      const info = await fetchProductVersion();
+      if (seq !== seqRef.current) {
+        return;
+      }
+      setRemoteVersion(info.version);
+      setMinAgentVersion(info.minAgentVersion);
+    } catch {
+      if (seq !== seqRef.current) {
+        return;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      return;
+    }
+    const initial = setTimeout(() => {
+      void check();
+    }, 0);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void check();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    const timer = setInterval(() => {
+      void check();
+    }, POLL_MS);
+
+    return () => {
+      clearTimeout(initial);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(timer);
+    };
+  }, [check]);
+
+  useEffect(() => {
+    const onChunkStale = () => {
+      setChunkStale(true);
+    };
+    window.addEventListener('pugying:spa-stale', onChunkStale);
+    return () => {
+      window.removeEventListener('pugying:spa-stale', onChunkStale);
+    };
+  }, []);
+
+  const spaUpdateAvailable =
+    remoteVersion !== null && isVersionNewer(remoteVersion, PRODUCT_VERSION);
+
+  const agentUpdateNeeded =
+    minAgentVersion !== null &&
+    agentVersion !== null &&
+    status === 'connected' &&
+    isVersionNewer(minAgentVersion, agentVersion);
+
+  const showDialog =
+    chunkStale ||
+    (spaUpdateAvailable && remoteVersion !== null && dismissedVersion !== remoteVersion);
+
+  const dismiss = () => {
+    if (remoteVersion) {
+      writeDismissedVersion(remoteVersion);
+      setDismissedVersion(remoteVersion);
+    }
+    setChunkStale(false);
+  };
+
+  const refresh = () => {
+    window.location.reload();
+  };
+
+  return {
+    showDialog,
+    remoteVersion,
+    chunkStale,
+    spaUpdateAvailable,
+    agentUpdateNeeded,
+    minAgentVersion,
+    dismiss,
+    refresh,
+  };
+}

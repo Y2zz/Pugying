@@ -436,22 +436,25 @@ describe('auth and team flows', () => {
     expect(getStoredTeam()).toEqual(sampleTeam);
   });
 
-  it('fetchContents appends type and q query params when provided', async () => {
+  it('fetchContents appends type, q, and pagination query params when provided', async () => {
     stubFetch(
-      fakeResponse(200, []),
-      fakeResponse(200, []),
-      fakeResponse(200, []),
-      fakeResponse(200, []),
+      fakeResponse(200, { items: [], total: 0, page: 1, pageSize: 20 }),
+      fakeResponse(200, { items: [], total: 0, page: 1, pageSize: 20 }),
+      fakeResponse(200, { items: [], total: 0, page: 1, pageSize: 20 }),
+      fakeResponse(200, { items: [], total: 0, page: 1, pageSize: 20 }),
+      fakeResponse(200, { items: [], total: 0, page: 2, pageSize: 10 }),
     );
 
     await fetchContents();
     await fetchContents({ type: 'article' });
     await fetchContents({ q: '封面' });
     await fetchContents({ type: 'video', q: '  草稿  ' });
+    await fetchContents({ page: 2, pageSize: 10 });
 
     expect(fetchCalls[0].url.endsWith('/contents')).toBe(true);
     expect(fetchCalls[1].url.endsWith('/contents?type=article')).toBe(true);
     expect(fetchCalls[2].url.endsWith('/contents?q=%E5%B0%81%E9%9D%A2')).toBe(true);
     expect(fetchCalls[3].url.endsWith('/contents?type=video&q=%E8%8D%89%E7%A8%BF')).toBe(true);
+    expect(fetchCalls[4].url.endsWith('/contents?page=2&pageSize=10')).toBe(true);
   });
 });

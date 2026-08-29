@@ -112,6 +112,16 @@ export function isAuthenticated(): boolean {
   return Boolean(getAccessToken());
 }
 
+export interface ProductVersionInfo {
+  version: string;
+  minAgentVersion: string;
+}
+
+/** 统一发版产品版本（公开接口，无需登录） */
+export async function fetchProductVersion(): Promise<ProductVersionInfo> {
+  return apiFetch<ProductVersionInfo>('/version');
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -532,22 +542,99 @@ export async function checkMediaDuplicate(body: {
   );
 }
 
-export async function fetchMediaAssets(
-  type?: 'all' | MediaLibraryCategory,
-): Promise<MediaLibraryItem[]> {
-  const query =
-    type && type !== 'all' ? `?type=${encodeURIComponent(type)}` : '';
-  return apiFetch<MediaLibraryItem[]>(`/media/assets${query}`);
+export type MediaAssetSortField =
+  | 'originalName'
+  | 'kind'
+  | 'sizeBytes'
+  | 'createdAt';
+export type MediaAssetSortOrder = 'asc' | 'desc';
+
+export interface MediaLibraryListResult {
+  items: MediaLibraryItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface MediaLibraryCategoryStats {
+  count: number;
+  bytes: number;
+}
+
+export interface MediaLibraryStats {
+  totalCount: number;
+  totalBytes: number;
+  byCategory: {
+    video: MediaLibraryCategoryStats;
+    image: MediaLibraryCategoryStats;
+  };
+}
+
+export async function fetchMediaAssets(params?: {
+  type?: 'all' | MediaLibraryCategory;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: MediaAssetSortField;
+  sortOrder?: MediaAssetSortOrder;
+}): Promise<MediaLibraryListResult> {
+  const search = new URLSearchParams();
+  if (params?.type && params.type !== 'all') {
+    search.set('type', params.type);
+  }
+  const q = params?.q?.trim();
+  if (q) {
+    search.set('q', q);
+  }
+  if (params?.page !== undefined) {
+    search.set('page', String(params.page));
+  }
+  if (params?.pageSize !== undefined) {
+    search.set('pageSize', String(params.pageSize));
+  }
+  if (params?.sortBy) {
+    search.set('sortBy', params.sortBy);
+  }
+  if (params?.sortOrder) {
+    search.set('sortOrder', params.sortOrder);
+  }
+  const query = search.toString();
+  return apiFetch<MediaLibraryListResult>(`/media/assets${query ? `?${query}` : ''}`);
+}
+
+export async function fetchMediaAssetsStats(): Promise<MediaLibraryStats> {
+  return apiFetch<MediaLibraryStats>('/media/assets/stats');
 }
 
 export async function deleteMediaAsset(id: string): Promise<void> {
   await apiFetch(`/media/assets/${id}`, { method: 'DELETE' });
 }
 
+export interface DeleteMediaAssetsResult {
+  deletedIds: string[];
+  missingIds: string[];
+}
+
+export async function deleteMediaAssets(ids: string[]): Promise<DeleteMediaAssetsResult> {
+  return apiFetch<DeleteMediaAssetsResult>('/media/assets/batch-delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export interface ContentListResult {
+  items: ContentItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export async function fetchContents(params?: {
   type?: ContentType;
   q?: string;
-}): Promise<ContentItem[]> {
+  page?: number;
+  pageSize?: number;
+}): Promise<ContentListResult> {
   const search = new URLSearchParams();
   if (params?.type) {
     search.set('type', params.type);
@@ -556,8 +643,14 @@ export async function fetchContents(params?: {
   if (q) {
     search.set('q', q);
   }
+  if (params?.page !== undefined) {
+    search.set('page', String(params.page));
+  }
+  if (params?.pageSize !== undefined) {
+    search.set('pageSize', String(params.pageSize));
+  }
   const query = search.toString();
-  return apiFetch<ContentItem[]>(`/contents${query ? `?${query}` : ''}`);
+  return apiFetch<ContentListResult>(`/contents${query ? `?${query}` : ''}`);
 }
 
 export async function fetchContent(id: string): Promise<ContentItem> {
