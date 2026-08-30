@@ -339,44 +339,29 @@ export function AddAccountsDialog({
                         const usable = account.status === 'active';
                         const isSelected = Boolean(draft[account.id]);
                         const isReauthing = reauthingId === account.id;
-                        return (
-                          <div
-                            key={account.id}
-                            className={cn(
-                              'relative flex items-center gap-3 rounded-xl bg-muted/50 p-3 text-left transition-colors',
-                              usable ? 'hover:bg-muted' : null,
-                              usable && isSelected ? 'bg-primary/10 hover:bg-primary/15' : null
-                            )}
-                          >
-                            {usable ? (
-                              <button
-                                type="button"
-                                aria-pressed={isSelected}
-                                disabled={authBusy}
-                                className="absolute inset-0 rounded-xl"
-                                onClick={() => {
-                                  toggleAccount(account);
-                                }}
-                              >
-                                <span className="sr-only">选择 {account.displayName}</span>
-                              </button>
-                            ) : null}
-                            {usable && isSelected ? (
-                              <span className="pointer-events-none absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                                <Check className="size-3" aria-hidden />
-                              </span>
-                            ) : null}
-                            <Avatar size="lg" className="relative z-10">
-                              {account.avatarUrl ? (
-                                <AvatarImage src={account.avatarUrl} alt={account.displayName} referrerPolicy="no-referrer" />
-                              ) : null}
-                              <AvatarFallback>{account.displayName.slice(0, 1)}</AvatarFallback>
-                            </Avatar>
-                            <div className="relative z-10 min-w-0 flex-1 pr-1">
-                              <p className="truncate font-medium" title={account.displayName}>
-                                {account.displayName}
-                              </p>
-                              {!usable ? (
+                        const cardClassName = cn(
+                          'relative flex items-center gap-3 rounded-xl bg-muted/50 p-3 text-left transition-colors',
+                          usable ? 'hover:bg-muted' : null,
+                          usable && isSelected ? 'bg-primary/10 hover:bg-primary/15' : null,
+                        );
+
+                        if (!usable) {
+                          return (
+                            <div key={account.id} className={cardClassName}>
+                              <Avatar size="lg">
+                                {account.avatarUrl ? (
+                                  <AvatarImage
+                                    src={account.avatarUrl}
+                                    alt={account.displayName}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : null}
+                                <AvatarFallback>{account.displayName.slice(0, 1)}</AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1 pr-1">
+                                <p className="truncate font-medium" title={account.displayName}>
+                                  {account.displayName}
+                                </p>
                                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
                                   <Badge variant="outline" className="font-normal">
                                     {ACCOUNT_STATUS_TEXT[account.status]}
@@ -400,9 +385,45 @@ export function AddAccountsDialog({
                                     )}
                                   </Button>
                                 </div>
-                              ) : null}
+                              </div>
                             </div>
-                          </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={account.id}
+                            type="button"
+                            aria-pressed={isSelected}
+                            disabled={authBusy}
+                            className={cn('w-full', cardClassName)}
+                            onClick={() => {
+                              toggleAccount(account);
+                            }}
+                          >
+                            {isSelected ? (
+                              <span
+                                className="pointer-events-none absolute top-2 right-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                              >
+                                <Check className="size-3" aria-hidden />
+                              </span>
+                            ) : null}
+                            <Avatar size="lg">
+                              {account.avatarUrl ? (
+                                <AvatarImage
+                                  src={account.avatarUrl}
+                                  alt={account.displayName}
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : null}
+                              <AvatarFallback>{account.displayName.slice(0, 1)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1 pr-1">
+                              <p className="truncate font-medium" title={account.displayName}>
+                                {account.displayName}
+                              </p>
+                            </div>
+                          </button>
                         );
                       })}
                     </div>
