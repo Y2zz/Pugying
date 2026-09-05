@@ -283,6 +283,9 @@ export class ContentService {
     if (overrides.coverUrl?.trim()) {
       result.coverUrl = overrides.coverUrl.trim();
     }
+    if (overrides.coverLandscapeUrl?.trim()) {
+      result.coverLandscapeUrl = overrides.coverLandscapeUrl.trim();
+    }
     const tags = this.normalizeList(overrides.tags);
     if (tags.length > 0) {
       result.tags = tags;
@@ -292,6 +295,15 @@ export class ContentService {
       if (!Number.isNaN(date.getTime())) {
         result.scheduledAt = date.toISOString();
       }
+    }
+    if (
+      overrides.visibility !== undefined &&
+      isContentVisibility(overrides.visibility)
+    ) {
+      result.visibility = overrides.visibility;
+    }
+    if (overrides.allowDownload !== undefined) {
+      result.allowDownload = overrides.allowDownload;
     }
     return result;
   }

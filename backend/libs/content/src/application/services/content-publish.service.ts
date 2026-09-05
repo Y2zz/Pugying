@@ -305,10 +305,11 @@ export class ContentPublishService {
 
     const mediaSigned = await this.signAssetRef(mediaRef);
     const coverSigned = await this.signAssetRef(coverRef);
-    const landscapeRef = content.coverLandscapeUrl?.trim();
+    const landscapeRef =
+      overrides.coverLandscapeUrl?.trim() || content.coverLandscapeUrl?.trim();
     if (!landscapeRef) {
       throw new BadRequestException(
-        '缺少横版封面（16:9）；抖音发布需同时提供竖版与横版封面',
+        '缺少横版封面（4:3）；抖音发布需同时提供竖版与横版封面',
       );
     }
     const landscapeSigned = await this.signAssetRef(landscapeRef);
@@ -326,9 +327,9 @@ export class ContentPublishService {
       coverLandscapeUrl: landscapeSigned.url,
       title: (overrides.title?.trim() || content.title).trim(),
       body: (overrides.body?.trim() || content.body || undefined) || undefined,
-      visibility: content.visibility,
+      visibility: overrides.visibility ?? content.visibility,
       scheduledAt: scheduled,
-      allowDownload: content.allowDownload,
+      allowDownload: overrides.allowDownload ?? content.allowDownload,
       cookies,
       mediaExpiresAt: mediaSigned.expiresAt,
       coverExpiresAt: coverSigned.expiresAt,

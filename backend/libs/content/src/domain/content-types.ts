@@ -58,11 +58,15 @@ export function isMediaAssetKind(value: string): value is MediaAssetKind {
   return (MEDIA_ASSET_KINDS as readonly string[]).includes(value);
 }
 
-/** 针对单个平台账号的差异字段；未设置的字段回落到内容通用设置 */
+/** 针对单个平台账号的差异字段；未设置的文案/封面回落到内容通用设置 */
 export interface ContentTargetOverrides {
   title?: string;
   body?: string;
   coverUrl?: string;
+  /** 横版封面差异；未设置则回落内容通用横封面 */
+  coverLandscapeUrl?: string;
   tags?: string[];
   scheduledAt?: string;
+  visibility?: ContentVisibility;
+  allowDownload?: boolean;
 }

@@ -390,13 +390,16 @@ export type TargetPublishStatus =
   | 'failed'
   | 'cancelled';
 
-/** 针对单个账号的差异字段；未设置的字段使用内容通用设置 */
+/** 针对单个平台账号的差异字段；未设置的文案/封面回落到内容通用设置 */
 export interface ContentTargetOverrides {
   title?: string;
   body?: string;
   coverUrl?: string;
+  coverLandscapeUrl?: string;
   tags?: string[];
   scheduledAt?: string;
+  visibility?: ContentVisibility;
+  allowDownload?: boolean;
 }
 
 export interface ContentTargetItem {
@@ -792,11 +795,18 @@ export function parseMediaAssetId(ref: string | null | undefined): string | null
   return match?.[1] ?? null;
 }
 
+/** 分片上传进度：按已传字节计，便于 UI 展示速度与剩余时间 */
+export type MediaUploadProgress = {
+  ratio: number;
+  loadedBytes: number;
+  totalBytes: number;
+};
+
 /** 分片上传本地文件到团队库，返回资产（url 形如 /media/assets/{id}） */
 export async function uploadMediaFile(
   file: File,
   kind: 'video' | 'cover' | 'cover_landscape',
-  onProgress?: (ratio: number) => void,
+  onProgress?: (progress: MediaUploadProgress) => void,
   signal?: AbortSignal,
 ): Promise<MediaAssetResult> {
   const throwIfAborted = () => {
@@ -817,7 +827,11 @@ export async function uploadMediaFile(
     const start = i * init.chunkSize;
     const end = Math.min(file.size, start + init.chunkSize);
     await putMediaChunk(init.uploadId, i, file.slice(start, end));
-    onProgress?.((i + 1) / init.chunkCount);
+    onProgress?.({
+      ratio: end / file.size,
+      loadedBytes: end,
+      totalBytes: file.size,
+    });
   }
   throwIfAborted();
   return completeMediaUpload(init.uploadId);
