@@ -1,9 +1,8 @@
-import { useRef } from 'react';
-import { Crop, ImagePlus } from 'lucide-react';
 import { MediaPreviewImage } from '@/components/MediaPreviewImage';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+/** 封面预览槽：点击打开编辑 Dialog（触屏友好，不依赖 hover） */
 export function CoverHoverCard({
   label,
   ready,
@@ -12,8 +11,7 @@ export function CoverHoverCard({
   aspectRatio,
   previewClassName,
   disabled,
-  onCrop,
-  onReplace,
+  onEdit,
 }: {
   label: string;
   ready: boolean;
@@ -22,64 +20,57 @@ export function CoverHoverCard({
   aspectRatio?: number;
   previewClassName?: string;
   disabled?: boolean;
-  onCrop: () => void;
-  onReplace: (file: File) => void;
+  onEdit: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const hasImage = Boolean(src?.trim());
 
   return (
-    <div className={cn('group flex flex-col gap-2 rounded-lg border p-2', disabled ? 'opacity-60' : null)}>
-      <span className="text-xs text-muted-foreground">
-        {label}
-        {ready ? '' : ' · 待生成'}
-      </span>
-      <div className="relative overflow-hidden rounded-md">
-        <MediaPreviewImage
-          src={src}
-          alt={`${label} 预览`}
-          objectFit={objectFit}
-          aspectRatio={aspectRatio}
-          className={cn('shrink-0 border-0', previewClassName)}
-        />
-        <div
-          className={cn(
-            'absolute inset-0 flex items-center justify-center gap-2 bg-muted/80 opacity-0 backdrop-blur-[1px] transition-opacity',
-            disabled ? 'pointer-events-none' : 'group-focus-within:opacity-100 group-hover:opacity-100'
-          )}
-        >
-          <Button type="button" size="sm" variant="secondary" disabled={disabled || !hasImage} onClick={onCrop}>
-            <Crop data-icon="inline-start" />
-            裁剪
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={disabled}
-            onClick={() => {
-              inputRef.current?.click();
-            }}
-          >
-            <ImagePlus data-icon="inline-start" />
-            替换
-          </Button>
-        </div>
+    <div className={cn('flex w-fit max-w-full flex-col gap-2', disabled ? 'opacity-60' : null)}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {ready ? (
+          <Badge variant="secondary" className="font-normal">
+            已就绪
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="font-normal">
+            待生成
+          </Badge>
+        )}
       </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
+      <button
+        type="button"
         disabled={disabled}
-        onChange={(e) => {
-          const file = e.target.files?.[0] ?? null;
-          e.target.value = '';
-          if (file) {
-            onReplace(file);
-          }
+        aria-label={`编辑${label}`}
+        className={cn(
+          'overflow-hidden rounded-md bg-muted/40 text-left outline-none transition-opacity',
+          'focus-visible:ring-2 focus-visible:ring-ring',
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-90',
+        )}
+        onClick={() => {
+          onEdit();
         }}
-      />
+      >
+        {hasImage ? (
+          <MediaPreviewImage
+            src={src}
+            alt={`${label} 预览`}
+            objectFit={objectFit}
+            aspectRatio={aspectRatio}
+            className={cn('shrink-0 border-0', previewClassName)}
+          />
+        ) : (
+          <div
+            className={cn(
+              'flex items-center justify-center bg-muted/60 text-xs text-muted-foreground',
+              previewClassName,
+            )}
+            style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
+          >
+            点击编辑
+          </div>
+        )}
+      </button>
     </div>
   );
 }

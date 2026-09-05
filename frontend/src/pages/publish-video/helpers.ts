@@ -1,17 +1,67 @@
-import type { ContentTargetOverrides, ContentVisibility, PlatformAccountItem } from '@/lib/api';
+import type { ContentTargetOverrides, ContentVisibility, MediaDuplicateHit, PlatformAccountItem } from '@/lib/api';
 
 export const TITLE_MAX = 30;
 export const BODY_MAX = 1000;
 export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024;
+/** 封面编辑本地上传图上限（源图不入库，仍限制避免撑爆内存） */
+export const MAX_COVER_UPLOAD_BYTES = 20 * 1024 * 1024;
 export const WARN_DURATION_SEC = 15 * 60;
 
 export type CoverKind = 'cover' | 'cover_landscape';
 /** busy 细分：底栏按钮与取消上传依赖阶段，避免一律「处理中」 */
 export type BusyPhase = 'idle' | 'uploading' | 'saving' | 'publishing';
-export type PublishStep = 1 | 2;
-/** 右栏聚焦通用设置时的哨兵值；其它值为平台账号 id */
-export const RULE_FOCUS_COMMON = 'common';
-export type RuleFocus = string;
+
+/** 发布视频五步流程 id（用于推导当前阶段 UI，无步骤条） */
+export type PublishFlowStepId = 'select' | 'upload' | 'configure' | 'publish' | 'progress';
+
+/** 由页面状态推导当前流程步（编辑加载中视为上传步） */
+export function derivePublishFlowStep(input: {
+  hasVideo: boolean;
+  loading: boolean;
+  editId: string | null;
+  busyPhase: BusyPhase;
+  duplicateHit: MediaDuplicateHit | null;
+  publishHint: string;
+}): PublishFlowStepId {
+  const { hasVideo, loading, editId, busyPhase, duplicateHit, publishHint } = input;
+
+  if (busyPhase === 'publishing') {
+    const hint = publishHint.trim();
+    if (hint.includes('开始推送') || (hint.includes(' · ') && !hint.includes('申请'))) {
+      return 'progress';
+    }
+    return 'publish';
+  }
+
+  if (busyPhase === 'uploading' || duplicateHit != null || (editId && loading)) {
+    return 'upload';
+  }
+
+  if (hasVideo) {
+    return 'configure';
+  }
+
+  return 'select';
+}
+
+export function describePublishFlowStep(step: PublishFlowStepId, duplicatePending = false): string {
+  switch (step) {
+    case 'select':
+      return '请选择或拖入 MP4 视频';
+    case 'upload':
+      return duplicatePending
+        ? '可同时填写发布信息；团队库已有相同视频，请在右侧预览区选择处理方式'
+        : '可同时填写发布信息；视频正在上传';
+    case 'configure':
+      return '填写发布信息并配置各账号规则';
+    case 'publish':
+      return '正在提交发布任务';
+    case 'progress':
+      return '正在通过 Agent 推送到抖音';
+    default:
+      return '';
+  }
+}
 
 export const VISIBILITY_OPTIONS: { value: ContentVisibility; label: string }[] = [
   { value: 'public', label: '公开' },
@@ -25,24 +75,53 @@ export const ACCOUNT_STATUS_TEXT: Record<PlatformAccountItem['status'], string> 
   revoked: '已失效',
 };
 
-export const OVERRIDE_FIELD_LABELS: [keyof ContentTargetOverrides, string][] = [
+/** 可选覆盖通用文案/封面的字段（留空则继承通用设置） */
+export const OPTIONAL_OVERRIDE_LABELS: [keyof ContentTargetOverrides, string][] = [
   ['title', '标题'],
   ['body', '描述'],
-  ['coverUrl', '封面'],
-  ['tags', '话题'],
-  ['scheduledAt', '定时'],
+  ['coverUrl', '竖封面'],
+  ['coverLandscapeUrl', '横封面'],
 ];
 
 export interface OverrideDraft {
+  /** 留空继承通用标题 */
   title: string;
+  /** 留空继承通用描述 */
   body: string;
+  /** 留空继承通用竖封面 */
   coverUrl: string;
+  /** 留空继承通用横封面 */
+  coverLandscapeUrl: string;
+  /** 会话内竖封面源图（供再次编辑；不入库） */
+  coverSourceUrl: string;
+  /** 会话内横封面源图（供再次编辑；不入库） */
+  coverLandscapeSourceUrl: string;
+  /** 竖封面源图对应视频时刻（会话内；上传则为 null） */
+  coverSourceFrameTime: number | null;
+  /** 横封面源图对应视频时刻（会话内；上传则为 null） */
+  coverLandscapeSourceFrameTime: number | null;
+  /** 该账号独立发布选项（非通用） */
   tagsText: string;
   scheduledLocal: string;
+  visibility: ContentVisibility;
+  allowDownload: boolean;
 }
 
 export function emptyDraft(): OverrideDraft {
-  return { title: '', body: '', coverUrl: '', tagsText: '', scheduledLocal: '' };
+  return {
+    title: '',
+    body: '',
+    coverUrl: '',
+    coverLandscapeUrl: '',
+    coverSourceUrl: '',
+    coverLandscapeSourceUrl: '',
+    coverSourceFrameTime: null,
+    coverLandscapeSourceFrameTime: null,
+    tagsText: '',
+    scheduledLocal: '',
+    visibility: 'public',
+    allowDownload: true,
+  };
 }
 
 /** ISO → 日期时间选择器使用的本地时间字符串 */
@@ -90,8 +169,25 @@ export function parseTags(text: string): string[] {
   ];
 }
 
-export function overrideCount(overrides: ContentTargetOverrides | undefined): number {
-  return overrides ? Object.keys(overrides).length : 0;
+/** 统计可选覆盖项（标题/描述/封面）已填数量，用于账号卡片 Badge */
+export function optionalOverrideCount(overrides: ContentTargetOverrides | undefined): number {
+  if (!overrides) {
+    return 0;
+  }
+  let count = 0;
+  if (overrides.title?.trim()) {
+    count += 1;
+  }
+  if (overrides.body?.trim()) {
+    count += 1;
+  }
+  if (overrides.coverUrl?.trim()) {
+    count += 1;
+  }
+  if (overrides.coverLandscapeUrl?.trim()) {
+    count += 1;
+  }
+  return count;
 }
 
 export function overridesToDraft(o: ContentTargetOverrides | undefined): OverrideDraft {
@@ -99,8 +195,37 @@ export function overridesToDraft(o: ContentTargetOverrides | undefined): Overrid
     title: o?.title ?? '',
     body: o?.body ?? '',
     coverUrl: o?.coverUrl ?? '',
+    coverLandscapeUrl: o?.coverLandscapeUrl ?? '',
+    coverSourceUrl: '',
+    coverLandscapeSourceUrl: '',
+    coverSourceFrameTime: null,
+    coverLandscapeSourceFrameTime: null,
     tagsText: o?.tags?.join(' ') ?? '',
     scheduledLocal: isoToLocalInput(o?.scheduledAt),
+    visibility: o?.visibility ?? 'public',
+    allowDownload: o?.allowDownload ?? true,
+  };
+}
+
+/**
+ * 编辑回显：target overrides 优先；旧数据可能仅存于 content 级字段，按账号回填。
+ */
+export function draftFromTargetAndContent(
+  overrides: ContentTargetOverrides | undefined,
+  content: {
+    tags: string[];
+    visibility: ContentVisibility;
+    scheduledAt: string | null;
+    allowDownload: boolean;
+  }
+): OverrideDraft {
+  const draft = overridesToDraft(overrides);
+  return {
+    ...draft,
+    tagsText: draft.tagsText || content.tags.join(' '),
+    scheduledLocal: draft.scheduledLocal || isoToLocalInput(content.scheduledAt),
+    visibility: overrides?.visibility ?? content.visibility,
+    allowDownload: overrides?.allowDownload ?? content.allowDownload,
   };
 }
 
@@ -115,6 +240,9 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   if (draft.coverUrl.trim()) {
     result.coverUrl = draft.coverUrl.trim();
   }
+  if (draft.coverLandscapeUrl.trim()) {
+    result.coverLandscapeUrl = draft.coverLandscapeUrl.trim();
+  }
   const tags = parseTags(draft.tagsText);
   if (tags.length > 0) {
     result.tags = tags;
@@ -123,6 +251,8 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   if (iso) {
     result.scheduledAt = iso;
   }
+  result.visibility = draft.visibility;
+  result.allowDownload = draft.allowDownload;
   return result;
 }
 
@@ -138,3 +268,187 @@ export function formatBytes(size: number): string {
   }
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
+
+/** 视频上传子阶段：校验 / 传视频 / 生成封面 */
+export type VideoUploadPhase = 'checksum' | 'video' | 'cover';
+
+export type VideoUploadMetrics = {
+  phase: VideoUploadPhase;
+  loadedBytes: number;
+  totalBytes: number;
+  /** 0–1；校验与封面阶段为 null（ indeterminate ） */
+  ratio: number | null;
+  speedBps: number;
+};
+
+/** 格式化上传速度（抖音创作者中心类似展示） */
+export function formatTransferRate(bps: number): string {
+  if (!Number.isFinite(bps) || bps <= 0) {
+    return '--';
+  }
+  if (bps < 1024 * 1024) {
+    return `${(bps / 1024).toFixed(1)} KB/s`;
+  }
+  return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
+/** 根据剩余字节与当前速度估算剩余时间 */
+export function formatRemainingTime(remainingBytes: number, speedBps: number): string | null {
+  if (!Number.isFinite(speedBps) || speedBps <= 0 || remainingBytes <= 0) {
+    return null;
+  }
+  const sec = Math.ceil(remainingBytes / speedBps);
+  if (sec < 60) {
+    return `剩余时间：${sec}秒`;
+  }
+  const min = Math.floor(sec / 60);
+  const rest = sec % 60;
+  if (rest === 0) {
+    return `剩余时间：${min}分钟`;
+  }
+  return `剩余时间：${min}分${rest}秒`;
+}
+
+/** 滑动平均上传速度采样，避免分片边界导致瞬时速度跳动 */
+export function createUploadSpeedTracker() {
+  let lastBytes = 0;
+  let lastTime = 0;
+  let speedBps = 0;
+
+  return {
+    reset() {
+      lastBytes = 0;
+      lastTime = 0;
+      speedBps = 0;
+    },
+    sample(loadedBytes: number): number {
+      const now = performance.now();
+      if (lastTime > 0 && loadedBytes > lastBytes) {
+        const deltaMs = now - lastTime;
+        if (deltaMs >= 80) {
+          const instant = (loadedBytes - lastBytes) / (deltaMs / 1000);
+          speedBps = speedBps > 0 ? speedBps * 0.65 + instant * 0.35 : instant;
+          lastBytes = loadedBytes;
+          lastTime = now;
+        }
+      } else if (lastTime === 0) {
+        lastBytes = loadedBytes;
+        lastTime = now;
+      }
+      return speedBps;
+    },
+  };
+}
+
+const UPLOAD_PHASE_LABELS: Record<VideoUploadPhase, string> = {
+  checksum: '正在校验文件',
+  video: '正在上传视频',
+  cover: '正在生成封面',
+};
+
+export function describeVideoUploadPhase(phase: VideoUploadPhase): string {
+  return UPLOAD_PHASE_LABELS[phase];
+}
+
+/** 右栏 9:16 手机柱 UI 阶段（单柱状态机，对齐抖音创作者中心） */
+export type VideoPhonePhase = 'idle' | 'checksum' | 'uploading' | 'duplicate' | 'ready';
+
+export function deriveVideoPhonePhase(input: {
+  hasVideo: boolean;
+  videoPreviewUrl: string | null;
+  duplicateHit: MediaDuplicateHit | null;
+  uploading: boolean;
+  uploadMetrics: VideoUploadMetrics | null;
+}): VideoPhonePhase {
+  if (input.duplicateHit != null) {
+    return 'duplicate';
+  }
+  if (input.hasVideo && input.videoPreviewUrl) {
+    return 'ready';
+  }
+  if (input.uploading) {
+    if (input.uploadMetrics?.phase === 'video') {
+      return 'uploading';
+    }
+    return 'checksum';
+  }
+  return 'idle';
+}
+
+/** 列表行一行摘要：可见性 · 定时 · 话题 */
+export function describeAccountPublishSummary(draft: OverrideDraft): string {
+  const visibility =
+    VISIBILITY_OPTIONS.find((opt) => opt.value === draft.visibility)?.label ?? '公开';
+  const schedule = draft.scheduledLocal.trim()
+    ? formatScheduleSummary(draft.scheduledLocal)
+    : '立即发布';
+  const tags = parseTags(draft.tagsText);
+  const tagPart = tags.length > 0 ? ` · ${tags.length} 个话题` : '';
+  return `${visibility} · ${schedule}${tagPart}`;
+}
+
+function formatScheduleSummary(local: string): string {
+  const date = new Date(local);
+  if (Number.isNaN(date.getTime())) {
+    return '定时待完善';
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `定时 ${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** 账号发布配置问题（用于列表行警告） */
+export function getAccountDraftIssues(draft: OverrideDraft): string[] {
+  const issues: string[] = [];
+  if (draft.scheduledLocal.trim()) {
+    const iso = localInputToIso(draft.scheduledLocal);
+    if (!iso) {
+      issues.push('定时无效');
+    } else {
+      const scheduleError = validateSchedule(iso);
+      if (scheduleError) {
+        issues.push('定时超出范围');
+      }
+    }
+  }
+  if (draft.title.length > TITLE_MAX) {
+    issues.push('标题超长');
+  }
+  if (draft.body.length > BODY_MAX) {
+    issues.push('描述超长');
+  }
+  return issues;
+}
+
+/** 统计已选活跃账号的配置问题，供底栏 checklist 与 focus 使用 */
+export function summarizeSelectedAccountIssues(
+  entries: { account: PlatformAccountItem; draft: OverrideDraft }[]
+): { issueCount: number; firstIssueAccountId: string | null } {
+  let issueCount = 0;
+  let firstIssueAccountId: string | null = null;
+  for (const { account, draft } of entries) {
+    if (account.status !== 'active') {
+      continue;
+    }
+    const issues = getAccountDraftIssues(draft);
+    if (issues.length > 0) {
+      issueCount += issues.length;
+      if (!firstIssueAccountId) {
+        firstIssueAccountId = account.id;
+      }
+    }
+  }
+  return { issueCount, firstIssueAccountId };
+}
+
+/** 截断展示通用默认值（覆盖区对照用） */
+export function truncateCommonReference(text: string, max = 48): string {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.length <= max) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, max)}…`;
+}
+
