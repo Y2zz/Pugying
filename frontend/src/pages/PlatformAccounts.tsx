@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { Check, ExternalLink, Link2, MoreHorizontal, Pencil, Plus, RefreshCw, RotateCcw, SearchIcon, Trash2, XIcon } from 'lucide-react';
 import { PageHeader } from '@/components/layouts/PageHeader';
 import { PlatformIcon } from '@/components/PlatformIcon';
@@ -158,7 +160,8 @@ function authStepStatus(stepId: 'open' | 'login' | 'bind', phase: AuthPhase): 'd
   return 'pending';
 }
 
-function formatTime(value: string | null): string {
+/** 悬停 title 用完整时间，便于核对精确时刻 */
+function formatAbsoluteTime(value: string | null): string {
   if (!value) {
     return '—';
   }
@@ -171,6 +174,18 @@ function formatTime(value: string | null): string {
       minute: '2-digit',
       hour12: false,
     });
+  } catch {
+    return value;
+  }
+}
+
+/** 卡片脚注用相对时间，如「5 分钟前」 */
+function formatRelativeTime(value: string | null): string {
+  if (!value) {
+    return '—';
+  }
+  try {
+    return formatDistanceToNow(new Date(value), { addSuffix: true, locale: zhCN });
   } catch {
     return value;
   }
@@ -1093,8 +1108,8 @@ function AccountCard({
         </div>
       </CardContent>
       <CardFooter className="mt-auto items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-muted-foreground" title={formatTime(account.lastAuthedAt)}>
-          最近授权 {formatTime(account.lastAuthedAt)}
+        <p className="min-w-0 truncate text-muted-foreground" title={formatAbsoluteTime(account.lastAuthedAt)}>
+          最近授权 {formatRelativeTime(account.lastAuthedAt)}
         </p>
         <div className="flex shrink-0 items-center gap-1">
           {needsReauth ? (
