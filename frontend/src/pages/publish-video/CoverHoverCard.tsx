@@ -43,7 +43,8 @@ export function CoverHoverCard({
         disabled={disabled}
         aria-label={`编辑${label}`}
         className={cn(
-          'overflow-hidden rounded-md bg-muted/40 text-left outline-none transition-opacity',
+          // 宽度跟随封面预览，避免被上方「标签+徽章」行把整列撑宽后 stretch 留白
+          'w-fit max-w-full overflow-hidden rounded-md bg-muted/40 text-left outline-none transition-opacity',
           'focus-visible:ring-2 focus-visible:ring-ring',
           disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-90',
         )}
