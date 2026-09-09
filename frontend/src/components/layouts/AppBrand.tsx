@@ -22,7 +22,6 @@ export function AppBrand() {
           tooltip={`Pugying v${APP_VERSION}`}
           // 无悬停底色：品牌可点回首页，但不走 ghost/accent 高亮
           className="hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent active:text-sidebar-foreground data-active:bg-transparent"
-          nativeButton={false}
           render={<Link to="/dashboard" />}
         >
           <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
