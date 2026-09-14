@@ -48,7 +48,8 @@ describe('DesktopTitleBar', () => {
     expect(html).toContain('data-slot="desktop-titlebar"');
     expect(html).toContain(`height:${DESKTOP_TITLEBAR_HEIGHT}`);
     expect(html).toContain('窗口标题栏');
-    // 按钮由系统 titleBarOverlay 绘制，HTML 顶栏不含 caption
+    // 按钮由系统 titleBarOverlay 绘制，HTML 顶栏不含 caption；
+    // 遮罩须避开本行（globals.css），否则 caption 白底会露出白块
     expect(html).not.toContain('最小化');
   });
 });

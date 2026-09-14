@@ -1,6 +1,7 @@
 /**
  * Windows 专用顶栏行：独占高度与拖拽；右侧留给系统 titleBarOverlay
  *（最小化 / 最大化 / 关闭，与真实 Windows 一致）。
+ * 遮罩勿盖本行：系统 caption 背景不透明，盖住后会出现右上角白块（见 globals.css）。
  */
 import { useOptionalDesktopWindowChrome } from '@/components/DesktopWindowChrome';
 

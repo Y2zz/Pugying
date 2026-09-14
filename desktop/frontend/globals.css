@@ -215,6 +215,18 @@ html.desktop-chrome[data-desktop-controls='overlay'] [data-slot='sidebar-contain
   height: auto;
 }
 
+/*
+ * Windows titleBarOverlay 系统按钮叠在网页之上且背景不透明。
+ * Dialog/Sheet 等遮罩若盖住 HTML 顶栏，顶栏被压暗而 caption 仍为纯白，右上角出现白块。
+ * 遮罩从标题栏下方起铺，使顶栏与系统按钮同亮、可拖窗。
+ */
+html.desktop-chrome[data-desktop-controls='overlay'] [data-slot='dialog-overlay'],
+html.desktop-chrome[data-desktop-controls='overlay'] [data-slot='alert-dialog-overlay'],
+html.desktop-chrome[data-desktop-controls='overlay'] [data-slot='sheet-overlay'],
+html.desktop-chrome[data-desktop-controls='overlay'] [data-slot='drawer-overlay'] {
+  top: var(--desktop-titlebar-height);
+}
+
 /* Electron：显式拖拽 / 禁拖工具类 */
 .desktop-titlebar-drag {
   -webkit-app-region: drag;
