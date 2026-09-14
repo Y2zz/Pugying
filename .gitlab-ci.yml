@@ -1,10 +1,13 @@
 # Pugying CI/CD
 #
 # CI（check 阶段）：server / desktop 各自测试与编译。
-# 产品交付为桌面包；CI 不构建或推送独立 Server 镜像。
+# desktop:dist:linux：electronuserland/builder 镜像打 Linux 目录包。
+# Windows 含 better-sqlite3（Electron ABI），Docker/Wine 无 prebuild 时不可交叉编译，
+# 故不在此打 win 包；请在 Windows 主机执行 npm run dist:win。
 
 stages:
   - check
+  - dist
 
 workflow:
   rules:
@@ -60,3 +63,38 @@ desktop:check:
     - npm run typecheck
     - npm test
     - npm run build
+
+# ---------------- dist ----------------
+
+desktop:dist:linux:
+  stage: dist
+  image: electronuserland/builder:22-05.26
+  needs:
+    - job: desktop:check
+      optional: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  cache:
+    key:
+      files:
+        - desktop/package-lock.json
+    paths:
+      - .npm
+      - .cache/electron
+      - .cache/electron-builder
+  variables:
+    ELECTRON_CACHE: "$CI_PROJECT_DIR/.cache/electron"
+    ELECTRON_BUILDER_CACHE: "$CI_PROJECT_DIR/.cache/electron-builder"
+  script:
+    - cd desktop
+    - npm ci --prefer-offline
+    - npm run dist:linux
+  artifacts:
+    name: pugying-desktop-linux-$CI_COMMIT_SHORT_SHA
+    paths:
+      - desktop/release/linux-unpacked/
+    expire_in: 1 week

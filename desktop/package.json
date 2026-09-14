@@ -15,7 +15,11 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "dist": "npm run build && npm run pack:server && electron-builder --dir",
-    "pack:server": "node scripts/pack-server.mjs"
+    "dist:linux": "npm run build && npm run pack:server -- --platform linux --arch x64 && electron-builder --linux --x64 --dir",
+    "dist:win": "npm run build && npm run pack:server -- --platform win32 --arch x64 && electron-builder --win --x64 --dir",
+    "pack:server": "node scripts/pack-server.mjs",
+    "docker:dist:linux": "bash scripts/docker-dist.sh linux",
+    "docker:dist:win": "bash scripts/docker-dist.sh win"
   },
   "devDependencies": {
     "@base-ui/react": "1.7.0",
@@ -63,8 +67,10 @@
     "appId": "local.pugying.desktop",
     "productName": "蒲公英",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "icon",
     "files": [
       "out/**/*",
       "package.json"
@@ -84,6 +90,7 @@
       }
     ],
     "mac": {
+      "icon": "icon.icns",
       "category": "public.app-category.productivity",
       "electronLanguages": [
         "zh-CN",
@@ -94,11 +101,13 @@
       ]
     },
     "linux": {
+      "icon": "icon.png",
       "target": [
         "dir"
       ]
     },
     "win": {
+      "icon": "icon.ico",
       "target": [
         "dir"
       ]

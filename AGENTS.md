@@ -78,7 +78,7 @@ if (condition) {
   - **组件文件**（导出 React 组件的 `.tsx` 文件）使用 PascalCase：`AppLayout.tsx`、`Dashboard.tsx`、`AuthToolbar.tsx`
   - **非组件文件**（hooks, utils, 配置, 样式, 入口等）使用 kebab-case：`use-mobile.ts`、`utils.ts`、`router.tsx`、`main.tsx`
   - **`components/ui/` 目录例外**：shadcn/ui 生成的组件保持其原始 kebab-case 命名，不得修改。
-  - 业务 UI 在 `desktop/frontend/`；授权壳在 `desktop/shell/`。
+  - 业务 UI 在 `desktop/frontend/`；授权窗 UI 在 `desktop/auth/`。
 
   | 文件类型 | 命名风格 | 示例 |
   |---------|---------|------|
@@ -87,7 +87,7 @@ if (condition) {
   | React 非组件文件 | kebab-case | `use-mobile.ts`, `router.tsx` |
   | shadcn/ui 组件 | kebab-case（不可改） | `button.tsx`, `dropdown-menu.tsx` |
 
-- **禁止修改 shadcn/ui 组件**：`desktop/frontend/components/ui/` 与 `desktop/shell/components/ui/` 目录下的所有文件均为 shadcn/ui 生成的组件代码，**严禁直接修改**。此规则旨在确保组件行为与官方实现保持一致，便于后续通过 CLI 进行升级和维护。
+- **禁止修改 shadcn/ui 组件**：`desktop/frontend/components/ui/` 与 `desktop/auth/components/ui/` 目录下的所有文件均为 shadcn/ui 生成的组件代码，**严禁直接修改**。此规则旨在确保组件行为与官方实现保持一致，便于后续通过 CLI 进行升级和维护。
 
   **禁止的操作：**
   - 直接编辑 `components/ui/*.tsx` 文件中的任何代码。
@@ -167,7 +167,7 @@ Pugying/
 │   ├── electron/main/        # 托盘 / 托管 Server / 授权 / 发布 / IPC
 │   ├── electron/preload/     # app.ts（pugyingDesktop）+ index.ts（chromeShell）
 │   ├── frontend/             # 业务 UI（React renderer）
-│   ├── shell/                # 授权壳 renderer
+│   ├── auth/                # 授权窗 UI renderer
 │   ├── shared/               # IPC 信道约定
 │   ├── scripts/pack-server.mjs
 │   └── package.json          # pugying-desktop
@@ -186,8 +186,8 @@ Pugying/
 - **表命名**: 单数形式，如 `content`、`content_target`、`media_asset`、`platform_account`。
 - **访问**: 无登录页、密码、JWT 或业务权限体系；业务 frontend 仅经 Electron preload 获取本机临时令牌访问 Server。
 - **API 文档**: Swagger UI 在 `/api`（默认 `http://127.0.0.1:3928/api`）。
-- **路径别名**: Server 使用 `@pugying/*`；Desktop 业务 UI `@/` → `desktop/frontend`，授权壳 `@shell/` → `desktop/shell`。
-- **桌面 Desktop**: 业务主窗经 **preload IPC（`pugyingDesktop`）** 调本机发布能力；授权壳 `chrome:*` 隔离。平台授权使用 ephemeral session partition，禁止 `defaultSession`。权威状态在本机 Server。
+- **路径别名**: Server 使用 `@pugying/*`；Desktop 业务 UI `@/` → `desktop/frontend`，授权窗 UI `@auth/` → `desktop/auth`。
+- **桌面 Desktop**: 业务主窗经 **preload IPC（`pugyingDesktop`）** 调本机发布能力；授权窗 UI 经 `chromeShell` / `chrome:*` 隔离。平台授权使用 ephemeral session partition，禁止 `defaultSession`。权威状态在本机 Server。
 - **媒体账号 / 内容发布 / 媒体库**: 能力同前；发布由桌面 UI 经 IPC 调 `platform.publish.*`；`MEDIA_PUBLIC_BASE_URL` 默认指向本机 Server。
 
 ## 支撑服务
@@ -219,6 +219,9 @@ Pugying/
 | 单元测试 | `cd desktop && npm test` |
 | 构建 | `cd desktop && npm run build` |
 | 打出本地目录包（含 Server + 内置 Node） | `cd desktop && npm run dist` |
+| Docker 打 Linux x64 目录包 | `cd desktop && npm run docker:dist:linux` |
+| Docker（Wine）打 Windows x64（需 native prebuild） | `cd desktop && npm run docker:dist:win` |
+| 本机打 Linux / Windows 目录包 | `cd desktop && npm run dist:linux` / `npm run dist:win` |
 | 类型检查 | `cd desktop && npm run typecheck` |
 
 > `npm run dev` / `start` 会清除 `ELECTRON_RUN_AS_NODE`。发行版 **自带 Node**，终端用户无需安装 Node.js。
@@ -241,3 +244,4 @@ Pugying/
 | `MEDIA_STORAGE_DIR` | `data/media` 或 userData | 媒体落盘 |
 | `PUGYING_EXTERNAL_SERVER` | — | 开发时 Desktop 不嵌入 Server，只连接外部 Server |
 | `PUGYING_API_BASE_URL` | — | 配合 EXTERNAL 指定 API 基址 |
+| `PUGYING_FORCE_PLATFORM` | — | 开发态模拟窗口铬（`darwin` / `win32` / `linux`）；仅未打包生效 |
