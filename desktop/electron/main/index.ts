@@ -1,4 +1,5 @@
-import { app, Menu, dialog } from 'electron';
+import { app, Menu, dialog, nativeImage } from 'electron';
+import appIconAsset from '../../assets/app-icon.png?asset';
 import {
   createAppWindow,
   markAppQuitting,
@@ -16,7 +17,7 @@ let allowQuit = false;
 /**
  * Replace Electron's default application menu, whose View→Reload
  * accelerators (Cmd/Ctrl+R) reload the focused WebContents. Reloading the
- * shell/overlay views corrupts the auth window (blank toolbar, stuck
+ * auth/overlay views corrupts the auth window (blank toolbar, stuck
  * overlays), so reload must only happen via the toolbar button.
  * - macOS: keep app/edit/window roles (clipboard & Cmd+W still work).
  * - Win/Linux: drop the menu bar entirely; no menu → no accelerators.
@@ -43,6 +44,11 @@ app.whenReady().then(async () => {
   // 桌面一体：业务主窗常驻，Dock/任务切换应可见
   if (process.platform === 'darwin') {
     void app.dock?.show();
+    // 开发态使用同一套 App 图标；打包后 Finder 由 icns 负责
+    const dockIcon = nativeImage.createFromPath(appIconAsset);
+    if (!dockIcon.isEmpty()) {
+      app.dock?.setIcon(dockIcon);
+    }
   }
 
   installAppMenu();

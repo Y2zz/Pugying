@@ -28,10 +28,9 @@ function createTrayIcon(): NativeImage {
     // Fallback if asset missing after unexpected cwd/outDir
     return nativeImage.createEmpty();
   }
-  if (process.platform === 'darwin') {
-    image.setTemplateImage(true);
-  }
-  return image;
+  // 资产为白前景 + 透明底；勿开 template（template 期望黑剪影）
+  const size = process.platform === 'darwin' ? 22 : 16;
+  return image.resize({ width: size, height: size, quality: 'best' });
 }
 
 function buildMenuTemplate(): MenuItemConstructorOptions[] {
