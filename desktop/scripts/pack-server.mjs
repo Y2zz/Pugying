@@ -8,6 +8,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   rmSync,
   cpSync,
@@ -48,21 +49,63 @@ function parseTarget(argv) {
   return { platform, arch };
 }
 
+/**
+ * Windows：npm/npx 为 .cmd，须带后缀并经 shell；node.exe 等带空格路径
+ *（如 C:\\Program Files\\nodejs\\node.exe）绝不能 shell:true，否则会拆成 `C:\\Program`。
+ */
+function resolveCommand(cmd) {
+  if (process.platform === 'win32' && (cmd === 'npm' || cmd === 'npx')) {
+    return `${cmd}.cmd`;
+  }
+  return cmd;
+}
+
 function run(cmd, args, cwd) {
-  // Windows 上 npm/npx 实为 .cmd；shell:false 会 ENOENT，status 为 null
-  const result = spawnSync(cmd, args, {
+  const resolved = resolveCommand(cmd);
+  const useShell =
+    process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolved);
+  const result = spawnSync(resolved, args, {
     cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: useShell,
   });
   if (result.error) {
     throw new Error(
-      `${cmd} ${args.join(' ')} failed: ${result.error.message}`,
+      `${resolved} ${args.join(' ')} failed: ${result.error.message}`,
     );
   }
   if (result.status !== 0) {
-    throw new Error(`${cmd} ${args.join(' ')} failed with ${result.status}`);
+    throw new Error(
+      `${resolved} ${args.join(' ')} failed with ${result.status}`,
+    );
   }
+}
+
+function nestCliEntry() {
+  return path.join(
+    serverRoot,
+    'node_modules',
+    '@nestjs',
+    'cli',
+    'bin',
+    'nest.js',
+  );
+}
+
+/** 打包前保证 server 含 @nestjs/cli；用 node 调 nest.js，避开 Windows 找不到 nest.cmd */
+function ensureServerBuilt() {
+  const nestJs = nestCliEntry();
+  if (!existsSync(nestJs)) {
+    console.log('[pack-server] installing server dependencies…');
+    run('npm', ['ci'], serverRoot);
+  }
+  if (!existsSync(nestJs)) {
+    throw new Error(
+      `缺少 ${nestJs}。请在 server/ 执行 npm ci 后再打包。`,
+    );
+  }
+  console.log('[pack-server] building server…');
+  run(process.execPath, [nestJs, 'build'], serverRoot);
 }
 
 function assertNoDebugBuildArtifacts(root) {
@@ -122,25 +165,27 @@ function rebuildBetterSqlite3(target) {
   console.log(
     '[pack-server] host≠target，尝试 prebuild-install 拉取 Electron 预编译包…',
   );
-  const prebuild = spawnSync(
-    'npx',
-    [
-      '--yes',
-      'prebuild-install@7.1.2',
-      '--runtime',
-      'electron',
-      '--target',
-      electronVersion,
-      '--platform',
-      target.platform,
-      '--arch',
-      target.arch,
-      '--force',
-    ],
-    { cwd: moduleRoot, stdio: 'inherit', shell: false },
-  );
-  if (prebuild.status === 0) {
+  try {
+    run(
+      'npx',
+      [
+        '--yes',
+        'prebuild-install@7.1.2',
+        '--runtime',
+        'electron',
+        '--target',
+        electronVersion,
+        '--platform',
+        target.platform,
+        '--arch',
+        target.arch,
+        '--force',
+      ],
+      moduleRoot,
+    );
     return;
+  } catch {
+    // 下面统一抛出交叉打包失败说明
   }
 
   throw new Error(
@@ -154,8 +199,7 @@ function rebuildBetterSqlite3(target) {
 }
 
 function packServerDist(target) {
-  console.log('[pack-server] building server…');
-  run('npm', ['run', 'build'], serverRoot);
+  ensureServerBuilt();
   assertNoDebugBuildArtifacts(path.join(serverRoot, 'dist'));
 
   rmSync(serverOut, { recursive: true, force: true });
@@ -172,10 +216,14 @@ function packServerDist(target) {
     path.join(serverRoot, 'package-lock.json'),
     path.join(serverOut, 'package-lock.json'),
   );
+  // 与 server/.npmrc 一并带入，保证 resources 内 npm ci 同样放宽 peer
+  const serverNpmrc = path.join(serverRoot, '.npmrc');
+  if (existsSync(serverNpmrc)) {
+    cpSync(serverNpmrc, path.join(serverOut, '.npmrc'));
+  }
 
   console.log('[pack-server] npm ci --omit=dev in resources/server…');
-  // typeorm@1.1 peerOptional 仍声明 better-sqlite3@^12，与 13.x 冲突；打包安装需放宽 peer
-  run('npm', ['ci', '--omit=dev', '--legacy-peer-deps'], serverOut);
+  run('npm', ['ci', '--omit=dev'], serverOut);
   rebuildBetterSqlite3(target);
 
   const pkg = JSON.parse(
