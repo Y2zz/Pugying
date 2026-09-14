@@ -7,6 +7,13 @@ import { useAgent } from '@/hooks/use-agent';
 const POLL_MS = 10 * 60 * 1000;
 const DISMISS_KEY = 'pugying_update_dismissed';
 
+/**
+ * 开发预览：假设远端已有新版本，用于查看侧栏圆点与更新弹窗。
+ * 确认 UI 后改回 false。
+ */
+const PREVIEW_UPDATE_AVAILABLE = true;
+const PREVIEW_REMOTE_VERSION = '99.0.0';
+
 function readDismissedVersion(): string | null {
   return localStorage.getItem(DISMISS_KEY);
 }
@@ -23,10 +30,13 @@ export function useProductUpdateCheck() {
     readDismissedVersion(),
   );
   const [chunkStale, setChunkStale] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
   const seqRef = useRef(0);
 
   const check = useCallback(async () => {
     const seq = ++seqRef.current;
+    setChecking(true);
     try {
       const info = await fetchProductVersion();
       if (seq !== seqRef.current) {
@@ -37,6 +47,10 @@ export function useProductUpdateCheck() {
     } catch {
       if (seq !== seqRef.current) {
         return;
+      }
+    } finally {
+      if (seq === seqRef.current) {
+        setChecking(false);
       }
     }
   }, []);
@@ -75,7 +89,12 @@ export function useProductUpdateCheck() {
   }, []);
 
   const spaUpdateAvailable =
-    remoteVersion !== null && isVersionNewer(remoteVersion, PRODUCT_VERSION);
+    PREVIEW_UPDATE_AVAILABLE ||
+    (remoteVersion !== null && isVersionNewer(remoteVersion, PRODUCT_VERSION));
+
+  const effectiveRemoteVersion = PREVIEW_UPDATE_AVAILABLE
+    ? PREVIEW_REMOTE_VERSION
+    : remoteVersion;
 
   const agentUpdateNeeded =
     minAgentVersion !== null &&
@@ -83,16 +102,28 @@ export function useProductUpdateCheck() {
     status === 'connected' &&
     isVersionNewer(minAgentVersion, agentVersion);
 
-  const showDialog =
+  // 预览模式只点亮入口，不自动弹窗打扰
+  const autoShowDialog =
     chunkStale ||
-    (spaUpdateAvailable && remoteVersion !== null && dismissedVersion !== remoteVersion);
+    (!PREVIEW_UPDATE_AVAILABLE &&
+      spaUpdateAvailable &&
+      remoteVersion !== null &&
+      dismissedVersion !== remoteVersion);
+
+  const open = autoShowDialog || manualOpen;
+
+  const openManually = () => {
+    void check();
+    setManualOpen(true);
+  };
 
   const dismiss = () => {
-    if (remoteVersion) {
-      writeDismissedVersion(remoteVersion);
-      setDismissedVersion(remoteVersion);
+    if (effectiveRemoteVersion) {
+      writeDismissedVersion(effectiveRemoteVersion);
+      setDismissedVersion(effectiveRemoteVersion);
     }
     setChunkStale(false);
+    setManualOpen(false);
   };
 
   const refresh = () => {
@@ -100,12 +131,15 @@ export function useProductUpdateCheck() {
   };
 
   return {
-    showDialog,
-    remoteVersion,
+    open,
+    checking,
+    remoteVersion: effectiveRemoteVersion,
     chunkStale,
     spaUpdateAvailable,
     agentUpdateNeeded,
     minAgentVersion,
+    localVersion: PRODUCT_VERSION,
+    openManually,
     dismiss,
     refresh,
   };
