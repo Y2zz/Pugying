@@ -1,0 +1,29 @@
+{
+  "include": [
+    "test/**/*",
+    "electron/**/*.test.ts",
+    "shared/**/*.test.ts",
+    "frontend/**/*.test.ts",
+    "frontend/**/*.test.tsx"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["vitest/globals", "node"],
+    // TS6 起 baseUrl 弃用；paths 别名仍依赖它，与 server 同样静默至 6.0
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["frontend/*"],
+      "@shared/*": ["shared/*"]
+    }
+  }
+}

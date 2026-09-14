@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob: http: https:; font-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>蒲公英</title>
+    <script>
+      // 首屏前应用主题，避免闪一下默认样式
+      (function () {
+        try {
+          var themeKey = 'pugying.ui.theme';
+          var theme = localStorage.getItem(themeKey) || localStorage.getItem('theme');
+          var resolved = theme;
+          if (!theme) {
+            resolved = 'light';
+          } else if (theme === 'system') {
+            resolved = window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+          }
+          if (resolved === 'dark' || resolved === 'light') {
+            document.documentElement.classList.add(resolved);
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/frontend/main.tsx"></script>
+  </body>
+</html>

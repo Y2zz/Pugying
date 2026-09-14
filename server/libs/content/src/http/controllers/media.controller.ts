@@ -1,0 +1,174 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
+import { InitMediaUploadDto } from '@pugying/content/application/dtos/init-media-upload.dto';
+import { CheckMediaDuplicateDto } from '@pugying/content/application/dtos/check-media-duplicate.dto';
+import { DeleteMediaAssetsDto } from '@pugying/content/application/dtos/delete-media-assets.dto';
+import { MediaService } from '@pugying/content/application/services/media.service';
+
+@ApiTags('media')
+@Controller('media')
+export class MediaController {
+  constructor(private readonly mediaService: MediaService) {}
+
+  @Get('assets')
+  @ApiOperation({ summary: '本机媒体库列表' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['all', 'video', 'image'],
+    description: 'video=视频；image=封面图；默认全部',
+  })
+  @ApiQuery({ name: 'q', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, example: 20 })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['originalName', 'kind', 'sizeBytes', 'createdAt'],
+    description: '排序字段；默认 createdAt',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: '排序方向；默认 desc',
+  })
+  listAssets(
+    @Query('type') type?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
+    const parsedPage = page !== undefined && page !== '' ? Number(page) : 1;
+    const parsedPageSize =
+      pageSize !== undefined && pageSize !== '' ? Number(pageSize) : 20;
+    const parsedSortBy =
+      sortBy !== undefined && sortBy !== '' ? sortBy : 'createdAt';
+    const parsedSortOrder =
+      sortOrder === 'asc' || sortOrder === 'desc' ? sortOrder : 'desc';
+    return this.mediaService.listAssets(
+      type,
+      q,
+      parsedPage,
+      parsedPageSize,
+      parsedSortBy as 'originalName' | 'kind' | 'sizeBytes' | 'createdAt',
+      parsedSortOrder,
+    );
+  }
+
+  @Get('assets/stats')
+  @ApiOperation({ summary: '本机媒体库统计（库内未删资源）' })
+  libraryStats() {
+    return this.mediaService.getLibraryStats();
+  }
+
+  @Post('assets/check-duplicate')
+  @ApiOperation({ summary: '按内容指纹检查本机库是否已有相同资源' })
+  checkDuplicate(@Body() dto: CheckMediaDuplicateDto) {
+    return this.mediaService.checkDuplicate(dto.kind, dto.checksumSha256);
+  }
+
+  @Post('uploads')
+  @ApiOperation({ summary: '初始化分片上传会话' })
+  initUpload(@Body() dto: InitMediaUploadDto) {
+    return this.mediaService.initUpload(dto);
+  }
+
+  @Put('uploads/:uploadId/chunks/:index')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        chunk: { type: 'string', format: 'binary' },
+      },
+      required: ['chunk'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('chunk', {
+      limits: { fileSize: 16 * 1024 * 1024 },
+    }),
+  )
+  putChunk(
+    @Param('uploadId', ParseUUIDPipe) uploadId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @UploadedFile() file: { buffer?: Buffer } | undefined,
+  ) {
+    if (!file?.buffer) {
+      throw new BadRequestException('缺少分片文件字段 chunk');
+    }
+    return this.mediaService.putChunk(uploadId, index, file.buffer);
+  }
+
+  @Post('uploads/:uploadId/complete')
+  @ApiOperation({ summary: '合并分片并登记媒体资产' })
+  complete(@Param('uploadId', ParseUUIDPipe) uploadId: string) {
+    return this.mediaService.completeUpload(uploadId);
+  }
+
+  @Post('assets/:id/signed-url')
+  @ApiOperation({ summary: '签发短时下载 URL（供 Agent 拉取）' })
+  sign(@Param('id', ParseUUIDPipe) id: string) {
+    return this.mediaService.createSignedDownloadUrlForLocalAsset(id);
+  }
+
+  @Post('assets/batch-delete')
+  @ApiOperation({ summary: '批量软删媒体库资源' })
+  batchRemove(@Body() dto: DeleteMediaAssetsDto) {
+    return this.mediaService.removeAssets(dto.ids);
+  }
+
+  @Delete('assets/:id')
+  @ApiOperation({ summary: '软删媒体库资源' })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.mediaService.removeAsset(id);
+  }
+
+  @Get('assets/:id/download')
+  @ApiOperation({ summary: '签名下载（供本机 Agent）' })
+  async download(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('exp') exp: string,
+    @Query('sig') sig: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const file = await this.mediaService.openSignedDownload(
+      id,
+      exp ?? '',
+      sig ?? '',
+    );
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Length', String(file.sizeBytes));
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    );
+    file.stream.pipe(res);
+  }
+}

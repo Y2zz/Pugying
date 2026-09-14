@@ -46,8 +46,8 @@ _uploads/<uploadId>/     # 分片上传会话（临时）
 
 `MediaService` 只依赖接口：会话 CRUD、分片读写、成品读写、孤儿会话清理。签名校验与资产元数据（TypeORM）仍留在开源 `MediaService`。
 
-接口源码：`backend/libs/content/src/domain/repositories/media-storage.ts`  
-本机实现：`backend/libs/content/src/infrastructure/local/local-media-storage.ts`
+接口源码：`server/libs/content/src/domain/repositories/media-storage.ts`
+本机实现：`server/libs/content/src/infrastructure/local/local-media-storage.ts`
 
 ---
 

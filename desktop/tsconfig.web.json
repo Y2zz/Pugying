@@ -1,0 +1,36 @@
+{
+  "include": ["frontend/**/*", "shell/**/*", "shared/**/*"],
+  "exclude": [
+    "frontend/**/*.test.ts",
+    "frontend/**/*.test.tsx",
+    "shell/**/*.test.ts",
+    "shell/**/*.test.tsx",
+    "shared/**/*.test.ts",
+    "frontend/components/ui",
+    "shell/components/ui"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["frontend/*"],
+      "@shell/*": ["shell/*"],
+      "@shared/*": ["shared/*"]
+    }
+  }
+}

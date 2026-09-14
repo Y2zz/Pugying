@@ -1,0 +1,16 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "testTimeout": 60000,
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "@pugying/core(.*)": "<rootDir>/../libs/core/src$1",
+    "@pugying/typeorm(.*)": "<rootDir>/../libs/typeorm/src$1",
+    "@pugying/platform-account(.*)": "<rootDir>/../libs/platform-account/src$1",
+    "@pugying/content(.*)": "<rootDir>/../libs/content/src$1"
+  }
+}

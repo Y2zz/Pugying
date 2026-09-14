@@ -1,6 +1,6 @@
 ---
 description: 前端字号约定——对齐 shadcn vega，浏览器默认 1rem=16px
-globs: frontend/**/*.{tsx,css}
+globs: desktop/**/*.{tsx,css}
 alwaysApply: false
 ---
 

@@ -1,0 +1,20 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./tsconfig.web.json"
+    }
+  ],
+  "compilerOptions": {
+    // TS6 起 baseUrl 弃用；paths 别名仍依赖它，与 server 同样静默至 6.0
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["frontend/*"],
+      "@shared/*": ["shared/*"]
+    }
+  }
+}
