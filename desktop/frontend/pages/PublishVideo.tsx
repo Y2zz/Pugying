@@ -407,7 +407,9 @@ export default function PublishVideo() {
         }, 50);
         break;
       case 'agent':
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        document
+          .querySelector<HTMLElement>('[data-slot="sidebar-inset"]')
+          ?.scrollTo({ top: 0, behavior: 'smooth' });
         break;
       default:
         break;

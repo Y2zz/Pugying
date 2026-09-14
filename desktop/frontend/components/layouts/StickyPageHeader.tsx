@@ -10,7 +10,8 @@ type StickyPageHeaderProps = {
 };
 
 /**
- * 吸顶页头容器：内层 pt-2 + 外层 -mt-2 纯 CSS 顶距；背景层铺满 inset 顶边防透出。
+ * 吸顶页头容器：相对 SidebarInset（main）滚动容器吸顶；
+ * 内层 pt-2 + 外层 -mt-2 纯 CSS 顶距；背景层铺满 inset 顶边防透出。
  */
 export function StickyPageHeader({ children, className, showDivider = false }: StickyPageHeaderProps) {
   return (
