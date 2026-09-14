@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MinusIcon, PlusIcon } from 'lucide-react';
-import { Button } from '@shell/components/ui/button';
-import { Separator } from '@shell/components/ui/separator';
+import { Button } from '@auth/components/ui/button';
+import { Separator } from '@auth/components/ui/separator';
 import {
   getChromeShell,
   type ChromeState,
   type MoreMenuAnchor,
-} from '@shell/lib/chrome-api';
+} from '@auth/lib/chrome-api';
 
 const CARD_WIDTH = 224;
 const EDGE = 8;

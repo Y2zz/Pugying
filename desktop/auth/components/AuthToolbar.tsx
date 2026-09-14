@@ -5,8 +5,8 @@ import {
   MoreHorizontalIcon,
   RefreshCwIcon,
 } from 'lucide-react';
-import { Button } from '@shell/components/ui/button';
-import { getChromeShell, type ChromeState } from '@shell/lib/chrome-api';
+import { Button } from '@auth/components/ui/button';
+import { getChromeShell, type ChromeState } from '@auth/lib/chrome-api';
 
 export interface AuthToolbarProps {
   /**

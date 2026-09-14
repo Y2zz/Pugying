@@ -67,7 +67,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'frontend'),
-        '@shell': path.resolve(__dirname, 'shell'),
+        '@auth': path.resolve(__dirname, 'auth'),
         '@shared': path.resolve(__dirname, 'shared'),
       },
     },
@@ -75,7 +75,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: path.resolve(__dirname, 'index.html'),
-          shell: path.resolve(__dirname, 'shell.html'),
+          auth: path.resolve(__dirname, 'auth.html'),
         },
       },
     },

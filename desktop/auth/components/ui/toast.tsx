@@ -1,8 +1,8 @@
 import * as React from "react"
 import { Toast as ToastPrimitive } from "@base-ui/react/toast"
 
-import { cn } from "@shell/lib/utils"
-import { Button } from "@shell/components/ui/button"
+import { cn } from "@auth/lib/utils"
+import { Button } from "@auth/components/ui/button"
 import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const toast = ToastPrimitive.createToastManager()

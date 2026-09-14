@@ -1,13 +1,13 @@
 {
-  "include": ["frontend/**/*", "shell/**/*", "shared/**/*"],
+  "include": ["frontend/**/*", "auth/**/*", "shared/**/*"],
   "exclude": [
     "frontend/**/*.test.ts",
     "frontend/**/*.test.tsx",
-    "shell/**/*.test.ts",
-    "shell/**/*.test.tsx",
+    "auth/**/*.test.ts",
+    "auth/**/*.test.tsx",
     "shared/**/*.test.ts",
     "frontend/components/ui",
-    "shell/components/ui"
+    "auth/components/ui"
   ],
   "compilerOptions": {
     "composite": true,
@@ -29,7 +29,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["frontend/*"],
-      "@shell/*": ["shell/*"],
+      "@auth/*": ["auth/*"],
       "@shared/*": ["shared/*"]
     }
   }

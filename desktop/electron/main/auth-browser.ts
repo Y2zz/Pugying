@@ -100,17 +100,17 @@ function preloadPath(): string {
 }
 
 /**
- * Load the shell UI (toolbar / menu / guide) into a WebContents.
- * In dev, electron-vite serves shell.html; in production it's out/renderer/shell.html.
+ * Load the auth UI (toolbar / menu / guide) into a WebContents.
+ * In dev, electron-vite serves auth.html; in production it's out/renderer/auth.html.
  */
-function loadShellUi(wc: WebContents, hash?: string): Promise<void> {
+function loadAuthUi(wc: WebContents, hash?: string): Promise<void> {
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
-    const base = `${devUrl.replace(/\/$/, '')}/shell.html`;
+    const base = `${devUrl.replace(/\/$/, '')}/auth.html`;
     return wc.loadURL(hash ? `${base}#${hash}` : base);
   }
   return wc.loadFile(
-    path.join(__dirname, '../renderer/shell.html'),
+    path.join(__dirname, '../renderer/auth.html'),
     hash ? { hash } : undefined,
   );
 }
@@ -269,7 +269,7 @@ function ensureMenuView(handle: AuthBrowserHandle): WebContentsView {
     closeMoreMenu(handle);
   });
 
-  void loadShellUi(menuView.webContents, 'more-menu');
+  void loadAuthUi(menuView.webContents, 'more-menu');
 
   handle.menuView = menuView;
   handle.window.contentView.addChildView(menuView);
@@ -335,7 +335,7 @@ async function loadGuideHash(
   if (current.includes(`#${hash}`) || current.includes(`#/${hash}`)) {
     return;
   }
-  await loadShellUi(guideView.webContents, hash);
+  await loadAuthUi(guideView.webContents, hash);
 }
 
 function hideGuide(handle: AuthBrowserHandle): void {
@@ -459,7 +459,7 @@ function ensureToastView(handle: AuthBrowserHandle): WebContentsView {
   handle.toastView = toastView;
   handle.window.contentView.addChildView(toastView);
   layoutToastView(handle);
-  void loadShellUi(toastView.webContents, 'toasts');
+  void loadAuthUi(toastView.webContents, 'toasts');
   if (process.env['PUGYING_DEBUG_TOASTS']) {
     toastView.webContents.openDevTools({ mode: 'detach' });
     toastView.webContents.on('console-message', (_e, _level, message) => {
@@ -964,7 +964,7 @@ export function startAuthBrowser(options: {
     })();
   }, POLL_MS);
 
-  void loadShellUi(window.webContents).then(async () => {
+  void loadAuthUi(window.webContents).then(async () => {
     pushState(handle);
     await maybeStartGuides(handle);
   });
@@ -1112,7 +1112,7 @@ export async function startCreatorBrowser(options: {
       sandbox: true,
     },
   });
-  // Keep the account label as the window title; the shell UI and content
+  // Keep the account label as the window title; the auth UI and content
   // pages must not overwrite it (it's how users tell windows apart).
   window.on('page-title-updated', (event) => {
     event.preventDefault();
@@ -1222,7 +1222,7 @@ export async function startCreatorBrowser(options: {
     return { action: 'deny' };
   });
 
-  void loadShellUi(window.webContents, 'browse').then(() => {
+  void loadAuthUi(window.webContents, 'browse').then(() => {
     pushState(handle);
   });
   void wc.loadURL(openUrl);

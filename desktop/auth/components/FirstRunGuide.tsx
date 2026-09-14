@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Badge } from '@shell/components/ui/badge';
-import { Button } from '@shell/components/ui/button';
+import { Badge } from '@auth/components/ui/badge';
+import { Button } from '@auth/components/ui/button';
 import {
   Card,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@shell/components/ui/card';
-import { getChromeShell, type GuidePayload } from '@shell/lib/chrome-api';
+} from '@auth/components/ui/card';
+import { getChromeShell, type GuidePayload } from '@auth/lib/chrome-api';
 
 export function FirstRunGuide() {
   const api = getChromeShell();

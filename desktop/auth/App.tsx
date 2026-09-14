@@ -1,8 +1,8 @@
-import { AuthToolbar } from '@shell/components/AuthToolbar';
-import { FirstRunGuide } from '@shell/components/FirstRunGuide';
-import { MoreMenu } from '@shell/components/MoreMenu';
-import { StepBubble } from '@shell/components/StepBubble';
-import { ToastOverlay } from '@shell/components/ToastOverlay';
+import { AuthToolbar } from '@auth/components/AuthToolbar';
+import { FirstRunGuide } from '@auth/components/FirstRunGuide';
+import { MoreMenu } from '@auth/components/MoreMenu';
+import { StepBubble } from '@auth/components/StepBubble';
+import { ToastOverlay } from '@auth/components/ToastOverlay';
 
 function currentView(): string {
   return window.location.hash.replace(/^#\/?/, '');

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import { Toaster, toast, useToastManager } from '@shell/components/ui/toast';
-import { getChromeShell } from '@shell/lib/chrome-api';
+import { Toaster, toast, useToastManager } from '@auth/components/ui/toast';
+import { getChromeShell } from '@auth/lib/chrome-api';
 
 /**
  * Content of the dedicated toast WebContentsView (hash `#toasts`), pinned
