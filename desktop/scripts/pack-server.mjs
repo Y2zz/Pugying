@@ -49,7 +49,17 @@ function parseTarget(argv) {
 }
 
 function run(cmd, args, cwd) {
-  const result = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: false });
+  // Windows 上 npm/npx 实为 .cmd；shell:false 会 ENOENT，status 为 null
+  const result = spawnSync(cmd, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  if (result.error) {
+    throw new Error(
+      `${cmd} ${args.join(' ')} failed: ${result.error.message}`,
+    );
+  }
   if (result.status !== 0) {
     throw new Error(`${cmd} ${args.join(' ')} failed with ${result.status}`);
   }
