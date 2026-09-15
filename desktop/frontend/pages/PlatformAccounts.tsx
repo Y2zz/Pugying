@@ -604,8 +604,8 @@ export default function PlatformAccounts() {
       </div>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i} className="h-full gap-3">
               <CardContent className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
@@ -646,7 +646,7 @@ export default function PlatformAccounts() {
         </Empty>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pagedAccounts.map((account) => (
               <AccountCard
                 key={account.id}
