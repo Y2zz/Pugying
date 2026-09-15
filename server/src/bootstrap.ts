@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 
 const LOCAL_TOKEN_HEADER = 'x-pugying-local-token';
@@ -71,7 +72,8 @@ export async function startLocalApiServer(
   const localApiToken = options.localApiToken?.trim();
 
   if (localApiToken) {
-    app.use((request, response, next) => {
+    // Nest 12 的 app.use(...args: any[]) 会把回调参数推成 any，需显式标注 Express 类型
+    app.use((request: Request, response: Response, next: NextFunction) => {
       if (
         request.path === '/api-json' ||
         /^\/media\/assets\/[^/]+\/download$/.test(request.path)
@@ -88,7 +90,7 @@ export async function startLocalApiServer(
   }
 
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       callback(null, isAllowedOrigin(origin));
     },
     credentials: true,

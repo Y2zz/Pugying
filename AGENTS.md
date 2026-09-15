@@ -42,7 +42,7 @@ Pugying（蒲公英）是一套**个人单机桌面**自媒体内容发布系统
 
 | 层级 | 语言 | 框架 | 构建工具 |
 |------|------|------|----------|
-| Server（本机 Nest） | TypeScript | NestJS 11 | Nest CLI |
+| Server（本机 Nest） | TypeScript | NestJS 12 | Nest CLI |
 | Desktop（桌面） | TypeScript | Electron 44 + React 19 | electron-vite 5 |
 
 - **包管理器**: npm（**依赖版本必须固定精确号**，禁止 `^` / `~` / `>=` 等模糊范围）

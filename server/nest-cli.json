@@ -7,8 +7,7 @@
     "tsConfigPath": "tsconfig.build.json",
     "assets": [
       { "include": "src/database/migrations/**/*", "outDir": "dist" }
-    ],
-    "webpack": false
+    ]
   },
   "projects": {
     "core": {
