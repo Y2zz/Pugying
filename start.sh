@@ -9,6 +9,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 SERVER_PORT="${SERVER_PORT:-3928}"
+# 开发态外部 Server 不会走 Electron 的 credential-key.bin；
+# 缺省沿用历史本地默认值，否则已有 pugying.db 中的 Cookie 无法解密。
+PLATFORM_CREDENTIAL_SECRET="${PLATFORM_CREDENTIAL_SECRET:-pugying-dev-secret-change-me}"
 
 if [[ -t 1 ]]; then
   C_SERVER='\033[0;34m'
@@ -41,6 +44,9 @@ Pugying 本地开发一键启动（单机一体）
 说明:
   开发模式下 Desktop 通过 PUGYING_EXTERNAL_SERVER=1 连接本脚本拉起的 Server，
   避免与 Electron 内再嵌入一份冲突。发行版由 Desktop 托管内嵌 Server。
+
+  本脚本会注入 PLATFORM_CREDENTIAL_SECRET（可用环境变量覆盖），供平台 Cookie
+  加解密；发行版则由 Electron 从本机 credential-key.bin 注入。
 EOF
 }
 
@@ -86,7 +92,10 @@ trap cleanup EXIT INT TERM
 echo -e "${C_INFO}启动本机 Server (PORT=${SERVER_PORT})…${C_RESET}"
 (
   cd server
-  PORT="$SERVER_PORT" HOST=127.0.0.1 npm run start:dev
+  export PORT="$SERVER_PORT"
+  export HOST=127.0.0.1
+  export PLATFORM_CREDENTIAL_SECRET
+  npm run start:dev
 ) 2>&1 | sed -e "s/^/${C_SERVER}[server]${C_RESET} /" &
 PIDS+=($!)
 

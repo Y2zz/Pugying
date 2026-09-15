@@ -238,7 +238,7 @@ Pugying/
 | `PORT` | `3928` | Server 监听端口 |
 | `HOST` | `127.0.0.1` | Server 绑定地址 |
 | `PUGYING_DATABASE_PATH` | （cwd `pugying.db` / 桌面 userData） | SQLite 路径 |
-| `PLATFORM_CREDENTIAL_SECRET` | （桌面端自动生成） | 平台 Cookie 加密密钥 |
+| `PLATFORM_CREDENTIAL_SECRET` | （桌面端自动生成；`./start.sh` 有开发缺省） | 平台 Cookie 加密密钥；开发态外部 Server 必须注入，否则无法解密已绑定账号 |
 | `MEDIA_PUBLIC_BASE_URL` | （桌面注入为本机 API） | 拉媒体可达基址 |
 | `MEDIA_SIGNING_SECRET` | （桌面端每次启动生成） | 媒体签名 HMAC |
 | `MEDIA_STORAGE_DIR` | `data/media` 或 userData | 媒体落盘 |

@@ -200,7 +200,14 @@ export class PlatformAccountService {
       payload = JSON.parse(
         decryptCredentialPayload(account.credentialCipher),
       ) as { cookies?: StoredCookie[]; finalUrl?: string | null };
-    } catch {
+    } catch (error) {
+      // 缺密钥与密文损坏/密钥轮换都会进这里；前者提示配置，后者要求重新授权
+      const detail = error instanceof Error ? error.message : String(error);
+      if (detail.includes('PLATFORM_CREDENTIAL_SECRET')) {
+        throw new BadRequestException(
+          'PLATFORM_CREDENTIAL_SECRET is not configured; cannot decrypt stored credentials',
+        );
+      }
       throw new BadRequestException(
         'Stored credentials are unreadable, please reauthorize',
       );
