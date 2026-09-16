@@ -65,7 +65,7 @@ npm run docker:dist:win     # → desktop/release/win-unpacked/（见原生模�
 
 ## 数据与备份
 
-SQLite、媒体文件以及设备凭据密钥默认位于系统的应用数据目录。升级个人单机版前应备份该目录；个人单机迁移会移除历史用户、角色、团队和成员关系，且不可逆。
+SQLite 以及设备凭据密钥默认位于系统的应用数据目录。升级个人单机版前应备份该目录；个人单机迁移会移除历史用户、角色、团队和成员关系，且不可逆。视频素材为用户本机路径引用，封面以 BLOB 存于数据库。
 
 ## 环境变量（摘要）
 
@@ -73,5 +73,4 @@ SQLite、媒体文件以及设备凭据密钥默认位于系统的应用数据�
 |------|------|------|
 | `PORT` | 本机调试端口 | `3928` |
 | `PLATFORM_CREDENTIAL_SECRET` | 平台凭据加密密钥 | 发行版由 Electron 从系统安全存储注入 |
-| `MEDIA_PUBLIC_BASE_URL` | 拉媒体可达基址 | 桌面注入为本机 API |
 | `PUGYING_DATABASE_PATH` | SQLite 路径 | cwd / 桌面 userData |

@@ -30,13 +30,13 @@ Pugying（蒲公英）是一套**个人单机桌面**自媒体内容发布系统
 | `@pugying/core` | 开源 | 框架层：审计/软删基类、UoW 接口、商业包注册钩子（**不含 ORM**） |
 | `@pugying/typeorm` | 开源 | TypeORM 框架层：Sqlite 连接、UoW 实现 |
 | `@pugying/platform-account` | 开源 | 平台账号绑定（抖音/头条/视频号/B 站/小红书）；Cookie 加密存储；含 `PlatformAccountTypeOrmModule` |
-| `@pugying/content` | 开源 | 图文/短视频内容、分发 Target 状态机、本机媒体库（分片上传 + 签名下载）、发布编排 API；含 `ContentTypeOrmModule`；媒体二进制默认落**本机目录**（单实例） |
-| `@pugying/media-storage-pro`（规划） | 商业 | 高阶媒体存储（共享卷 / S3 兼容对象存储），覆盖 `IMediaStorage`，支持 K8s 多 Pod |
+| `@pugying/content` | 开源 | 图文/短视频内容、分发 Target 状态机、本机路径素材 + 封面 BLOB、发布编排 API；含 `ContentTypeOrmModule` |
+| `@pugying/media-storage-pro`（已取消） | — | 原商业媒体存储规划已取消；见 `docs/media-storage.md` |
 | `@pugying/*-pro`（规划） | 商业 | 其它高阶能力（如高级发布、多平台适配等），宿主通过 `imports` 装配 |
 
 商业包不得改开源源码；通过依赖 `@pugying/core` 的 `CommercialModuleRegistry` 自注册，并在宿主 `AppModule` 中与开源模块同级 `imports`。
 
-媒体存储边界详见 [`docs/media-storage.md`](docs/media-storage.md)：开源版按单机本地盘设计；多副本与对象存储属商业版。
+媒体与封面边界详见 [`docs/media-storage.md`](docs/media-storage.md)：视频/图片为本机绝对路径；封面 BLOB 落库；无独立媒体库。
 
 ## 技术栈
 
@@ -183,12 +183,12 @@ Pugying/
 - **实体主键**: 全部使用 **UUID**。
 - **软删除**: 实体继承 `SoftDeleteAuditedEntity`；仓储使用 softRemove。
 - **数据库**: SQLite（better-sqlite3）；桌面端默认 `userData/server/pugying.db`（`PUGYING_DATABASE_PATH`）。
-- **表命名**: 单数形式，如 `content`、`content_target`、`media_asset`、`platform_account`。
+- **表命名**: 单数形式，如 `content`、`content_target`、`platform_account`。
 - **访问**: 无登录页、密码、JWT 或业务权限体系；业务 frontend 仅经 Electron preload 获取本机临时令牌访问 Server。
 - **API 文档**: Swagger UI 在 `/api`（默认 `http://127.0.0.1:3928/api`）。
 - **路径别名**: Server 使用 `@pugying/*`；Desktop 业务 UI `@/` → `desktop/frontend`，授权窗 UI `@auth/` → `desktop/auth`。
 - **桌面 Desktop**: 业务主窗经 **preload IPC（`pugyingDesktop`）** 调本机发布能力；授权窗 UI 经 `chromeShell` / `chrome:*` 隔离。平台授权使用 ephemeral session partition，禁止 `defaultSession`。权威状态在本机 Server。
-- **媒体账号 / 内容发布 / 媒体库**: 能力同前；发布由桌面 UI 经 IPC 调 `platform.publish.*`；`MEDIA_PUBLIC_BASE_URL` 默认指向本机 Server。
+- **媒体账号 / 内容发布**: 视频与图片存本机绝对路径（`mediaPaths`）；封面以 BLOB 落库；发布由桌面 UI 经 IPC 调 `platform.publish.*`，Agent 直读本机文件。
 
 ## 支撑服务
 
@@ -239,9 +239,6 @@ Pugying/
 | `HOST` | `127.0.0.1` | Server 绑定地址 |
 | `PUGYING_DATABASE_PATH` | （cwd `pugying.db` / 桌面 userData） | SQLite 路径 |
 | `PLATFORM_CREDENTIAL_SECRET` | （桌面端自动生成；`./start.sh` 有开发缺省） | 平台 Cookie 加密密钥；开发态外部 Server 必须注入，否则无法解密已绑定账号 |
-| `MEDIA_PUBLIC_BASE_URL` | （桌面注入为本机 API） | 拉媒体可达基址 |
-| `MEDIA_SIGNING_SECRET` | （桌面端每次启动生成） | 媒体签名 HMAC |
-| `MEDIA_STORAGE_DIR` | `data/media` 或 userData | 媒体落盘 |
 | `PUGYING_EXTERNAL_SERVER` | — | 开发时 Desktop 不嵌入 Server，只连接外部 Server |
 | `PUGYING_API_BASE_URL` | — | 配合 EXTERNAL 指定 API 基址 |
 | `PUGYING_FORCE_PLATFORM` | — | 开发态模拟窗口铬（`darwin` / `win32` / `linux`）；仅未打包生效 |
