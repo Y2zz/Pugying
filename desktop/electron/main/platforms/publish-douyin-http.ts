@@ -1,7 +1,4 @@
-import { createWriteStream, promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { net } from 'electron';
+import { promises as fs } from 'fs';
 import type {
   PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
@@ -39,7 +36,7 @@ export interface DouyinHttpPublishPipeline {
 export const DOUYIN_HTTP_NOT_CONFIGURED = 'HTTP_PIPELINE_NOT_CONFIGURED';
 
 /**
- * HTTP 发布骨架先拉取后端签名媒体，再把本机文件与 Cookie HTTP 客户端交给映射流水线。
+ * HTTP 发布：校验本机视频/封面路径后交给映射流水线。
  * 未注入流水线时明确失败，绝不把“尚未配置”当作发布成功。
  */
 export async function runDouyinHttpPublish(options: {
@@ -72,23 +69,21 @@ export async function runDouyinHttpPublish(options: {
     );
   }
 
-  const workDir = join(tmpdir(), `pugying-http-publish-${payload.requestId}`);
   try {
-    await fs.mkdir(workDir, { recursive: true });
     if (signal.cancelled) {
       return fail(base, 'cancelled', '已取消');
     }
 
-    emit('fetching_media', '拉取本机媒体库视频与封面');
+    emit('fetching_media', '校验本机视频与封面文件');
     const media: DouyinHttpMediaFiles = {
-      videoPath: join(workDir, 'video.mp4'),
-      coverPath: join(workDir, 'cover.jpg'),
-      coverLandscapePath: join(workDir, 'cover-landscape.jpg'),
+      videoPath: payload.mediaPath,
+      coverPath: payload.coverPath,
+      coverLandscapePath: payload.coverLandscapePath,
     };
     await Promise.all([
-      downloadToFile(payload.mediaUrl, media.videoPath),
-      downloadToFile(payload.coverUrl, media.coverPath),
-      downloadToFile(payload.coverLandscapeUrl, media.coverLandscapePath),
+      assertReadable(media.videoPath),
+      assertReadable(media.coverPath),
+      assertReadable(media.coverLandscapePath),
     ]);
 
     if (signal.cancelled) {
@@ -117,20 +112,15 @@ export async function runDouyinHttpPublish(options: {
     if (signal.cancelled || message === 'cancelled') {
       return fail(base, 'cancelled', '已取消');
     }
-    if (
-      message.includes('ENOTFOUND') ||
-      message.includes('ECONNREFUSED') ||
-      message.startsWith('download_failed:')
-    ) {
+    if (message.startsWith('MEDIA_MISSING:')) {
       return fail(
         base,
-        'MEDIA_UNREACHABLE',
-        '无法拉取本机媒体库资源，请检查 MEDIA_PUBLIC_BASE_URL 是否对本机可达',
+        'MEDIA_MISSING',
+        message.replace(/^MEDIA_MISSING:\s*/, '') ||
+          '源文件不可用，请重新选择视频或封面',
       );
     }
     return fail(base, 'PUBLISH_FAILED', message);
-  } finally {
-    await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
@@ -142,31 +132,10 @@ function fail(
   return { ...base, ok: false, errorCode, error };
 }
 
-async function downloadToFile(url: string, destination: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const request = net.request(url);
-    request.on('response', (response) => {
-      const status = response.statusCode ?? 0;
-      if (status < 200 || status >= 300) {
-        reject(new Error(`download_failed:${status}`));
-        response.on('data', () => undefined);
-        response.on('end', () => undefined);
-        return;
-      }
-      const file = createWriteStream(destination);
-      response.on('data', (chunk) => {
-        file.write(chunk);
-      });
-      response.on('end', () => {
-        file.end(resolve);
-      });
-      response.on('error', (error) => {
-        file.destroy();
-        reject(error);
-      });
-      file.on('error', reject);
-    });
-    request.on('error', reject);
-    request.end();
-  });
+async function assertReadable(filePath: string): Promise<void> {
+  try {
+    await fs.access(filePath);
+  } catch {
+    throw new Error(`MEDIA_MISSING: 源文件不可用，请重新选择：${filePath}`);
+  }
 }

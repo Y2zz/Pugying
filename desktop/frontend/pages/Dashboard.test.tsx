@@ -8,7 +8,7 @@ describe('Dashboard (SSR)', () => {
     expect(html).toContain('概览');
     expect(html).toContain('内容草稿');
     expect(html).toContain('已绑定账号');
-    expect(html).toContain('本机媒体库');
+    expect(html).toContain('本机素材');
     expect(html).toContain('发布记录');
   });
 

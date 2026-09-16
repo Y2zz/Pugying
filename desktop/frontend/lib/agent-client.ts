@@ -103,9 +103,9 @@ export interface PlatformPublishStartInput {
   targetId: string;
   platform: string;
   accountId: string;
-  mediaUrl: string;
-  coverUrl: string;
-  coverLandscapeUrl: string;
+  mediaPath: string;
+  coverPath: string;
+  coverLandscapePath: string;
   title: string;
   body?: string;
   visibility?: string;
@@ -148,6 +148,10 @@ export type PugyingDesktopBridge = {
   quitApp?: () => Promise<void>;
   showAbout?: () => Promise<void>;
   toggleDevTools?: () => Promise<boolean>;
+  /** 本机绝对路径是否可读；非 Electron 或未注入时缺省 */
+  checkLocalPathReadable?: (absPath: string) => Promise<boolean>;
+  /** Electron 32+：从 File 取本机绝对路径（选片/拖拽通用） */
+  getPathForFile?: (file: File) => string;
 };
 
 type StatusListener = (status: AgentConnectionStatus) => void;
@@ -488,9 +492,9 @@ class AgentClient {
           targetId: input.targetId,
           platform: input.platform,
           accountId: input.accountId,
-          mediaUrl: input.mediaUrl,
-          coverUrl: input.coverUrl,
-          coverLandscapeUrl: input.coverLandscapeUrl,
+          mediaPath: input.mediaPath,
+          coverPath: input.coverPath,
+          coverLandscapePath: input.coverLandscapePath,
           title: input.title,
           body: input.body,
           visibility: input.visibility,

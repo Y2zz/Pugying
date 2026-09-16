@@ -23,4 +23,6 @@ export const DESKTOP_IPC = {
   appAbout: 'desktop:app-about',
   /** 顶栏菜单：切换业务主窗 DevTools（仅未打包） */
   toggleDevTools: 'desktop:toggle-devtools',
+  /** 本机绝对路径是否可读（草稿打开 / 选片后校验） */
+  checkLocalPathReadable: 'desktop:check-local-path-readable',
 } as const;

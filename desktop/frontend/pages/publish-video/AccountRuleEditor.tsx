@@ -88,8 +88,8 @@ export function AccountOverrideForm({
   draft,
   commonTitle,
   commonBody,
-  commonCoverUrl,
-  commonCoverLandscapeUrl,
+  commonCoverReady,
+  commonCoverLandscapeReady,
   commonCoverPreviewUrl,
   commonCoverLandscapePreviewUrl,
   coverDisabled,
@@ -101,8 +101,8 @@ export function AccountOverrideForm({
   draft: OverrideDraft;
   commonTitle: string;
   commonBody: string;
-  commonCoverUrl: string;
-  commonCoverLandscapeUrl: string;
+  commonCoverReady: boolean;
+  commonCoverLandscapeReady: boolean;
   commonCoverPreviewUrl: string | null;
   commonCoverLandscapePreviewUrl: string | null;
   coverDisabled?: boolean;
@@ -118,12 +118,18 @@ export function AccountOverrideForm({
 
   const tags = parseTags(draft.tagsText);
 
+  const accountCoverReady =
+    Boolean(draft.coverBlob) || draft.hasCover || Boolean(draft.coverPreviewUrl.trim());
+  const accountLandscapeReady =
+    Boolean(draft.coverLandscapeBlob) ||
+    draft.hasCoverLandscape ||
+    Boolean(draft.coverLandscapePreviewUrl.trim());
+
   const portraitSrc =
-    draft.coverUrl.trim() || commonCoverPreviewUrl || commonCoverUrl || null;
+    draft.coverPreviewUrl.trim() || commonCoverPreviewUrl || null;
   const landscapeSrc =
-    draft.coverLandscapeUrl.trim() ||
+    draft.coverLandscapePreviewUrl.trim() ||
     commonCoverLandscapePreviewUrl ||
-    commonCoverLandscapeUrl ||
     null;
 
   return (
@@ -247,7 +253,7 @@ export function AccountOverrideForm({
         <div className="mt-2 flex flex-wrap items-start gap-4">
           <CoverHoverCard
             label="竖版 3:4"
-            ready={Boolean(draft.coverUrl.trim() || commonCoverUrl.trim())}
+            ready={accountCoverReady || commonCoverReady}
             src={portraitSrc}
             objectFit="contain"
             aspectRatio={3 / 4}
@@ -259,9 +265,7 @@ export function AccountOverrideForm({
           />
           <CoverHoverCard
             label="横版 4:3"
-            ready={Boolean(
-              draft.coverLandscapeUrl.trim() || commonCoverLandscapeUrl.trim(),
-            )}
+            ready={accountLandscapeReady || commonCoverLandscapeReady}
             src={landscapeSrc}
             aspectRatio={4 / 3}
             previewClassName="h-24 shrink-0"
@@ -271,10 +275,10 @@ export function AccountOverrideForm({
             }}
           />
         </div>
-        {!draft.coverUrl.trim() && !draft.coverLandscapeUrl.trim() ? (
+        {!accountCoverReady && !accountLandscapeReady ? (
           <p className="mt-2 text-xs text-muted-foreground">当前使用通用封面；点击槽位可为该账号单独设置</p>
         ) : (
-          <p className="mt-2 text-xs text-muted-foreground">已覆盖该账号封面；重置账号可清除覆盖</p>
+          <p className="mt-2 text-xs text-muted-foreground">已覆盖该账号封面；重置账号可清除本地覆盖（已上传的需重新编辑）</p>
         )}
       </Field>
 

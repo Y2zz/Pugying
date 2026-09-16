@@ -1,5 +1,4 @@
 import type { RefObject } from 'react';
-import type { MediaDuplicateHit } from '@/lib/api';
 import type { VideoUploadMetrics } from './helpers';
 import { VideoInitialUploadSelector } from './VideoInitialUploadSelector';
 import { VideoPhoneColumn } from './VideoPhoneColumn';
@@ -17,7 +16,6 @@ export function PublishVideoPreviewPanel({
   videoFileName,
   videoFileSize,
   videoPreviewUrl,
-  duplicateHit,
   dragOver,
   disabled,
   uploading,
@@ -29,9 +27,6 @@ export function PublishVideoPreviewPanel({
   onDragLeave,
   onDrop,
   onCancelUpload,
-  onDuplicateCancel,
-  onDuplicateForceUpload,
-  onDuplicateReuse,
 }: {
   videoSectionRef: RefObject<HTMLDivElement | null>;
   videoInputRef: RefObject<HTMLInputElement | null>;
@@ -41,7 +36,6 @@ export function PublishVideoPreviewPanel({
   videoFileName: string;
   videoFileSize: number | null;
   videoPreviewUrl: string | null;
-  duplicateHit: MediaDuplicateHit | null;
   dragOver: boolean;
   disabled: boolean;
   uploading: boolean;
@@ -53,9 +47,6 @@ export function PublishVideoPreviewPanel({
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent) => void;
   onCancelUpload: () => void;
-  onDuplicateCancel: () => void;
-  onDuplicateForceUpload: () => void;
-  onDuplicateReuse: () => void;
 }) {
   return (
     <div ref={videoSectionRef} className={showPhoneColumn ? undefined : 'w-full'}>
@@ -77,15 +68,11 @@ export function PublishVideoPreviewPanel({
           videoFileName={videoFileName}
           videoFileSize={videoFileSize}
           videoPreviewUrl={videoPreviewUrl}
-          duplicateHit={duplicateHit}
           disabled={disabled}
           uploading={uploading}
           uploadMetrics={uploadMetrics}
           onPickClick={onPickClick}
           onCancelUpload={onCancelUpload}
-          onDuplicateCancel={onDuplicateCancel}
-          onDuplicateForceUpload={onDuplicateForceUpload}
-          onDuplicateReuse={onDuplicateReuse}
         />
       ) : (
         <VideoInitialUploadSelector

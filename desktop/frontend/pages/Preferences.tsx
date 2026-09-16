@@ -119,7 +119,7 @@ export default function Preferences() {
               <PreferenceRow
                 labelId="pref-density-label"
                 label="密度"
-                description="影响作品管理、媒体库等卡片列表的列宽与间距。"
+                description="影响作品管理等卡片列表的列宽与间距。"
                 control={
                   <ToggleGroup
                     aria-labelledby="pref-density-label"

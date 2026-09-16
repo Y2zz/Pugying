@@ -2,6 +2,7 @@ import type { PlatformPublishProgressPhase } from '@/lib/agent-client';
 
 const KNOWN_CODES = new Set([
   'AUTH_EXPIRED',
+  'MEDIA_MISSING',
   'MEDIA_UNREACHABLE',
   'ADAPTER_UI_CHANGED',
   'ADAPTER_PARTIAL',
@@ -22,8 +23,10 @@ export function describePublishError(
   switch (errorCode) {
     case 'AUTH_EXPIRED':
       return '抖音登录已失效，请到「媒体账号」重新授权后再重试';
+    case 'MEDIA_MISSING':
     case 'MEDIA_UNREACHABLE':
-      return '本机无法拉取媒体库视频，请检查 MEDIA_PUBLIC_BASE_URL 是否对本机可达';
+      // MEDIA_UNREACHABLE 为旧码别名，文案与 MEDIA_MISSING 一致
+      return '找不到本机视频或封面文件，请确认文件未被移动或删除后再重试';
     case 'ADAPTER_UI_CHANGED':
       return '抖音创作者页结构有变，未能自动定位控件；已打开窗口时可手动完成，或稍后更新 Agent';
     case 'ADAPTER_PARTIAL':
@@ -101,6 +104,7 @@ export function isRetryablePublishError(
     errorCode === 'HTTP_PIPELINE_NOT_CONFIGURED' ||
     errorCode === 'HTTP_TIMEOUT' ||
     errorCode === 'HTTP_REQUEST_FAILED' ||
+    errorCode === 'MEDIA_MISSING' ||
     errorCode === 'MEDIA_UNREACHABLE' ||
     errorCode === 'PUBLISH_FAILED' ||
     errorCode === 'cancelled'

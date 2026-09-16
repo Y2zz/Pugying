@@ -386,9 +386,9 @@ export default function Contents() {
         targetId: payload.targetId,
         platform: payload.platform,
         accountId: payload.accountId,
-        mediaUrl: payload.mediaUrl,
-        coverUrl: payload.coverUrl,
-        coverLandscapeUrl: payload.coverLandscapeUrl,
+        mediaPath: payload.mediaPath,
+        coverPath: payload.coverPath,
+        coverLandscapePath: payload.coverLandscapePath,
         title: payload.title,
         body: payload.body,
         visibility: payload.visibility,
@@ -786,9 +786,10 @@ function ContentListItem({
           )}
           aria-label={`编辑 ${item.title}`}
         >
-          {item.coverUrl ? (
+          {item.hasCover ? (
             <MediaPreviewImage
-              src={item.coverUrl}
+              contentId={item.id}
+              kind="portrait"
               alt=""
               className="absolute inset-0 size-full rounded-md border-0"
               objectFit="cover"

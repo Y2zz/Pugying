@@ -9,7 +9,7 @@ export function Dashboard() {
         {[
           { title: '内容草稿', value: '—', desc: '在内容页查看和编辑' },
           { title: '已绑定账号', value: '—', desc: '在媒体账号页管理' },
-          { title: '本机媒体库', value: '—', desc: '集中存放视频与图片' },
+          { title: '本机素材', value: '—', desc: '发布时引用本地视频路径' },
           { title: '发布记录', value: '—', desc: '在内容详情中查看状态' },
         ].map((stat) => (
           <div key={stat.title} className="rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
@@ -33,7 +33,7 @@ export function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="size-2 rounded-full bg-secondary-foreground/40" />
-            在「媒体库」中上传可复用的视频和封面
+            选择本机视频并裁切封面后一键分发
           </div>
         </div>
       </div>

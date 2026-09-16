@@ -3,6 +3,9 @@
  * 不与授权壳 chrome:* handlers 共用。
  */
 import { app, dialog, ipcMain, type MessageBoxOptions, type WebContents } from 'electron';
+import { access } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { DESKTOP_IPC } from '@shared/desktop-ipc';
 import {
   resolveDesktopWindowChrome,
@@ -85,6 +88,25 @@ export function wireDesktopIpc(): void {
         return false;
       }
       return applyTitleBarOverlayTheme(theme as TitleBarOverlayTheme);
+    },
+  );
+  // 草稿/选片后校验源文件是否仍可读；空路径或非绝对路径视为不可读
+  ipcMain.handle(
+    DESKTOP_IPC.checkLocalPathReadable,
+    async (_event, rawPath: unknown): Promise<boolean> => {
+      if (typeof rawPath !== 'string') {
+        return false;
+      }
+      const filePath = rawPath.trim();
+      if (!filePath || !isAbsolute(filePath)) {
+        return false;
+      }
+      try {
+        await access(filePath, fsConstants.R_OK);
+        return true;
+      } catch {
+        return false;
+      }
     },
   );
 

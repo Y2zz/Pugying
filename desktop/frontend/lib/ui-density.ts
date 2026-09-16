@@ -1,4 +1,4 @@
-/** 列表卡片显示密度：作品管理、媒体库等共用 */
+/** 列表卡片显示密度：作品管理等共用 */
 
 export type UiDensity = 'comfortable' | 'compact';
 

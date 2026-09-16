@@ -22,10 +22,7 @@ interface LocalServerRuntimeOptions {
   host: string;
   port: number;
   databasePath: string;
-  mediaStorageDir: string;
-  mediaPublicBaseUrl: string;
   credentialSecret: string;
-  mediaSigningSecret: string;
   localApiToken: string;
 }
 
@@ -128,10 +125,7 @@ function applyServerRuntimeEnvironment(
   process.env.PORT = String(options.port);
   process.env.HOST = options.host;
   process.env.PUGYING_DATABASE_PATH = options.databasePath;
-  process.env.MEDIA_STORAGE_DIR = options.mediaStorageDir;
-  process.env.MEDIA_PUBLIC_BASE_URL = options.mediaPublicBaseUrl;
   process.env.PLATFORM_CREDENTIAL_SECRET = options.credentialSecret;
-  process.env.MEDIA_SIGNING_SECRET = options.mediaSigningSecret;
   process.env.PUGYING_LOCAL_API_TOKEN = options.localApiToken;
 }
 
@@ -220,10 +214,9 @@ export async function startLocalServer(): Promise<string> {
 
   const userData = app.getPath('userData');
   const dataDir = path.join(userData, 'server');
-  const mediaDir = path.join(dataDir, 'media');
   const dbPath = path.join(dataDir, 'pugying.db');
   backupLegacyDataIfNeeded(dataDir);
-  fs.mkdirSync(mediaDir, { recursive: true });
+  fs.mkdirSync(dataDir, { recursive: true });
   const credentialSecret = getDeviceCredentialSecret();
 
   const { entry } = resolveServerEntry();
@@ -237,10 +230,7 @@ export async function startLocalServer(): Promise<string> {
     host: '127.0.0.1',
     port,
     databasePath: dbPath,
-    mediaStorageDir: mediaDir,
-    mediaPublicBaseUrl: apiBaseUrl,
     credentialSecret,
-    mediaSigningSecret: randomBytes(32).toString('base64url'),
     localApiToken,
   };
 

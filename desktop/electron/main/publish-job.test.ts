@@ -13,10 +13,9 @@ function basePayload(
     targetId: 'target-1',
     platform: 'douyin',
     accountId: 'account-1',
-    mediaUrl: 'http://127.0.0.1:3000/media/assets/a/download?exp=1&sig=x',
-    coverUrl: 'http://127.0.0.1:3000/media/assets/b/download?exp=1&sig=y',
-    coverLandscapeUrl:
-      'http://127.0.0.1:3000/media/assets/c/download?exp=1&sig=z',
+    mediaPath: '/tmp/pugying-test/video.mp4',
+    coverPath: '/tmp/pugying-test/cover.jpg',
+    coverLandscapePath: '/tmp/pugying-test/cover-landscape.jpg',
     title: '测试标题',
     cookies: [{ name: 'sessionid', value: 'abc' }],
     ...overrides,

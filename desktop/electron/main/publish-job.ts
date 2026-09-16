@@ -43,9 +43,9 @@ export function startPublishJob(options: {
     !payload.targetId?.trim() ||
     !payload.platform?.trim() ||
     !payload.accountId?.trim() ||
-    !payload.mediaUrl?.trim() ||
-    !payload.coverUrl?.trim() ||
-    !payload.coverLandscapeUrl?.trim() ||
+    !payload.mediaPath?.trim() ||
+    !payload.coverPath?.trim() ||
+    !payload.coverLandscapePath?.trim() ||
     !payload.title?.trim() ||
     !Array.isArray(payload.cookies) ||
     payload.cookies.length === 0

@@ -12,9 +12,9 @@ describe('runDouyinHttpPublish', () => {
       targetId: 'target-1',
       platform: 'douyin',
       accountId: 'account-1',
-      mediaUrl: 'https://should-not-fetch.invalid/video',
-      coverUrl: 'https://should-not-fetch.invalid/cover',
-      coverLandscapeUrl: 'https://should-not-fetch.invalid/cover-landscape',
+      mediaPath: '/tmp/should-not-matter.mp4',
+      coverPath: '/tmp/should-not-matter-cover.jpg',
+      coverLandscapePath: '/tmp/should-not-matter-landscape.jpg',
       title: '标题',
       cookies: [{ name: 'sessionid', value: 'cookie' }],
     };

@@ -3,7 +3,6 @@ import App from '@/App';
 import Dashboard from '@/pages/Dashboard';
 import PlatformAccounts from '@/pages/PlatformAccounts';
 import Contents from '@/pages/Contents';
-import MediaLibrary from '@/pages/MediaLibrary';
 import PublishArticle from '@/pages/PublishArticle';
 import PublishVideo from '@/pages/PublishVideo';
 import Preferences from '@/pages/Preferences';
@@ -20,7 +19,6 @@ const routes = [
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'platform-accounts', element: <PlatformAccounts /> },
       { path: 'contents', element: <Contents /> },
-      { path: 'media-library', element: <MediaLibrary /> },
       { path: 'publish/article', element: <PublishArticle /> },
       { path: 'publish/video', element: <PublishVideo /> },
       { path: 'preferences', element: <Preferences /> },

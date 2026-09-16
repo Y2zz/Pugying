@@ -1,7 +1,5 @@
-import { createWriteStream, promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { BrowserWindow, net, session, type WebContents } from 'electron';
+import { promises as fs } from 'fs';
+import { BrowserWindow, session, type WebContents } from 'electron';
 import { injectCookies } from '../auth-browser';
 import { getPlatformAdapter } from './adapters';
 import type { AgentCookie } from '../protocol';
@@ -23,7 +21,7 @@ type ProgressFn = (progress: PlatformPublishProgressPayload) => void;
 
 /**
  * Douyin short-video publish (ephemeral session):
- * 1) signed URL 拉视频/封面
+ * 1) 校验本机视频/封面临时路径
  * 2) temp:publish-* 注入 Cookie
  * 3) 挂载 video input → 等编辑页 → 填标题/简介 → 点发布
  * 4) 选择器失效时不伪造成功；可短暂保留窗口供人工收尾
@@ -58,9 +56,6 @@ export function runDouyinPublish(options: {
       return fail(base, 'unsupported_platform', '未找到抖音适配器');
     }
 
-    const workDir = join(tmpdir(), `pugying-publish-${payload.requestId}`);
-    await fs.mkdir(workDir, { recursive: true });
-
     let partition = '';
     let win: BrowserWindow | null = null;
     let keepWindowForManual = false;
@@ -70,13 +65,13 @@ export function runDouyinPublish(options: {
         return fail(base, 'cancelled', '已取消');
       }
 
-      emit('fetching_media', '拉取本机媒体库视频与封面');
-      const videoPath = join(workDir, 'video.mp4');
-      const coverPath = join(workDir, 'cover.jpg');
-      await downloadToFile(payload.mediaUrl, videoPath);
-      await downloadToFile(payload.coverUrl, coverPath);
-      const coverLandscapePath = join(workDir, 'cover-landscape.jpg');
-      await downloadToFile(payload.coverLandscapeUrl, coverLandscapePath);
+      emit('fetching_media', '校验本机视频与封面文件');
+      const videoPath = payload.mediaPath;
+      const coverPath = payload.coverPath;
+      const coverLandscapePath = payload.coverLandscapePath;
+      await assertReadable(videoPath);
+      await assertReadable(coverPath);
+      await assertReadable(coverLandscapePath);
 
       if (signal.cancelled) {
         return fail(base, 'cancelled', '已取消');
@@ -201,11 +196,12 @@ export function runDouyinPublish(options: {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('ENOTFOUND') || message.includes('ECONNREFUSED')) {
+      if (message.startsWith('MEDIA_MISSING:')) {
         return fail(
           base,
-          'MEDIA_UNREACHABLE',
-          '无法拉取本机媒体库资源，请检查 MEDIA_PUBLIC_BASE_URL 是否对本机可达',
+          'MEDIA_MISSING',
+          message.replace(/^MEDIA_MISSING:\s*/, '') ||
+            '源文件不可用，请重新选择视频或封面',
         );
       }
       if (signal.cancelled || message === 'cancelled') {
@@ -253,11 +249,6 @@ export function runDouyinPublish(options: {
           }
         }
       }
-      try {
-        await fs.rm(workDir, { recursive: true, force: true });
-      } catch {
-        // ignore — files may still be referenced by open window briefly
-      }
     }
   })();
 }
@@ -275,35 +266,12 @@ function fail(
   };
 }
 
-async function downloadToFile(url: string, dest: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const request = net.request(url);
-    request.on('response', (response) => {
-      const status = response.statusCode ?? 0;
-      if (status < 200 || status >= 300) {
-        reject(new Error(`download_failed:${status}`));
-        response.on('data', () => undefined);
-        response.on('end', () => undefined);
-        return;
-      }
-      const file = createWriteStream(dest);
-      response.on('data', (chunk) => {
-        file.write(chunk);
-      });
-      response.on('end', () => {
-        file.end(() => {
-          resolve();
-        });
-      });
-      response.on('error', (err) => {
-        file.destroy();
-        reject(err);
-      });
-      file.on('error', reject);
-    });
-    request.on('error', reject);
-    request.end();
-  });
+async function assertReadable(filePath: string): Promise<void> {
+  try {
+    await fs.access(filePath);
+  } catch {
+    throw new Error(`MEDIA_MISSING: 源文件不可用，请重新选择：${filePath}`);
+  }
 }
 
 async function tryAttachVideoFile(

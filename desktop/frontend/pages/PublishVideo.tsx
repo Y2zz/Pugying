@@ -18,26 +18,23 @@ import { AgentStatusBadge } from '@/components/AgentStatusBadge';
 import { useAgent } from '@/hooks/use-agent';
 import { agentClient } from '@/lib/agent-client';
 import {
-  checkMediaDuplicate,
   createContent,
   completeContentTarget,
   fetchContent,
-  fetchMediaSignedUrl,
+  fetchCoverObjectUrl,
   fetchPlatformAccounts,
   fetchPlatformCatalog,
-  parseMediaAssetId,
+  getLocalFilePath,
   publishContent,
   startContentTarget,
   updateContent,
-  uploadMediaFile,
+  uploadContentCover,
+  type ContentItem,
   type ContentStatus,
   type ContentTargetInput,
-  type MediaDuplicateHit,
-  type MediaUploadProgress,
   type PlatformAccountItem,
   type PlatformCatalogItem,
 } from '@/lib/api';
-import { sha256File } from '@/lib/file-hash';
 import { describeCaughtError, describePublishError, describePublishPhase } from '@/lib/publish-errors';
 import { cn } from '@/lib/utils';
 import { extractCoverPairFromVideoFile } from '@/lib/video-cover';
@@ -55,6 +52,10 @@ import {
   draftFromTargetAndContent,
   draftToOverrides,
   emptyDraft,
+  LOCAL_PATH_MISSING_VIDEO,
+  localPathToFileUrl,
+  looksUnstableLocalPath,
+  checkLocalPathReadable,
   summarizeSelectedAccountIssues,
   validateSchedule,
   type BusyPhase,
@@ -82,13 +83,16 @@ export default function PublishVideo() {
   /** 递增以在窄屏下从底栏/checklist 聚焦账号时打开 Sheet */
   const [accountFocusNonce, setAccountFocusNonce] = useState(0);
 
-  // 基础字段
+  // 基础字段：媒体只存本机绝对路径，封面 BLOB 会话内先落 Blob
   const [title, setTitle] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
+  const [mediaPath, setMediaPath] = useState('');
   const [videoFileName, setVideoFileName] = useState('');
   const [videoFileSize, setVideoFileSize] = useState<number | null>(null);
-  const [coverUrl, setCoverUrl] = useState('');
-  const [coverLandscapeUrl, setCoverLandscapeUrl] = useState('');
+  const [pathWarning, setPathWarning] = useState('');
+  const [coverBlob, setCoverBlob] = useState<Blob | null>(null);
+  const [coverLandscapeBlob, setCoverLandscapeBlob] = useState<Blob | null>(null);
+  const [hasCover, setHasCover] = useState(false);
+  const [hasCoverLandscape, setHasCoverLandscape] = useState(false);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [coverLandscapePreviewUrl, setCoverLandscapePreviewUrl] = useState<string | null>(null);
   /** 会话内源图（供再次打开编辑；不随内容字段入库） */
@@ -120,8 +124,6 @@ export default function PublishVideo() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
-  const [duplicateHit, setDuplicateHit] = useState<MediaDuplicateHit | null>(null);
-  const pendingVideoRef = useRef<File | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const videoSectionRef = useRef<HTMLDivElement>(null);
@@ -171,6 +173,8 @@ export default function PublishVideo() {
       revokePreview(snap.coverLandscapeSourceUrl);
       revokeVideoPreview(snap.videoPreviewUrl);
       for (const draft of Object.values(snap.drafts)) {
+        revokePreview(draft.coverPreviewUrl);
+        revokePreview(draft.coverLandscapePreviewUrl);
         revokePreview(draft.coverSourceUrl);
         revokePreview(draft.coverLandscapeSourceUrl);
       }
@@ -199,8 +203,10 @@ export default function PublishVideo() {
     });
     setCoverSourceFrameTime(null);
     setCoverLandscapeSourceFrameTime(null);
-    setCoverUrl('');
-    setCoverLandscapeUrl('');
+    setCoverBlob(null);
+    setCoverLandscapeBlob(null);
+    setHasCover(false);
+    setHasCoverLandscape(false);
   };
 
   const resetUploadMetrics = (phase: VideoUploadPhase, totalBytes: number) => {
@@ -211,17 +217,6 @@ export default function PublishVideo() {
       totalBytes,
       ratio: null,
       speedBps: 0,
-    });
-  };
-
-  const reportUploadProgress = (phase: VideoUploadPhase, progress: MediaUploadProgress) => {
-    const speedBps = uploadSpeedTrackerRef.current.sample(progress.loadedBytes);
-    setUploadMetrics({
-      phase,
-      loadedBytes: progress.loadedBytes,
-      totalBytes: progress.totalBytes,
-      ratio: progress.ratio,
-      speedBps,
     });
   };
 
@@ -246,7 +241,10 @@ export default function PublishVideo() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [platforms, accountList] = await Promise.all([fetchPlatformCatalog(), fetchPlatformAccounts()]);
+        const [platforms, accountList] = await Promise.all([
+          fetchPlatformCatalog(),
+          fetchPlatformAccounts(),
+        ]);
         if (cancelled) {
           return;
         }
@@ -261,31 +259,65 @@ export default function PublishVideo() {
           }
           setTitle(item.title);
           setBody(item.body ?? '');
-          setCoverUrl(item.coverUrl ?? '');
-          setCoverLandscapeUrl(item.coverLandscapeUrl ?? '');
-          setCoverPreviewUrl(item.coverUrl ?? null);
-          setCoverLandscapePreviewUrl(item.coverLandscapeUrl ?? null);
-          const media = item.mediaUrls[0] ?? '';
-          setVideoUrl(media);
-          setVideoFileName(media ? '本机媒体库视频' : '');
+          setHasCover(item.hasCover);
+          setHasCoverLandscape(item.hasCoverLandscape);
+          const media = item.mediaPaths[0] ?? '';
+          setMediaPath(media);
+          setVideoFileName(media ? media.split(/[/\\]/).pop() || '本机视频' : '');
           setVideoFileSize(null);
           if (media) {
-            void resolveVideoPreviewUrl(media)
-              .then((url) => {
-                if (!cancelled) {
-                  setVideoPreviewUrl((prev) => {
-                    revokeVideoPreview(prev);
-                    return url;
-                  });
-                }
-              })
-              .catch(() => {
-                if (!cancelled) {
-                  setVideoPreviewUrl(null);
-                }
-              });
+            setVideoPreviewUrl((prev) => {
+              revokeVideoPreview(prev);
+              return localPathToFileUrl(media);
+            });
+            const readable = await checkLocalPathReadable(media);
+            if (cancelled) {
+              return;
+            }
+            if (!readable) {
+              setPathWarning(LOCAL_PATH_MISSING_VIDEO);
+            } else if (looksUnstableLocalPath(media)) {
+              setPathWarning(
+                '当前视频路径位于外置盘或网盘同步目录，文件变动后可能导致发布失败，建议复制到本机固定目录后再选。',
+              );
+            } else {
+              setPathWarning(
+                '发布依赖本机视频路径；请勿移动或删除该文件，否则推送会失败。',
+              );
+            }
           } else {
             setVideoPreviewUrl(null);
+            setPathWarning('');
+          }
+          if (item.hasCover) {
+            try {
+              const url = await fetchCoverObjectUrl(item.id, 'portrait');
+              if (!cancelled) {
+                setCoverPreviewUrl((prev) => {
+                  revokePreview(prev);
+                  return url;
+                });
+              } else {
+                URL.revokeObjectURL(url);
+              }
+            } catch {
+              /* 封面拉取失败时仍保留 hasCover，checklist 仍视为就绪 */
+            }
+          }
+          if (item.hasCoverLandscape) {
+            try {
+              const url = await fetchCoverObjectUrl(item.id, 'landscape');
+              if (!cancelled) {
+                setCoverLandscapePreviewUrl((prev) => {
+                  revokePreview(prev);
+                  return url;
+                });
+              } else {
+                URL.revokeObjectURL(url);
+              }
+            } catch {
+              /* ignore */
+            }
           }
           setLocation(item.location ?? '');
           const nextSelected: Record<string, boolean> = {};
@@ -301,7 +333,42 @@ export default function PublishVideo() {
               continue;
             }
             nextSelected[target.platformAccountId] = true;
-            nextDrafts[target.platformAccountId] = draftFromTargetAndContent(target.overrides, contentPublishDefaults);
+            const draft = draftFromTargetAndContent(
+              target.overrides,
+              contentPublishDefaults,
+            );
+            draft.hasCover = target.hasCover;
+            draft.hasCoverLandscape = target.hasCoverLandscape;
+            if (target.hasCover) {
+              try {
+                draft.coverPreviewUrl = await fetchCoverObjectUrl(
+                  item.id,
+                  'portrait',
+                  target.id,
+                );
+              } catch {
+                /* ignore */
+              }
+            }
+            if (target.hasCoverLandscape) {
+              try {
+                draft.coverLandscapePreviewUrl = await fetchCoverObjectUrl(
+                  item.id,
+                  'landscape',
+                  target.id,
+                );
+              } catch {
+                /* ignore */
+              }
+            }
+            nextDrafts[target.platformAccountId] = draft;
+          }
+          if (cancelled) {
+            for (const draft of Object.values(nextDrafts)) {
+              revokePreview(draft.coverPreviewUrl);
+              revokePreview(draft.coverLandscapePreviewUrl);
+            }
+            return;
           }
           setSelected(nextSelected);
           setDrafts(nextDrafts);
@@ -354,8 +421,12 @@ export default function PublishVideo() {
   /** 已选账号（按平台分组顺序），用于构建 targets */
   const selectedAccounts = useMemo(
     () =>
-      grouped.flatMap((group) => group.accounts.filter((account) => selected[account.id]).map((account) => ({ account, platformLabel: group.displayName }))),
-    [grouped, selected]
+      grouped.flatMap((group) =>
+        group.accounts
+          .filter((account) => selected[account.id])
+          .map((account) => ({ account, platformLabel: group.displayName })),
+      ),
+    [grouped, selected],
   );
 
   const getDraft = (accountId: string): OverrideDraft => drafts[accountId] ?? emptyDraft();
@@ -393,7 +464,8 @@ export default function PublishVideo() {
         {
           const accountId =
             item.focusAccountId ??
-            selectedAccounts.find(({ account }) => account.status === 'active')?.account.id ??
+            selectedAccounts.find(({ account }) => account.status === 'active')?.account
+              .id ??
             selectedAccounts[0]?.account.id;
           if (accountId) {
             setExpandedAccountId(accountId);
@@ -416,7 +488,10 @@ export default function PublishVideo() {
     }
   };
 
-  const focusBlock = (kind: NonNullable<PrecheckItem['focusKind']>, meta?: { accountId?: string }) => {
+  const focusBlock = (
+    kind: NonNullable<PrecheckItem['focusKind']>,
+    meta?: { accountId?: string },
+  ) => {
     focusPrecheck({
       id: kind,
       label: '',
@@ -427,23 +502,95 @@ export default function PublishVideo() {
     });
   };
 
+  const coverReady = Boolean(coverBlob || hasCover || coverPreviewUrl);
+  const coverLandscapeReady = Boolean(
+    coverLandscapeBlob || hasCoverLandscape || coverLandscapePreviewUrl,
+  );
+
+  /** 内容落库后，再把会话内封面 Blob 上传到内容/账号差异列 */
+  const uploadPendingCovers = async (saved: ContentItem) => {
+    let next = saved;
+    if (coverBlob) {
+      next = await uploadContentCover(
+        saved.id,
+        'portrait',
+        coverBlob,
+        'cover.jpg',
+      );
+      setCoverBlob(null);
+      setHasCover(true);
+    }
+    if (coverLandscapeBlob) {
+      next = await uploadContentCover(
+        saved.id,
+        'landscape',
+        coverLandscapeBlob,
+        'cover-landscape.jpg',
+      );
+      setCoverLandscapeBlob(null);
+      setHasCoverLandscape(true);
+    }
+
+    const updatedDrafts: Record<string, OverrideDraft> = { ...drafts };
+    for (const target of next.targets) {
+      const draft = updatedDrafts[target.platformAccountId] ?? getDraft(target.platformAccountId);
+      let changed = false;
+      if (draft.coverBlob) {
+        next = await uploadContentCover(
+          saved.id,
+          'portrait',
+          draft.coverBlob,
+          'cover.jpg',
+          target.id,
+        );
+        updatedDrafts[target.platformAccountId] = {
+          ...draft,
+          coverBlob: null,
+          hasCover: true,
+        };
+        changed = true;
+      }
+      const afterPortrait = updatedDrafts[target.platformAccountId] ?? draft;
+      if (afterPortrait.coverLandscapeBlob) {
+        next = await uploadContentCover(
+          saved.id,
+          'landscape',
+          afterPortrait.coverLandscapeBlob,
+          'cover-landscape.jpg',
+          target.id,
+        );
+        updatedDrafts[target.platformAccountId] = {
+          ...afterPortrait,
+          coverLandscapeBlob: null,
+          hasCoverLandscape: true,
+        };
+        changed = true;
+      }
+      if (!changed && !updatedDrafts[target.platformAccountId]) {
+        updatedDrafts[target.platformAccountId] = draft;
+      }
+    }
+    setDrafts(updatedDrafts);
+    return next;
+  };
+
   const submit = async (status: ContentStatus) => {
     if (!title.trim()) {
       setError('请填写标题');
       focusBlock('title');
       return;
     }
-    if (!videoUrl.trim()) {
-      setError('请先上传视频（MP4）到本机媒体库');
+    if (!mediaPath.trim()) {
+      setError('请先选择本机 MP4 视频（需通过对话框选取以获取文件路径）');
       focusBlock('video');
       return;
     }
-    if (status === 'published' && !coverUrl.trim()) {
+    if (status === 'published' && !coverReady) {
       setError('发布前请准备竖版封面（3:4）');
       focusBlock('cover');
       return;
     }
-    if (status === 'published' && !coverLandscapeUrl.trim()) {
+    if (status === 'published' && !coverLandscapeReady) {
       setError('发布抖音前请准备横版封面（4:3）');
       focusBlock('cover');
       return;
@@ -486,9 +633,7 @@ export default function PublishVideo() {
     const payload = {
       title: title.trim(),
       body: body.trim(),
-      coverUrl: coverUrl.trim(),
-      coverLandscapeUrl: coverLandscapeUrl.trim(),
-      mediaUrls: videoUrl.trim() ? [videoUrl.trim()] : [],
+      mediaPaths: mediaPath.trim() ? [mediaPath.trim()] : [],
       // 发布选项已迁至各账号 overrides；content 级字段保留 API 默认值
       tags: [],
       location: location.trim(),
@@ -500,13 +645,17 @@ export default function PublishVideo() {
     };
     let contentId = ownedContentId;
     try {
+      let saved: ContentItem;
       if (contentId) {
-        await updateContent(contentId, payload);
+        saved = await updateContent(contentId, payload);
       } else {
-        const created = await createContent({ type: 'video', ...payload });
-        contentId = created.id;
-        setCreatedContentId(created.id);
+        saved = await createContent({ type: 'video', ...payload });
+        contentId = saved.id;
+        setCreatedContentId(saved.id);
       }
+      setPublishHint('正在上传封面…');
+      saved = await uploadPendingCovers(saved);
+      setContentStatus(saved.status);
 
       if (status !== 'published' || !contentId) {
         setPublishHint('草稿已保存');
@@ -516,13 +665,17 @@ export default function PublishVideo() {
 
       setPublishHint('正在向后端申请发布…');
       const started = await publishContent(contentId);
-      const accountLabel = (accountId: string) => accounts.find((a) => a.id === accountId)?.displayName ?? `账号 ${accountId.slice(0, 8)}`;
+      const accountLabel = (accountId: string) =>
+        accounts.find((a) => a.id === accountId)?.displayName ??
+        `账号 ${accountId.slice(0, 8)}`;
       const labelForTarget = (targetId: string) => {
         const hit = started.dispatches.find((d) => d.targetId === targetId);
         return hit ? accountLabel(hit.accountId) : '抖音';
       };
       const unsub = agentClient.subscribePublishProgress((event) => {
-        setPublishHint(`${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ''}`);
+        setPublishHint(
+          `${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ''}`,
+        );
       });
 
       try {
@@ -534,9 +687,9 @@ export default function PublishVideo() {
             targetId: live.targetId,
             platform: live.platform,
             accountId: live.accountId,
-            mediaUrl: live.mediaUrl,
-            coverUrl: live.coverUrl,
-            coverLandscapeUrl: live.coverLandscapeUrl,
+            mediaPath: live.mediaPath,
+            coverPath: live.coverPath,
+            coverLandscapePath: live.coverLandscapePath,
             title: live.title,
             body: live.body,
             visibility: live.visibility,
@@ -567,7 +720,7 @@ export default function PublishVideo() {
         setError(
           failed.length === outcomes.length
             ? describePublishError(first.code, first.message)
-            : `部分成功（${outcomes.length - failed.length}/${outcomes.length}）。${describePublishError(first.code, first.message)} 可在内容列表重试失败账号。`
+            : `部分成功（${outcomes.length - failed.length}/${outcomes.length}）。${describePublishError(first.code, first.message)} 可在内容列表重试失败账号。`,
         );
         if (!editId && contentId) {
           void navigate(`/publish/video?id=${contentId}`, { replace: true });
@@ -588,100 +741,82 @@ export default function PublishVideo() {
     }
   };
 
-  const clearDuplicatePrompt = () => {
-    pendingVideoRef.current = null;
-    setDuplicateHit(null);
-    setVideoFileName('');
-    setVideoFileSize(null);
-    // 取消重复决策后回到上传 dropzone，而非「更换」预览态
+  const ingestVideoFile = async (file: File) => {
+    setError('');
+    const localPath = getLocalFilePath(file);
+    if (!localPath) {
+      setError(
+        '无法获取本机文件路径。请确认在桌面应用内选择或拖入本地视频文件。',
+      );
+      return;
+    }
+    const abort = new AbortController();
+    uploadAbortRef.current = abort;
+    const replacing = Boolean(mediaPath.trim());
+    setVideoFileName(file.name);
+    setVideoFileSize(file.size);
+    beginBusy('uploading');
+    resetUploadMetrics('video', file.size);
+    setMediaPath('');
     setVideoPreviewUrl((prev) => {
       revokeVideoPreview(prev);
       return null;
     });
-  };
-
-  const confirmDuplicateReuse = () => {
-    const file = pendingVideoRef.current;
-    const hit = duplicateHit;
-    if (!file || !hit) {
-      return;
-    }
-    setDuplicateHit(null);
-    void ingestVideoFile(file, 'reuse', {
-      url: hit.url,
-      originalName: hit.originalName,
-    });
-  };
-
-  const confirmDuplicateForceUpload = () => {
-    const file = pendingVideoRef.current;
-    if (!file) {
-      return;
-    }
-    setDuplicateHit(null);
-    void ingestVideoFile(file, 'upload');
-  };
-
-  const ingestVideoFile = async (file: File, mode: 'upload' | 'reuse', existing?: { url: string; originalName?: string }) => {
-    setError('');
-    const abort = new AbortController();
-    uploadAbortRef.current = abort;
-    const replacing = Boolean(videoUrl.trim());
-    let videoLabel = existing?.originalName?.trim() || file.name;
-    setVideoFileName(videoLabel);
-    setVideoFileSize(file.size);
-    beginBusy('uploading');
-    if (mode === 'upload') {
-      setVideoUrl('');
-      setVideoPreviewUrl((prev) => {
-        revokeVideoPreview(prev);
-        return null;
-      });
-      resetUploadMetrics('video', file.size);
-    }
     try {
       if (abort.signal.aborted) {
         throw new DOMException('上传已取消', 'AbortError');
       }
 
-      let videoAssetUrl = existing?.url?.trim() ?? '';
-      if (mode === 'upload') {
-        const asset = await uploadMediaFile(
-          file,
-          'video',
-          (progress) => {
-            reportUploadProgress('video', progress);
-          },
-          abort.signal
-        );
-        videoAssetUrl = asset.url;
-        videoLabel = asset.originalName;
-      } else if (!videoAssetUrl) {
-        throw new Error('缺少可复用的视频资源');
-      }
-      setVideoUrl(videoAssetUrl);
-      setVideoFileName(videoLabel);
+      setMediaPath(localPath);
+      setVideoFileName(file.name);
       setVideoFileSize(file.size);
-      // 视频入库后再生成本地预览，上传过程中不展示画面
       const objectUrl = URL.createObjectURL(file);
       setVideoPreviewUrl((prev) => {
         revokeVideoPreview(prev);
         return objectUrl;
       });
-      // 视频已切换后再清旧封面，取消上传时可保留更换前的封面
+      const readable = await checkLocalPathReadable(localPath);
+      if (!readable) {
+        setPathWarning(LOCAL_PATH_MISSING_VIDEO);
+      } else if (looksUnstableLocalPath(localPath)) {
+        toast.add({
+          type: 'warning',
+          title: '路径可能不稳定',
+          description:
+            '外置盘、iCloud、OneDrive 或百度网盘中的文件变动后可能导致发布失败，建议复制到本机固定目录。',
+        });
+        setPathWarning(
+          '当前视频路径位于外置盘或网盘同步目录，文件变动后可能导致发布失败，建议复制到本机固定目录后再选。',
+        );
+      } else {
+        setPathWarning(
+          '发布将直接读取该本机路径；请勿移动或删除文件，否则推送会失败。',
+        );
+      }
+      // 视频已切换后再清旧封面，取消处理时可保留更换前的封面
       clearCoverState();
-
       try {
         setUploadMetrics((prev) => {
           return prev
-            ? { ...prev, phase: 'cover' as const, ratio: null, loadedBytes: 0, speedBps: 0 }
-            : { phase: 'cover', loadedBytes: 0, totalBytes: file.size, ratio: null, speedBps: 0 };
+            ? {
+                ...prev,
+                phase: 'cover' as const,
+                ratio: null,
+                loadedBytes: 0,
+                speedBps: 0,
+              }
+            : {
+                phase: 'cover',
+                loadedBytes: 0,
+                totalBytes: file.size,
+                ratio: null,
+                speedBps: 0,
+              };
         });
         const { portrait, landscape } = await extractCoverPairFromVideoFile(file);
         if (abort.signal.aborted) {
           throw new DOMException('上传已取消', 'AbortError');
         }
-        const baseName = file.name.replace(/\.[^.]+$/, '');
 
         const portraitPreview = URL.createObjectURL(portrait);
         setCoverPreviewUrl((prev) => {
@@ -693,39 +828,31 @@ export default function PublishVideo() {
           revokePreview(prev);
           return landscapePreview;
         });
-
-        const coverAsset = await uploadMediaFile(
-          new File([portrait], `${baseName}-cover-3x4.jpg`, {
-            type: 'image/jpeg',
-          }),
-          'cover',
-          () => {},
-          abort.signal
-        );
-        setCoverUrl(coverAsset.url);
-
-        const landscapeAsset = await uploadMediaFile(
-          new File([landscape], `${baseName}-cover-4x3.jpg`, {
-            type: 'image/jpeg',
-          }),
-          'cover_landscape',
-          () => {},
-          abort.signal
-        );
-        setCoverLandscapeUrl(landscapeAsset.url);
+        setCoverBlob(portrait);
+        setCoverLandscapeBlob(landscape);
+        setHasCover(false);
+        setHasCoverLandscape(false);
       } catch (coverErr) {
         if (coverErr instanceof DOMException && coverErr.name === 'AbortError') {
           throw coverErr;
         }
-        setError(coverErr instanceof Error ? `自动提取封面失败：${coverErr.message}` : '自动提取封面失败，请本地选图并裁剪');
+        setError(
+          coverErr instanceof Error
+            ? `自动提取封面失败：${coverErr.message}`
+            : '自动提取封面失败，请本地选图并裁剪',
+        );
       }
     } catch (err) {
-      const cancelled = (err instanceof DOMException && err.name === 'AbortError') || (err instanceof Error && err.message === '上传已取消');
+      const cancelled =
+        (err instanceof DOMException && err.name === 'AbortError') ||
+        (err instanceof Error && err.message === '上传已取消');
       if (cancelled) {
         setError('');
         if (!replacing) {
+          setMediaPath('');
           setVideoFileName('');
           setVideoFileSize(null);
+          setPathWarning('');
           setVideoPreviewUrl((prev) => {
             revokeVideoPreview(prev);
             return null;
@@ -736,7 +863,6 @@ export default function PublishVideo() {
       }
     } finally {
       endBusy();
-      pendingVideoRef.current = null;
     }
   };
 
@@ -752,57 +878,17 @@ export default function PublishVideo() {
       setError('视频超过 1GB 上限');
       return;
     }
-    setError('');
-    setDuplicateHit(null);
-    setVideoFileName(file.name);
-    setVideoFileSize(file.size);
-    resetUploadMetrics('checksum', file.size);
-    const abort = new AbortController();
-    uploadAbortRef.current = abort;
-    beginBusy('uploading');
-    try {
-      const checksum = await sha256File(file, () => {});
-      if (abort.signal.aborted) {
-        throw new DOMException('上传已取消', 'AbortError');
-      }
-      const { duplicate } = await checkMediaDuplicate({
-        kind: 'video',
-        checksumSha256: checksum,
-      });
-      if (duplicate) {
-        pendingVideoRef.current = file;
-        setDuplicateHit(duplicate);
-        endBusy();
-        return;
-      }
-      await ingestVideoFile(file, 'upload');
-    } catch (err) {
-      const cancelled = (err instanceof DOMException && err.name === 'AbortError') || (err instanceof Error && err.message === '上传已取消');
-      if (cancelled) {
-        setError('');
-        if (!videoUrl.trim()) {
-          setVideoFileName('');
-          setVideoFileSize(null);
-          setVideoPreviewUrl((prev) => {
-            revokeVideoPreview(prev);
-            return null;
-          });
-        }
-      } else {
-        setError(describeCaughtError(err, '视频校验失败'));
-      }
-      endBusy();
-    }
+    await ingestVideoFile(file);
   };
 
   const resolveVideoUrlForEditor = async (): Promise<string | null> => {
     if (videoPreviewUrl?.trim()) {
       return videoPreviewUrl.trim();
     }
-    if (!videoUrl.trim()) {
+    if (!mediaPath.trim()) {
       return null;
     }
-    return resolveVideoPreviewUrl(videoUrl);
+    return localPathToFileUrl(mediaPath);
   };
 
   const openEditCover = async (
@@ -821,9 +907,7 @@ export default function PublishVideo() {
         sourceFrameTime =
           kind === 'cover' ? coverSourceFrameTime : coverLandscapeSourceFrameTime;
         croppedFallback =
-          kind === 'cover'
-            ? coverPreviewUrl || coverUrl
-            : coverLandscapePreviewUrl || coverLandscapeUrl;
+          kind === 'cover' ? coverPreviewUrl : coverLandscapePreviewUrl;
       } else {
         const draft = getDraft(scope.accountId);
         sourceCandidate =
@@ -834,16 +918,16 @@ export default function PublishVideo() {
             : draft.coverLandscapeSourceFrameTime;
         croppedFallback =
           kind === 'cover'
-            ? draft.coverUrl || coverPreviewUrl || coverUrl
-            : draft.coverLandscapeUrl || coverLandscapePreviewUrl || coverLandscapeUrl;
+            ? draft.coverPreviewUrl || coverPreviewUrl
+            : draft.coverLandscapePreviewUrl || coverLandscapePreviewUrl;
       }
 
       const videoForEditor = await resolveVideoUrlForEditor();
       let initialSource: string | null = null;
       if (sourceCandidate?.trim()) {
-        initialSource = await resolveCoverDisplayUrl(sourceCandidate);
+        initialSource = sourceCandidate.trim();
       } else if (!videoForEditor && croppedFallback?.trim()) {
-        initialSource = await resolveCoverDisplayUrl(croppedFallback);
+        initialSource = croppedFallback.trim();
         sourceFrameTime = null;
       }
 
@@ -867,6 +951,7 @@ export default function PublishVideo() {
 
   const onEditCoverSaved = (result: EditCoverSavedResult) => {
     const isPortrait = editCoverAspect === 'portrait';
+    const previewUrl = URL.createObjectURL(result.croppedFile);
     // 源图多为会话 blob；替换时勿 revoke 正在沿用的同一 URL
     const replaceSessionUrl = (
       prev: string | null | undefined,
@@ -881,33 +966,37 @@ export default function PublishVideo() {
       if (isPortrait) {
         setCoverSourceUrl((prev) => replaceSessionUrl(prev, result.sourceUrl));
         setCoverSourceFrameTime(result.sourceFrameTime);
-        setCoverUrl(result.croppedUrl);
-        setCoverPreviewUrl((prev) => replaceSessionUrl(prev, result.croppedUrl));
+        setCoverBlob(result.croppedFile);
+        setHasCover(false);
+        setCoverPreviewUrl((prev) => replaceSessionUrl(prev, previewUrl));
       } else {
         setCoverLandscapeSourceUrl((prev) =>
           replaceSessionUrl(prev, result.sourceUrl),
         );
         setCoverLandscapeSourceFrameTime(result.sourceFrameTime);
-        setCoverLandscapeUrl(result.croppedUrl);
+        setCoverLandscapeBlob(result.croppedFile);
+        setHasCoverLandscape(false);
         setCoverLandscapePreviewUrl((prev) =>
-          replaceSessionUrl(prev, result.croppedUrl),
+          replaceSessionUrl(prev, previewUrl),
         );
       }
     } else {
       const accountId = editCoverScope.accountId;
       const draft = getDraft(accountId);
       if (isPortrait) {
-        if (
-          draft.coverSourceUrl &&
-          draft.coverSourceUrl !== result.sourceUrl
-        ) {
+        if (draft.coverSourceUrl && draft.coverSourceUrl !== result.sourceUrl) {
           revokePreview(draft.coverSourceUrl);
+        }
+        if (draft.coverPreviewUrl && draft.coverPreviewUrl !== previewUrl) {
+          revokePreview(draft.coverPreviewUrl);
         }
         setDrafts((prev) => ({
           ...prev,
           [accountId]: {
             ...draft,
-            coverUrl: result.croppedUrl,
+            coverBlob: result.croppedFile,
+            coverPreviewUrl: previewUrl,
+            hasCover: false,
             coverSourceUrl: result.sourceUrl,
             coverSourceFrameTime: result.sourceFrameTime,
           },
@@ -919,11 +1008,19 @@ export default function PublishVideo() {
         ) {
           revokePreview(draft.coverLandscapeSourceUrl);
         }
+        if (
+          draft.coverLandscapePreviewUrl &&
+          draft.coverLandscapePreviewUrl !== previewUrl
+        ) {
+          revokePreview(draft.coverLandscapePreviewUrl);
+        }
         setDrafts((prev) => ({
           ...prev,
           [accountId]: {
             ...draft,
-            coverLandscapeUrl: result.croppedUrl,
+            coverLandscapeBlob: result.croppedFile,
+            coverLandscapePreviewUrl: previewUrl,
+            hasCoverLandscape: false,
             coverLandscapeSourceUrl: result.sourceUrl,
             coverLandscapeSourceFrameTime: result.sourceFrameTime,
           },
@@ -936,14 +1033,16 @@ export default function PublishVideo() {
     });
   };
 
-  const activeDouyinSelected = selectedAccounts.filter(({ account }) => account.status === 'active').length;
+  const activeDouyinSelected = selectedAccounts.filter(
+    ({ account }) => account.status === 'active',
+  ).length;
 
   const accountIssueSummary = useMemo(() => {
     return summarizeSelectedAccountIssues(
       selectedAccounts.map(({ account }) => ({
         account,
         draft: getDraft(account.id),
-      }))
+      })),
     );
   }, [selectedAccounts, drafts]);
 
@@ -951,22 +1050,22 @@ export default function PublishVideo() {
     {
       id: 'video',
       label: '视频',
-      ok: Boolean(videoUrl.trim()),
-      fix: '请先选择并上传本地 MP4 视频',
+      ok: Boolean(mediaPath.trim()),
+      fix: '请先通过对话框选择本机 MP4 视频',
       focusKind: 'video',
     },
     {
       id: 'cover',
       label: '竖封面',
-      ok: Boolean(coverUrl.trim()),
-      fix: '请上传视频以自动截帧，或选本地图裁剪竖版封面',
+      ok: coverReady,
+      fix: '请选择视频以自动截帧，或选本地图裁剪竖版封面',
       focusKind: 'cover',
     },
     {
       id: 'coverLandscape',
       label: '横封面',
-      ok: Boolean(coverLandscapeUrl.trim()),
-      fix: '抖音需横版封面；上传视频可自动截帧，或选本地图裁剪',
+      ok: coverLandscapeReady,
+      fix: '抖音需横版封面；选择视频可自动截帧，或选本地图裁剪',
       focusKind: 'cover',
     },
     {
@@ -1030,13 +1129,13 @@ export default function PublishVideo() {
   const publishBlocked = checklistItems.some((item) => !item.ok);
   const readyCount = checklistItems.filter((item) => item.ok).length;
 
-  const hasVideo = Boolean(videoUrl.trim());
-  const coversReady = Boolean(coverUrl.trim() && coverLandscapeUrl.trim());
+  const hasVideo = Boolean(mediaPath.trim());
+  const coversReady = coverReady && coverLandscapeReady;
   const coverHint =
     busyPhase === 'uploading'
-      ? '视频上传中，封面将在完成后自动截帧；可先填写标题与账号'
+      ? '视频处理中，封面将自动截帧；可先填写标题与账号'
       : !coversReady
-        ? '竖/横封面未就绪：可重新上传视频自动截帧，或点击槽位编辑封面'
+        ? '竖/横封面未就绪：可重新选择视频自动截帧，或点击槽位编辑封面'
         : '封面已就绪；点击槽位可取帧、上传或调整构图';
 
   const hasSelectedVideo = Boolean(videoFileName.trim()) || hasVideo;
@@ -1048,7 +1147,6 @@ export default function PublishVideo() {
     loading,
     editId,
     busyPhase,
-    duplicateHit,
     publishHint,
   });
   const showPublishPanel = flowStep === 'publish' || flowStep === 'progress';
@@ -1060,7 +1158,14 @@ export default function PublishVideo() {
     .map(({ account }) => ({ id: account.id, displayName: account.displayName }));
   const activePublishAccountLabel = parseActivePublishAccountLabel(publishHint);
 
-  const primaryBusyLabel = busyPhase === 'uploading' ? '上传中…' : busyPhase === 'saving' ? '保存中…' : busyPhase === 'publishing' ? '发布中…' : '处理中…';
+  const primaryBusyLabel =
+    busyPhase === 'uploading'
+      ? '处理中…'
+      : busyPhase === 'saving'
+        ? '保存中…'
+        : busyPhase === 'publishing'
+          ? '发布中…'
+          : '处理中…';
 
   const onDropVideo = (event: React.DragEvent) => {
     event.preventDefault();
@@ -1079,7 +1184,7 @@ export default function PublishVideo() {
           <Clapperboard className="size-5" />
           {editId ? '编辑视频' : '发布视频'}
         </PageHeaderTitle>
-        <PageHeaderDescription>{describePublishFlowStep(flowStep, duplicateHit != null)}</PageHeaderDescription>
+        <PageHeaderDescription>{describePublishFlowStep(flowStep)}</PageHeaderDescription>
         <PageHeaderAction>
           <AgentStatusBadge />
         </PageHeaderAction>
@@ -1093,10 +1198,26 @@ export default function PublishVideo() {
         </Alert>
       ) : null}
 
+      {pathWarning && !error ? (
+        <Alert
+          variant={
+            pathWarning === LOCAL_PATH_MISSING_VIDEO ? 'destructive' : 'default'
+          }
+        >
+          <AlertCircle />
+          <AlertTitle>
+            {pathWarning === LOCAL_PATH_MISSING_VIDEO
+              ? '源文件不可用'
+              : '本机路径依赖'}
+          </AlertTitle>
+          <AlertDescription>{pathWarning}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <div
         className={cn(
           'grid min-h-0 flex-1 gap-6 lg:items-stretch',
-          showSplitLayout ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : 'w-full'
+          showSplitLayout ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : 'w-full',
         )}
       >
         {showFormPanel ? (
@@ -1126,8 +1247,8 @@ export default function PublishVideo() {
               setTitle={setTitle}
               body={body}
               setBody={setBody}
-              coverUrl={coverUrl}
-              coverLandscapeUrl={coverLandscapeUrl}
+              coverReady={coverReady}
+              coverLandscapeReady={coverLandscapeReady}
               coverPreviewUrl={coverPreviewUrl}
               coverLandscapePreviewUrl={coverLandscapePreviewUrl}
               coverHint={coverHint}
@@ -1164,7 +1285,6 @@ export default function PublishVideo() {
             videoFileName={videoFileName}
             videoFileSize={videoFileSize}
             videoPreviewUrl={videoPreviewUrl}
-            duplicateHit={duplicateHit}
             dragOver={dragOver}
             disabled={loading || busy || showPublishPanel}
             uploading={busyPhase === 'uploading'}
@@ -1188,30 +1308,27 @@ export default function PublishVideo() {
             }}
             onDrop={onDropVideo}
             onCancelUpload={cancelUpload}
-            onDuplicateCancel={clearDuplicatePrompt}
-            onDuplicateForceUpload={confirmDuplicateForceUpload}
-            onDuplicateReuse={confirmDuplicateReuse}
           />
         </div>
       </div>
 
       {showFormPanel ? (
         <PublishVideoActionBar
-        prechecks={checklistItems}
-        readyCount={readyCount}
-        totalCount={checklistItems.length}
-        busy={formLocked}
-        busyLabel={primaryBusyLabel}
-        publishBlocked={publishBlocked}
-        publishHint={publishHint}
-        onFocusItem={focusPrecheck}
-        onSaveDraft={() => {
-          void submit('draft');
-        }}
-        onPublish={() => {
-          void submit('published');
-        }}
-      />
+          prechecks={checklistItems}
+          readyCount={readyCount}
+          totalCount={checklistItems.length}
+          busy={formLocked}
+          busyLabel={primaryBusyLabel}
+          publishBlocked={publishBlocked}
+          publishHint={publishHint}
+          onFocusItem={focusPrecheck}
+          onSaveDraft={() => {
+            void submit('draft');
+          }}
+          onPublish={() => {
+            void submit('published');
+          }}
+        />
       ) : null}
 
       <EditCoverDialog
@@ -1245,58 +1362,4 @@ export default function PublishVideo() {
       />
     </div>
   );
-}
-
-async function resolveVideoPreviewUrl(ref: string): Promise<string> {
-  const value = ref.trim();
-  if (value.startsWith('blob:') || value.startsWith('data:')) {
-    return value;
-  }
-
-  let fetchUrl = value;
-  if (!/^https?:\/\//i.test(value)) {
-    const assetId = parseMediaAssetId(value);
-    if (!assetId) {
-      throw new Error('无效的视频资源');
-    }
-    const signed = await fetchMediaSignedUrl(assetId);
-    fetchUrl = signed.url;
-  }
-
-  const response = await fetch(fetchUrl);
-  if (!response.ok) {
-    throw new Error('视频下载失败');
-  }
-  const blob = await response.blob();
-  if (!blob.type.startsWith('video/') && blob.size === 0) {
-    throw new Error('视频不是有效文件');
-  }
-  return URL.createObjectURL(blob);
-}
-
-async function resolveCoverDisplayUrl(ref: string): Promise<string> {
-  const value = ref.trim();
-  if (value.startsWith('blob:') || value.startsWith('data:')) {
-    return value;
-  }
-
-  let fetchUrl = value;
-  if (!/^https?:\/\//i.test(value)) {
-    const assetId = parseMediaAssetId(value);
-    if (!assetId) {
-      throw new Error('无效的封面资源');
-    }
-    const signed = await fetchMediaSignedUrl(assetId);
-    fetchUrl = signed.url;
-  }
-
-  const response = await fetch(fetchUrl);
-  if (!response.ok) {
-    throw new Error('封面下载失败');
-  }
-  const blob = await response.blob();
-  if (!blob.type.startsWith('image/') && blob.size === 0) {
-    throw new Error('封面不是有效图片');
-  }
-  return URL.createObjectURL(blob);
 }

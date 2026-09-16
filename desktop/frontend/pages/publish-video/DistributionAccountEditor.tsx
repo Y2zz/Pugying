@@ -12,8 +12,8 @@ export function DistributionAccountEditor({
   draft,
   commonTitle,
   commonBody,
-  commonCoverUrl,
-  commonCoverLandscapeUrl,
+  commonCoverReady,
+  commonCoverLandscapeReady,
   commonCoverPreviewUrl,
   commonCoverLandscapePreviewUrl,
   coverDisabled,
@@ -27,8 +27,8 @@ export function DistributionAccountEditor({
   draft: OverrideDraft;
   commonTitle: string;
   commonBody: string;
-  commonCoverUrl: string;
-  commonCoverLandscapeUrl: string;
+  commonCoverReady: boolean;
+  commonCoverLandscapeReady: boolean;
   commonCoverPreviewUrl: string | null;
   commonCoverLandscapePreviewUrl: string | null;
   coverDisabled?: boolean;
@@ -67,6 +67,19 @@ export function DistributionAccountEditor({
           size="sm"
           disabled={disabled}
           onClick={() => {
+            // 重置会丢弃会话内封面预览 URL，需先 revoke 避免泄漏
+            if (draft.coverPreviewUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(draft.coverPreviewUrl);
+            }
+            if (draft.coverLandscapePreviewUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(draft.coverLandscapePreviewUrl);
+            }
+            if (draft.coverSourceUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(draft.coverSourceUrl);
+            }
+            if (draft.coverLandscapeSourceUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(draft.coverLandscapeSourceUrl);
+            }
             onDraftChange(emptyDraft());
           }}
         >
@@ -79,8 +92,8 @@ export function DistributionAccountEditor({
           draft={draft}
           commonTitle={commonTitle}
           commonBody={commonBody}
-          commonCoverUrl={commonCoverUrl}
-          commonCoverLandscapeUrl={commonCoverLandscapeUrl}
+          commonCoverReady={commonCoverReady}
+          commonCoverLandscapeReady={commonCoverLandscapeReady}
           commonCoverPreviewUrl={commonCoverPreviewUrl}
           commonCoverLandscapePreviewUrl={commonCoverLandscapePreviewUrl}
           coverDisabled={coverDisabled}

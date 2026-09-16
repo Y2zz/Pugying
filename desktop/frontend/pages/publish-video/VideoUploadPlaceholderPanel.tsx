@@ -56,7 +56,7 @@ export function VideoUploadPlaceholderPanel({
           {displayName}
         </p>
 
-        <p className="text-xs text-destructive">上传过程中请不要删除/移动文件</p>
+        <p className="text-xs text-destructive">处理过程中请不要删除/移动文件</p>
       </div>
 
       <div className="flex w-full flex-col gap-2.5">

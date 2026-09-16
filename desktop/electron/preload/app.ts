@@ -1,7 +1,7 @@
 /**
  * 业务主窗 preload：仅暴露 pugyingDesktop，绝不挂 chromeShell。
  */
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { DESKTOP_IPC } from '@shared/desktop-ipc';
 import type {
   DesktopWindowChromeInfo,
@@ -43,6 +43,22 @@ const pugyingDesktop = {
     ipcRenderer.invoke(DESKTOP_IPC.appAbout) as Promise<void>,
   toggleDevTools: (): Promise<boolean> =>
     ipcRenderer.invoke(DESKTOP_IPC.toggleDevTools) as Promise<boolean>,
+  checkLocalPathReadable: (absPath: string): Promise<boolean> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.checkLocalPathReadable,
+      absPath,
+    ) as Promise<boolean>,
+  /**
+   * Electron 32+ 移除了 File.path；选片与拖拽均须经 webUtils 取绝对路径。
+   * 须在 preload 内调用，并把 File 从 renderer 传入。
+   */
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)?.trim() || '';
+    } catch {
+      return '';
+    }
+  },
 };
 
 export type PugyingDesktopBridge = typeof pugyingDesktop;

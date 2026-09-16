@@ -1,4 +1,5 @@
-import type { ContentTargetOverrides, ContentVisibility, MediaDuplicateHit, PlatformAccountItem } from '@/lib/api';
+import type { ContentTargetOverrides, ContentVisibility, PlatformAccountItem } from '@/lib/api';
+import { getPugyingDesktopBridge } from '@/lib/agent-client';
 
 export const TITLE_MAX = 30;
 export const BODY_MAX = 1000;
@@ -8,22 +9,21 @@ export const MAX_COVER_UPLOAD_BYTES = 20 * 1024 * 1024;
 export const WARN_DURATION_SEC = 15 * 60;
 
 export type CoverKind = 'cover' | 'cover_landscape';
-/** busy 细分：底栏按钮与取消上传依赖阶段，避免一律「处理中」 */
+/** busy 细分：底栏按钮与取消处理依赖阶段，避免一律「处理中」 */
 export type BusyPhase = 'idle' | 'uploading' | 'saving' | 'publishing';
 
 /** 发布视频五步流程 id（用于推导当前阶段 UI，无步骤条） */
 export type PublishFlowStepId = 'select' | 'upload' | 'configure' | 'publish' | 'progress';
 
-/** 由页面状态推导当前流程步（编辑加载中视为上传步） */
+/** 由页面状态推导当前流程步（编辑加载中视为处理步） */
 export function derivePublishFlowStep(input: {
   hasVideo: boolean;
   loading: boolean;
   editId: string | null;
   busyPhase: BusyPhase;
-  duplicateHit: MediaDuplicateHit | null;
   publishHint: string;
 }): PublishFlowStepId {
-  const { hasVideo, loading, editId, busyPhase, duplicateHit, publishHint } = input;
+  const { hasVideo, loading, editId, busyPhase, publishHint } = input;
 
   if (busyPhase === 'publishing') {
     const hint = publishHint.trim();
@@ -33,7 +33,7 @@ export function derivePublishFlowStep(input: {
     return 'publish';
   }
 
-  if (busyPhase === 'uploading' || duplicateHit != null || (editId && loading)) {
+  if (busyPhase === 'uploading' || (editId && loading)) {
     return 'upload';
   }
 
@@ -44,14 +44,12 @@ export function derivePublishFlowStep(input: {
   return 'select';
 }
 
-export function describePublishFlowStep(step: PublishFlowStepId, duplicatePending = false): string {
+export function describePublishFlowStep(step: PublishFlowStepId): string {
   switch (step) {
     case 'select':
       return '请选择或拖入 MP4 视频';
     case 'upload':
-      return duplicatePending
-        ? '可同时填写发布信息；本机媒体库已有相同视频，请在右侧预览区选择处理方式'
-        : '可同时填写发布信息；视频正在上传';
+      return '可同时填写发布信息；正在处理本机视频与封面';
     case 'configure':
       return '填写发布信息并配置各账号规则';
     case 'publish':
@@ -75,12 +73,10 @@ export const ACCOUNT_STATUS_TEXT: Record<PlatformAccountItem['status'], string> 
   revoked: '已失效',
 };
 
-/** 可选覆盖通用文案/封面的字段（留空则继承通用设置） */
+/** 可选覆盖通用文案的字段（留空则继承通用设置；封面走独立 BLOB，不在 overrides） */
 export const OPTIONAL_OVERRIDE_LABELS: [keyof ContentTargetOverrides, string][] = [
   ['title', '标题'],
   ['body', '描述'],
-  ['coverUrl', '竖封面'],
-  ['coverLandscapeUrl', '横封面'],
 ];
 
 export interface OverrideDraft {
@@ -88,10 +84,18 @@ export interface OverrideDraft {
   title: string;
   /** 留空继承通用描述 */
   body: string;
-  /** 留空继承通用竖封面 */
-  coverUrl: string;
-  /** 留空继承通用横封面 */
-  coverLandscapeUrl: string;
+  /** 待上传的账号竖封面（保存时带 targetId 上传） */
+  coverBlob: Blob | null;
+  /** 待上传的账号横封面 */
+  coverLandscapeBlob: Blob | null;
+  /** 会话内竖封面预览（blob: 或已拉到的 object URL） */
+  coverPreviewUrl: string;
+  /** 会话内横封面预览 */
+  coverLandscapePreviewUrl: string;
+  /** 服务端该账号已有竖封面差异 */
+  hasCover: boolean;
+  /** 服务端该账号已有横封面差异 */
+  hasCoverLandscape: boolean;
   /** 会话内竖封面源图（供再次编辑；不入库） */
   coverSourceUrl: string;
   /** 会话内横封面源图（供再次编辑；不入库） */
@@ -111,8 +115,12 @@ export function emptyDraft(): OverrideDraft {
   return {
     title: '',
     body: '',
-    coverUrl: '',
-    coverLandscapeUrl: '',
+    coverBlob: null,
+    coverLandscapeBlob: null,
+    coverPreviewUrl: '',
+    coverLandscapePreviewUrl: '',
+    hasCover: false,
+    hasCoverLandscape: false,
     coverSourceUrl: '',
     coverLandscapeSourceUrl: '',
     coverSourceFrameTime: null,
@@ -169,22 +177,23 @@ export function parseTags(text: string): string[] {
   ];
 }
 
-/** 统计可选覆盖项（标题/描述/封面）已填数量，用于账号卡片 Badge */
-export function optionalOverrideCount(overrides: ContentTargetOverrides | undefined): number {
-  if (!overrides) {
-    return 0;
-  }
+/** 统计可选覆盖项（标题/描述/账号封面）已填数量，用于账号卡片 Badge */
+export function optionalOverrideCount(draft: OverrideDraft): number {
   let count = 0;
-  if (overrides.title?.trim()) {
+  if (draft.title.trim()) {
     count += 1;
   }
-  if (overrides.body?.trim()) {
+  if (draft.body.trim()) {
     count += 1;
   }
-  if (overrides.coverUrl?.trim()) {
+  if (draft.coverBlob || draft.hasCover || draft.coverPreviewUrl.trim()) {
     count += 1;
   }
-  if (overrides.coverLandscapeUrl?.trim()) {
+  if (
+    draft.coverLandscapeBlob ||
+    draft.hasCoverLandscape ||
+    draft.coverLandscapePreviewUrl.trim()
+  ) {
     count += 1;
   }
   return count;
@@ -194,8 +203,12 @@ export function overridesToDraft(o: ContentTargetOverrides | undefined): Overrid
   return {
     title: o?.title ?? '',
     body: o?.body ?? '',
-    coverUrl: o?.coverUrl ?? '',
-    coverLandscapeUrl: o?.coverLandscapeUrl ?? '',
+    coverBlob: null,
+    coverLandscapeBlob: null,
+    coverPreviewUrl: '',
+    coverLandscapePreviewUrl: '',
+    hasCover: false,
+    hasCoverLandscape: false,
     coverSourceUrl: '',
     coverLandscapeSourceUrl: '',
     coverSourceFrameTime: null,
@@ -237,12 +250,6 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   if (draft.body.trim()) {
     result.body = draft.body.trim();
   }
-  if (draft.coverUrl.trim()) {
-    result.coverUrl = draft.coverUrl.trim();
-  }
-  if (draft.coverLandscapeUrl.trim()) {
-    result.coverLandscapeUrl = draft.coverLandscapeUrl.trim();
-  }
   const tags = parseTags(draft.tagsText);
   if (tags.length > 0) {
     result.tags = tags;
@@ -269,14 +276,78 @@ export function formatBytes(size: number): string {
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-/** 视频上传子阶段：校验 / 传视频 / 生成封面 */
-export type VideoUploadPhase = 'checksum' | 'video' | 'cover';
+/** 本机路径 → file://，供会话内 video 预览（不经媒体库） */
+export function localPathToFileUrl(absPath: string): string {
+  const trimmed = absPath.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('file:')) {
+    return trimmed;
+  }
+  if (/^[a-zA-Z]:[\\/]/.test(trimmed)) {
+    return `file:///${trimmed.replace(/\\/g, '/')}`;
+  }
+  return `file://${trimmed}`;
+}
+
+/** 外置盘 / 网盘同步目录上的路径发布时易失效，选片后提示用户 */
+export function looksUnstableLocalPath(absPath: string): boolean {
+  const p = absPath.toLowerCase();
+  return (
+    p.includes('/volumes/') ||
+    p.includes('\\volumes\\') ||
+    p.includes('icloud') ||
+    p.includes('mobile documents') ||
+    p.includes('com~apple~clouddocs') ||
+    p.includes('onedrive') ||
+    p.includes('baidu') ||
+    p.includes('百度网盘')
+  );
+}
+
+export const LOCAL_PATH_MISSING_VIDEO =
+  '源文件不可用，请重新选择视频';
+export const LOCAL_PATH_MISSING_IMAGE =
+  '源文件不可用，请重新选择图片';
+
+/** 经 preload IPC 校验本机路径是否可读；无桥接时视为未知（返回 true，避免浏览器开发态误报） */
+export async function checkLocalPathReadable(absPath: string): Promise<boolean> {
+  const trimmed = absPath.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const bridge = getPugyingDesktopBridge();
+  if (!bridge?.checkLocalPathReadable) {
+    return true;
+  }
+  try {
+    return await bridge.checkLocalPathReadable(trimmed);
+  } catch {
+    return false;
+  }
+}
+
+/** 批量校验；全部可读才为 true */
+export async function checkLocalPathsReadable(
+  paths: string[],
+): Promise<boolean> {
+  for (const p of paths) {
+    if (!(await checkLocalPathReadable(p))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** 视频处理子阶段：生成本地预览 / 截封面 */
+export type VideoUploadPhase = 'video' | 'cover';
 
 export type VideoUploadMetrics = {
   phase: VideoUploadPhase;
   loadedBytes: number;
   totalBytes: number;
-  /** 0–1；校验与封面阶段为 null（ indeterminate ） */
+  /** 0–1；封面阶段为 null（ indeterminate ） */
   ratio: number | null;
   speedBps: number;
 };
@@ -341,8 +412,7 @@ export function createUploadSpeedTracker() {
 }
 
 const UPLOAD_PHASE_LABELS: Record<VideoUploadPhase, string> = {
-  checksum: '正在校验文件',
-  video: '正在上传视频',
+  video: '正在读取视频',
   cover: '正在生成封面',
 };
 
@@ -351,26 +421,21 @@ export function describeVideoUploadPhase(phase: VideoUploadPhase): string {
 }
 
 /** 右栏 9:16 手机柱 UI 阶段（单柱状态机，对齐抖音创作者中心） */
-export type VideoPhonePhase = 'idle' | 'checksum' | 'uploading' | 'duplicate' | 'ready';
+export type VideoPhonePhase = 'idle' | 'processing' | 'ready';
 
 export function deriveVideoPhonePhase(input: {
   hasVideo: boolean;
   videoPreviewUrl: string | null;
-  duplicateHit: MediaDuplicateHit | null;
   uploading: boolean;
-  uploadMetrics: VideoUploadMetrics | null;
 }): VideoPhonePhase {
-  if (input.duplicateHit != null) {
-    return 'duplicate';
-  }
-  if (input.hasVideo && input.videoPreviewUrl) {
+  if (input.hasVideo && input.videoPreviewUrl && !input.uploading) {
     return 'ready';
   }
   if (input.uploading) {
-    if (input.uploadMetrics?.phase === 'video') {
-      return 'uploading';
-    }
-    return 'checksum';
+    return 'processing';
+  }
+  if (input.hasVideo && input.videoPreviewUrl) {
+    return 'ready';
   }
   return 'idle';
 }

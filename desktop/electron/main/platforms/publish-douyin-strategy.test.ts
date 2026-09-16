@@ -14,9 +14,9 @@ const payload: PlatformPublishStartPayload = {
   targetId: 'target-1',
   platform: 'douyin',
   accountId: 'account-1',
-  mediaUrl: 'https://media.invalid/video',
-  coverUrl: 'https://media.invalid/cover',
-  coverLandscapeUrl: 'https://media.invalid/cover-landscape',
+  mediaPath: '/tmp/media.invalid/video.mp4',
+  coverPath: '/tmp/media.invalid/cover.jpg',
+  coverLandscapePath: '/tmp/media.invalid/cover-landscape.jpg',
   title: '标题',
   cookies: [{ name: 'sessionid', value: 'cookie' }],
 };

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import {
-  fetchMediaSignedUrl,
-  parseMediaAssetId,
-} from '@/lib/api';
+import { fetchCoverObjectUrl, type CoverKind } from '@/lib/api';
 
 interface MediaPreviewImageProps {
-  /** 本机媒体库路径 `/media/assets/{id}`、裸 UUID、http(s)、或 blob: */
-  src: string | null | undefined;
+  /** 已有 blob:/data:/http(s)/file: 预览地址时优先使用 */
+  src?: string | null;
+  /** 无可用 src 时按内容封面接口拉取 */
+  contentId?: string;
+  kind?: CoverKind;
+  targetId?: string;
   alt?: string;
   className?: string;
   /** 预览容器比例，如 3/4 或 16/9；与固定高度 class 二选一即可 */
@@ -18,11 +19,14 @@ interface MediaPreviewImageProps {
 }
 
 /**
- * 渲染封面预览：blob/http 直出；本机媒体库资产走短时签名 URL。
+ * 渲染封面预览：blob/http/file 直出；否则按 contentId+kind 拉取封面 object URL。
  * 图片绝对定位填满容器，避免竖图固有高度撑破 aspect-ratio / 固定高度。
  */
 export function MediaPreviewImage({
   src,
+  contentId,
+  kind = 'portrait',
+  targetId,
   alt = '',
   className,
   aspectRatio,
@@ -35,38 +39,38 @@ export function MediaPreviewImage({
 
   useEffect(() => {
     let cancelled = false;
+    let fetchedObjectUrl: string | null = null;
 
     const run = async () => {
       setFailed(false);
       setImageReady(false);
-      if (!src?.trim()) {
-        setDisplayUrl(null);
-        setResolving(false);
-        return;
-      }
-      const value = src.trim();
+      const direct = src?.trim() ?? '';
       if (
-        value.startsWith('blob:') ||
-        value.startsWith('data:') ||
-        /^https?:\/\//i.test(value)
+        direct.startsWith('blob:') ||
+        direct.startsWith('data:') ||
+        /^https?:\/\//i.test(direct) ||
+        direct.startsWith('file:')
       ) {
-        setDisplayUrl(value);
+        setDisplayUrl(direct);
         setResolving(false);
         return;
       }
-      const assetId = parseMediaAssetId(value);
-      if (!assetId) {
+      if (!contentId) {
         setDisplayUrl(null);
-        setFailed(true);
+        setFailed(Boolean(direct));
         setResolving(false);
         return;
       }
       setResolving(true);
       setDisplayUrl(null);
       try {
-        const signed = await fetchMediaSignedUrl(assetId);
+        const url = await fetchCoverObjectUrl(contentId, kind, targetId);
+        fetchedObjectUrl = url;
         if (!cancelled) {
-          setDisplayUrl(signed.url);
+          setDisplayUrl(url);
+        } else {
+          URL.revokeObjectURL(url);
+          fetchedObjectUrl = null;
         }
       } catch {
         if (!cancelled) {
@@ -83,11 +87,14 @@ export function MediaPreviewImage({
     void run();
     return () => {
       cancelled = true;
+      if (fetchedObjectUrl) {
+        URL.revokeObjectURL(fetchedObjectUrl);
+      }
     };
-  }, [src]);
+  }, [src, contentId, kind, targetId]);
 
   const showSkeleton = resolving || (Boolean(displayUrl) && !failed && !imageReady);
-  const empty = !src?.trim() && !resolving && !failed;
+  const empty = !src?.trim() && !contentId && !resolving && !failed;
 
   return (
     <div

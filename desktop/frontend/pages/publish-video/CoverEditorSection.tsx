@@ -9,8 +9,8 @@ const COVER_PREVIEW_HEIGHT_CLASS = 'h-28 shrink-0';
 /** 通用信息内竖/横封面并排编辑（等高展示；点击槽位打开编辑 Dialog） */
 export function CoverEditorSection({
   coverSectionRef,
-  coverUrl,
-  coverLandscapeUrl,
+  coverReady,
+  coverLandscapeReady,
   coverPreviewUrl,
   coverLandscapePreviewUrl,
   coverHint,
@@ -18,8 +18,8 @@ export function CoverEditorSection({
   onEditCover,
 }: {
   coverSectionRef: RefObject<HTMLDivElement | null>;
-  coverUrl: string;
-  coverLandscapeUrl: string;
+  coverReady: boolean;
+  coverLandscapeReady: boolean;
   coverPreviewUrl: string | null;
   coverLandscapePreviewUrl: string | null;
   coverHint: string;
@@ -30,12 +30,12 @@ export function CoverEditorSection({
     <div ref={coverSectionRef}>
       <Field>
         <FieldLabel>封面</FieldLabel>
-        <FieldDescription>抖音需竖版 3:4 与横版 4:3；上传视频后可自动截帧，也可点击槽位编辑</FieldDescription>
+        <FieldDescription>抖音需竖版 3:4 与横版 4:3；选择视频后可自动截帧，也可点击槽位编辑</FieldDescription>
         <div className="mt-3 flex flex-wrap items-start gap-4">
           <CoverHoverCard
             label="竖版 3:4"
-            ready={Boolean(coverUrl)}
-            src={coverPreviewUrl || coverUrl}
+            ready={coverReady}
+            src={coverPreviewUrl}
             objectFit="contain"
             aspectRatio={3 / 4}
             previewClassName={COVER_PREVIEW_HEIGHT_CLASS}
@@ -46,8 +46,8 @@ export function CoverEditorSection({
           />
           <CoverHoverCard
             label="横版 4:3"
-            ready={Boolean(coverLandscapeUrl)}
-            src={coverLandscapePreviewUrl || coverLandscapeUrl}
+            ready={coverLandscapeReady}
+            src={coverLandscapePreviewUrl}
             aspectRatio={4 / 3}
             previewClassName={COVER_PREVIEW_HEIGHT_CLASS}
             disabled={disabled}

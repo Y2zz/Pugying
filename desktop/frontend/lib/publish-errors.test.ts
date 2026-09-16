@@ -9,6 +9,8 @@ import {
 describe('describePublishError', () => {
   it('maps stable codes to Chinese copy', () => {
     expect(describePublishError('AUTH_EXPIRED')).toContain('重新授权');
+    expect(describePublishError('MEDIA_MISSING')).toContain('本机视频或封面');
+    expect(describePublishError('MEDIA_UNREACHABLE')).toContain('本机视频或封面');
     expect(describePublishError('PUBLISH_FAILED')).toContain('内容列表重试');
     expect(describePublishError('PUBLISH_FAILED', '平台拒绝')).toBe('平台拒绝');
   });

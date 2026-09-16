@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import {
   ACCOUNT_STATUS_TEXT,
   describeAccountPublishSummary,
-  draftToOverrides,
   emptyDraft,
   getAccountDraftIssues,
   optionalOverrideCount,
@@ -35,7 +34,7 @@ export function DistributionAccountRow({
   const usable = account.status === 'active';
   const summary = describeAccountPublishSummary(draft);
   const issues = getAccountDraftIssues(draft);
-  const ovCount = optionalOverrideCount(draftToOverrides(draft));
+  const ovCount = optionalOverrideCount(draft);
 
   return (
     <div

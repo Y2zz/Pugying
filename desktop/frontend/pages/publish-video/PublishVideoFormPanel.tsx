@@ -36,7 +36,7 @@ export type PrecheckItem = {
 
 /**
  * 左侧编辑区：通用信息 Card（含封面）+ 分发账号 Card（固定主从：列表 + 单编辑区）。
- * 选中本地视频后即可挂载；上传/重复检测期间仍可编辑标题与账号。
+ * 选中本地视频后即可挂载；处理封面期间仍可编辑标题与账号。
  */
 export function PublishVideoFormPanel({
   catalog,
@@ -58,8 +58,8 @@ export function PublishVideoFormPanel({
   setTitle,
   body,
   setBody,
-  coverUrl,
-  coverLandscapeUrl,
+  coverReady,
+  coverLandscapeReady,
   coverPreviewUrl,
   coverLandscapePreviewUrl,
   coverHint,
@@ -89,8 +89,8 @@ export function PublishVideoFormPanel({
   setTitle: (v: string) => void;
   body: string;
   setBody: (v: string) => void;
-  coverUrl: string;
-  coverLandscapeUrl: string;
+  coverReady: boolean;
+  coverLandscapeReady: boolean;
   coverPreviewUrl: string | null;
   coverLandscapePreviewUrl: string | null;
   coverHint: string;
@@ -98,7 +98,7 @@ export function PublishVideoFormPanel({
   onEditAccountCover: (accountId: string, kind: CoverKind) => void;
   titleInputRef: RefObject<HTMLInputElement | null>;
   disabled: boolean;
-  /** 视频上传/截帧进行中禁用封面操作，避免与自动截帧冲突 */
+  /** 视频处理/截帧进行中禁用封面操作，避免与自动截帧冲突 */
   coverDisabled?: boolean;
 }) {
   const isMobile = useIsMobile();
@@ -177,8 +177,8 @@ export function PublishVideoFormPanel({
         draft: getDraft(focusedEntry.account.id),
         commonTitle: title,
         commonBody: body,
-        commonCoverUrl: coverUrl,
-        commonCoverLandscapeUrl: coverLandscapeUrl,
+        commonCoverReady: coverReady,
+        commonCoverLandscapeReady: coverLandscapeReady,
         commonCoverPreviewUrl: coverPreviewUrl,
         commonCoverLandscapePreviewUrl: coverLandscapePreviewUrl,
         disabled: formDisabled,
@@ -211,8 +211,8 @@ export function PublishVideoFormPanel({
           <Separator />
           <CoverEditorSection
             coverSectionRef={coverSectionRef}
-            coverUrl={coverUrl}
-            coverLandscapeUrl={coverLandscapeUrl}
+            coverReady={coverReady}
+            coverLandscapeReady={coverLandscapeReady}
             coverPreviewUrl={coverPreviewUrl}
             coverLandscapePreviewUrl={coverLandscapePreviewUrl}
             coverHint={coverHint}
@@ -285,8 +285,10 @@ export function PublishVideoFormPanel({
                   draft={editorProps?.draft ?? emptyDraft()}
                   commonTitle={editorProps?.commonTitle ?? title}
                   commonBody={editorProps?.commonBody ?? body}
-                  commonCoverUrl={editorProps?.commonCoverUrl ?? coverUrl}
-                  commonCoverLandscapeUrl={editorProps?.commonCoverLandscapeUrl ?? coverLandscapeUrl}
+                  commonCoverReady={editorProps?.commonCoverReady ?? coverReady}
+                  commonCoverLandscapeReady={
+                    editorProps?.commonCoverLandscapeReady ?? coverLandscapeReady
+                  }
                   commonCoverPreviewUrl={editorProps?.commonCoverPreviewUrl ?? coverPreviewUrl}
                   commonCoverLandscapePreviewUrl={
                     editorProps?.commonCoverLandscapePreviewUrl ?? coverLandscapePreviewUrl
@@ -352,8 +354,8 @@ export function PublishVideoFormPanel({
               draft={editorProps.draft}
               commonTitle={editorProps.commonTitle}
               commonBody={editorProps.commonBody}
-              commonCoverUrl={editorProps.commonCoverUrl}
-              commonCoverLandscapeUrl={editorProps.commonCoverLandscapeUrl}
+              commonCoverReady={editorProps.commonCoverReady}
+              commonCoverLandscapeReady={editorProps.commonCoverLandscapeReady}
               commonCoverPreviewUrl={editorProps.commonCoverPreviewUrl}
               commonCoverLandscapePreviewUrl={editorProps.commonCoverLandscapePreviewUrl}
               coverDisabled={editorProps.coverDisabled}

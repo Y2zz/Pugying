@@ -25,7 +25,6 @@ import {
   offsetToKeepNaturalPointCentered,
   viewportCenterInNatural,
 } from '@/lib/cover-crop-geometry';
-import { uploadMediaFile } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   clampVideoSeekTime,
@@ -59,11 +58,6 @@ const ASPECT_LABEL: Record<EditCoverAspect, string> = {
   portrait: '编辑竖版封面（3:4）',
 };
 
-const MEDIA_KIND: Record<EditCoverAspect, 'cover' | 'cover_landscape'> = {
-  landscape: 'cover_landscape',
-  portrait: 'cover',
-};
-
 const OUTPUT_WIDTH: Record<EditCoverAspect, number> = {
   landscape: 1280,
   portrait: 1080,
@@ -83,8 +77,8 @@ type CoverSourceKind = 'upload' | 'video-frame' | null;
 export interface EditCoverSavedResult {
   /** 会话内源图（多为 blob:，不入库；供再次打开编辑） */
   sourceUrl: string;
-  /** 已上传的裁切封面（媒体库 URL） */
-  croppedUrl: string;
+  /** 裁切后的封面文件；由父级在保存内容时再 uploadContentCover */
+  croppedFile: File;
   /** 源图来自视频取帧时的时刻；上传或未知则为 null */
   sourceFrameTime: number | null;
 }
@@ -104,7 +98,7 @@ interface EditCoverDialogProps {
 
 /**
  * 短视频「编辑封面」：一次只编一种比例；胶片取帧或上传源图后，
- * 在固定比例框内拖动/缩放构图，确认时仅上传裁切图；源图留在本机会话。
+ * 在固定比例框内拖动/缩放构图，确认时把裁切 Blob 交还父级（不直接入库）。
  */
 export function EditCoverDialog({
   open,
@@ -1166,22 +1160,19 @@ export function EditCoverDialog({
         naturalH: natural.h,
       });
       const stamp = Date.now();
-      const kind = MEDIA_KIND[aspect];
       const croppedFile = new File(
         [croppedBlob],
         `cover-${aspect}-${stamp}.jpg`,
         { type: 'image/jpeg' },
       );
-      // 只上传裁切图；源图以会话 URL 交还给父级，不进媒体库
-      const croppedAsset = await uploadMediaFile(croppedFile, kind);
-      // 本对话框创建的 blob 移交父级，避免关闭时 revoke
+      // 裁切图与源图均留在本机会话，由父级在保存内容时再上传封面 BLOB
       if (sourceObjectUrlRef.current === imageUrl) {
         sourceObjectUrlRef.current = null;
       }
       onSaved({
         sourceUrl: imageUrl,
-        croppedUrl: croppedAsset.url,
-        // 上传覆盖帧时刻；取帧或重开恢复的时刻予以保留
+        croppedFile,
+        // 本地选图覆盖帧时刻；取帧或重开恢复的时刻予以保留
         sourceFrameTime: sourceKind === 'upload' ? null : sourceFrameTime,
       });
       onOpenChange(false);

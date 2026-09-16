@@ -1,4 +1,6 @@
 /** 可由桌面 preload 在启动时覆盖为实际本机 Nest 端口 */
+import { getPugyingDesktopBridge } from '@/lib/agent-client';
+
 let apiBaseUrl: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
   'http://127.0.0.1:3928';
@@ -195,12 +197,10 @@ export type TargetPublishStatus =
   | 'failed'
   | 'cancelled';
 
-/** 针对单个平台账号的差异字段；未设置的文案/封面回落到内容通用设置 */
+/** 针对单个平台账号的差异字段；封面差异走独立 BLOB 接口 */
 export interface ContentTargetOverrides {
   title?: string;
   body?: string;
-  coverUrl?: string;
-  coverLandscapeUrl?: string;
   tags?: string[];
   scheduledAt?: string;
   visibility?: ContentVisibility;
@@ -213,6 +213,8 @@ export interface ContentTargetItem {
   platformAccountId: string;
   platform: PlatformId;
   overrides: ContentTargetOverrides;
+  hasCover: boolean;
+  hasCoverLandscape: boolean;
   publishStatus: TargetPublishStatus;
   platformPostId: string | null;
   platformUrl: string | null;
@@ -229,9 +231,9 @@ export interface ContentItem {
   type: ContentType;
   title: string;
   body: string | null;
-  coverUrl: string | null;
-  coverLandscapeUrl: string | null;
-  mediaUrls: string[];
+  hasCover: boolean;
+  hasCoverLandscape: boolean;
+  mediaPaths: string[];
   status: ContentStatus;
   publishedAt: string | null;
   tags: string[];
@@ -253,9 +255,7 @@ export interface CreateContentBody {
   type: ContentType;
   title: string;
   body?: string;
-  coverUrl?: string;
-  coverLandscapeUrl?: string;
-  mediaUrls?: string[];
+  mediaPaths?: string[];
   status?: ContentStatus;
   tags?: string[];
   location?: string;
@@ -282,150 +282,20 @@ export interface PublishDispatch {
   targetId: string;
   platform: string;
   accountId: string;
-  mediaUrl: string;
-  coverUrl: string;
-  coverLandscapeUrl: string;
+  mediaPath: string;
+  coverPath: string;
+  coverLandscapePath: string;
   title: string;
   body?: string;
   visibility: string;
   scheduledAt?: string;
   allowDownload: boolean;
   cookies: PublishCookie[];
-  mediaExpiresAt: number;
-  coverExpiresAt: number;
 }
 
 export interface PublishStartResult {
   content: ContentItem;
   dispatches: PublishDispatch[];
-}
-
-export interface MediaUploadInitResult {
-  uploadId: string;
-  chunkSize: number;
-  chunkCount: number;
-}
-
-export interface MediaAssetResult {
-  id: string;
-  kind: 'video' | 'cover' | 'cover_landscape';
-  originalName: string;
-  mimeType: string;
-  sizeBytes: number;
-  url: string;
-  checksumSha256?: string;
-}
-
-export type MediaLibraryCategory = 'video' | 'image';
-
-export interface MediaLibraryItem extends MediaAssetResult {
-  category: MediaLibraryCategory;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MediaDuplicateHit {
-  id: string;
-  kind: 'video' | 'cover' | 'cover_landscape';
-  originalName: string;
-  mimeType: string;
-  sizeBytes: number;
-  url: string;
-  checksumSha256: string;
-  createdAt: string;
-}
-
-export async function checkMediaDuplicate(body: {
-  kind: 'video' | 'cover' | 'cover_landscape';
-  checksumSha256: string;
-}): Promise<{ duplicate: MediaDuplicateHit | null }> {
-  return apiFetch<{ duplicate: MediaDuplicateHit | null }>(
-    '/media/assets/check-duplicate',
-    {
-      method: 'POST',
-      body: JSON.stringify(body),
-    },
-  );
-}
-
-export type MediaAssetSortField =
-  | 'originalName'
-  | 'kind'
-  | 'sizeBytes'
-  | 'createdAt';
-export type MediaAssetSortOrder = 'asc' | 'desc';
-
-export interface MediaLibraryListResult {
-  items: MediaLibraryItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export interface MediaLibraryCategoryStats {
-  count: number;
-  bytes: number;
-}
-
-export interface MediaLibraryStats {
-  totalCount: number;
-  totalBytes: number;
-  byCategory: {
-    video: MediaLibraryCategoryStats;
-    image: MediaLibraryCategoryStats;
-  };
-}
-
-export async function fetchMediaAssets(params?: {
-  type?: 'all' | MediaLibraryCategory;
-  q?: string;
-  page?: number;
-  pageSize?: number;
-  sortBy?: MediaAssetSortField;
-  sortOrder?: MediaAssetSortOrder;
-}): Promise<MediaLibraryListResult> {
-  const search = new URLSearchParams();
-  if (params?.type && params.type !== 'all') {
-    search.set('type', params.type);
-  }
-  const q = params?.q?.trim();
-  if (q) {
-    search.set('q', q);
-  }
-  if (params?.page !== undefined) {
-    search.set('page', String(params.page));
-  }
-  if (params?.pageSize !== undefined) {
-    search.set('pageSize', String(params.pageSize));
-  }
-  if (params?.sortBy) {
-    search.set('sortBy', params.sortBy);
-  }
-  if (params?.sortOrder) {
-    search.set('sortOrder', params.sortOrder);
-  }
-  const query = search.toString();
-  return apiFetch<MediaLibraryListResult>(`/media/assets${query ? `?${query}` : ''}`);
-}
-
-export async function fetchMediaAssetsStats(): Promise<MediaLibraryStats> {
-  return apiFetch<MediaLibraryStats>('/media/assets/stats');
-}
-
-export async function deleteMediaAsset(id: string): Promise<void> {
-  await apiFetch(`/media/assets/${id}`, { method: 'DELETE' });
-}
-
-export interface DeleteMediaAssetsResult {
-  deletedIds: string[];
-  missingIds: string[];
-}
-
-export async function deleteMediaAssets(ids: string[]): Promise<DeleteMediaAssetsResult> {
-  return apiFetch<DeleteMediaAssetsResult>('/media/assets/batch-delete', {
-    method: 'POST',
-    body: JSON.stringify({ ids }),
-  });
 }
 
 export interface ContentListResult {
@@ -538,104 +408,89 @@ export async function retryContentTarget(
   });
 }
 
-export async function initMediaUpload(body: {
-  kind: 'video' | 'cover' | 'cover_landscape';
-  originalName: string;
-  mimeType: string;
-  sizeBytes: number;
-  chunkSize?: number;
-}): Promise<MediaUploadInitResult> {
-  return apiFetch<MediaUploadInitResult>('/media/uploads', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
+export type CoverKind = 'portrait' | 'landscape';
+
+function coverPath(
+  contentId: string,
+  kind: CoverKind,
+  targetId?: string,
+): string {
+  const suffix = kind === 'portrait' ? 'cover' : 'cover-landscape';
+  if (targetId) {
+    return `/contents/${contentId}/targets/${targetId}/${suffix}`;
+  }
+  return `/contents/${contentId}/${suffix}`;
 }
 
-export async function putMediaChunk(
-  uploadId: string,
-  index: number,
-  chunk: Blob,
-): Promise<{ received: number; chunkCount: number }> {
+/** 封面预览 URL（带本机 token 需经 fetch 转 blob，见 fetchCoverObjectUrl） */
+export function contentCoverUrl(
+  contentId: string,
+  kind: CoverKind,
+  targetId?: string,
+): string {
+  return `${getApiBaseUrl()}${coverPath(contentId, kind, targetId)}`;
+}
+
+/** 拉取封面为 object URL，调用方负责 revoke */
+export async function fetchCoverObjectUrl(
+  contentId: string,
+  kind: CoverKind,
+  targetId?: string,
+): Promise<string> {
+  const headers = new Headers();
+  if (localApiToken) {
+    headers.set('X-Pugying-Local-Token', localApiToken);
+  }
+  const response = await fetch(contentCoverUrl(contentId, kind, targetId), {
+    headers,
+  });
+  if (!response.ok) {
+    throw new Error(`封面不可用（${response.status}）`);
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
+/** 上传封面到内容或账号差异列 */
+export async function uploadContentCover(
+  contentId: string,
+  kind: CoverKind,
+  file: File | Blob,
+  fileName = 'cover.jpg',
+  targetId?: string,
+): Promise<ContentItem> {
   const form = new FormData();
-  form.append('chunk', chunk, `chunk-${index}`);
-  return apiFetch(`/media/uploads/${uploadId}/chunks/${index}`, {
+  form.append('file', file, fileName);
+  return apiFetch<ContentItem>(coverPath(contentId, kind, targetId), {
     method: 'PUT',
     body: form,
   });
 }
 
-export async function completeMediaUpload(
-  uploadId: string,
-): Promise<MediaAssetResult> {
-  return apiFetch<MediaAssetResult>(`/media/uploads/${uploadId}/complete`, {
-    method: 'POST',
+export async function deleteContentCover(
+  contentId: string,
+  kind: CoverKind,
+  targetId?: string,
+): Promise<ContentItem> {
+  return apiFetch<ContentItem>(coverPath(contentId, kind, targetId), {
+    method: 'DELETE',
   });
 }
 
-export async function fetchMediaSignedUrl(
-  assetId: string,
-): Promise<{ url: string; expiresAt: number }> {
-  return apiFetch<{ url: string; expiresAt: number }>(
-    `/media/assets/${assetId}/signed-url`,
-    { method: 'POST' },
-  );
-}
-
-/** 从 `/media/assets/{uuid}` 或裸 UUID 解析资产 ID */
-export function parseMediaAssetId(ref: string | null | undefined): string | null {
-  if (!ref?.trim()) {
-    return null;
-  }
-  const trimmed = ref.trim();
-  const uuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (uuid.test(trimmed)) {
-    return trimmed;
-  }
-  const match = trimmed.match(
-    /\/media\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\/|$|\?)/i,
-  );
-  return match?.[1] ?? null;
-}
-
-/** 分片上传进度：按已传字节计，便于 UI 展示速度与剩余时间 */
-export type MediaUploadProgress = {
-  ratio: number;
-  loadedBytes: number;
-  totalBytes: number;
-};
-
-/** 分片上传本地文件到本机媒体库，返回资产（url 形如 /media/assets/{id}） */
-export async function uploadMediaFile(
-  file: File,
-  kind: 'video' | 'cover' | 'cover_landscape',
-  onProgress?: (progress: MediaUploadProgress) => void,
-  signal?: AbortSignal,
-): Promise<MediaAssetResult> {
-  const throwIfAborted = () => {
-    if (signal?.aborted) {
-      // 与 UI「取消上传」文案对齐，便于页面直接展示
-      throw new DOMException('上传已取消', 'AbortError');
+/** Electron File → 本机绝对路径（选片与拖拽通用；Electron 32+ 无 File.path） */
+export function getLocalFilePath(file: File): string | null {
+  const bridge = getPugyingDesktopBridge();
+  if (bridge?.getPathForFile) {
+    try {
+      const viaWebUtils = bridge.getPathForFile(file)?.trim();
+      if (viaWebUtils) {
+        return viaWebUtils;
+      }
+    } catch {
+      // fall through
     }
-  };
-  throwIfAborted();
-  const init = await initMediaUpload({
-    kind,
-    originalName: file.name,
-    mimeType: file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg'),
-    sizeBytes: file.size,
-  });
-  for (let i = 0; i < init.chunkCount; i += 1) {
-    throwIfAborted();
-    const start = i * init.chunkSize;
-    const end = Math.min(file.size, start + init.chunkSize);
-    await putMediaChunk(init.uploadId, i, file.slice(start, end));
-    onProgress?.({
-      ratio: end / file.size,
-      loadedBytes: end,
-      totalBytes: file.size,
-    });
   }
-  throwIfAborted();
-  return completeMediaUpload(init.uploadId);
+  // 兼容旧 Electron / 非桌面环境
+  const legacy = (file as File & { path?: string }).path?.trim();
+  return legacy || null;
 }

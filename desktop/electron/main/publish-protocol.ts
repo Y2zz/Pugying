@@ -14,12 +14,12 @@ export interface PlatformPublishStartPayload {
   targetId: string;
   platform: string;
   accountId: string;
-  /** Short-lived signed URL for the finished video. */
-  mediaUrl: string;
-  /** Required vertical cover (3:4) signed URL. */
-  coverUrl: string;
-  /** 横版封面（16:9）签名 URL；抖音等平台必填 */
-  coverLandscapeUrl: string;
+  /** 本机视频绝对路径 */
+  mediaPath: string;
+  /** 竖封面（3:4）本机临时文件路径 */
+  coverPath: string;
+  /** 横封面（4:3）本机临时文件路径 */
+  coverLandscapePath: string;
   title: string;
   body?: string;
   visibility?: string;
