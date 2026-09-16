@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isAbsolute } from 'path';
 import {
   PLATFORM_ACCOUNT_REPOSITORY,
   type IPlatformAccountRepository,
@@ -21,6 +22,7 @@ import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
 import {
   CONTENT_REPOSITORY,
+  type ContentCoverKind,
   type IContentRepository,
 } from '@pugying/content/domain/repositories/content.repository';
 import {
@@ -34,13 +36,45 @@ import {
   UpdateContentDto,
 } from '@pugying/content/application/dtos';
 
+const COVER_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
+/** 封面上限 20MB（裁切后通常远小） */
+const MAX_COVER_BYTES = 20 * 1024 * 1024;
+
+/** API 对外视图：不返回 BLOB，仅 hasCover 标志 */
+export type ContentTargetView = Omit<
+  ContentTarget,
+  'coverData' | 'coverLandscapeData' | 'coverMime' | 'coverLandscapeMime'
+> & {
+  hasCover: boolean;
+  hasCoverLandscape: boolean;
+};
+
+export type ContentView = Omit<
+  Content,
+  'coverData' | 'coverLandscapeData' | 'coverMime' | 'coverLandscapeMime'
+> & {
+  hasCover: boolean;
+  hasCoverLandscape: boolean;
+  targets: ContentTargetView[];
+};
+
 export type ContentWithTargets = Content & { targets: ContentTarget[] };
 
 export type ContentListPage = {
-  items: ContentWithTargets[];
+  items: ContentView[];
   total: number;
   page: number;
   pageSize: number;
+};
+
+export type CoverBinary = {
+  mime: string;
+  data: Buffer;
 };
 
 @Injectable()
@@ -88,21 +122,21 @@ export class ContentService {
       grouped.set(target.contentId, list);
     }
     const items = rows.map((row) =>
-      Object.assign(row, { targets: grouped.get(row.id) ?? [] }),
+      this.toContentView(row, grouped.get(row.id) ?? []),
     );
     return { items, total, page, pageSize };
   }
 
-  async findById(id: string): Promise<ContentWithTargets> {
+  async findById(id: string): Promise<ContentView> {
     const content = await this.repository.findById(id);
     if (!content) {
       throw new NotFoundException(`Content #${id} not found`);
     }
     const targets = await this.targetRepository.findByContent(content.id);
-    return Object.assign(content, { targets });
+    return this.toContentView(content, targets);
   }
 
-  async create(dto: CreateContentDto): Promise<ContentWithTargets> {
+  async create(dto: CreateContentDto): Promise<ContentView> {
     if (!isContentType(dto.type)) {
       throw new BadRequestException(`Unsupported content type: ${dto.type}`);
     }
@@ -116,14 +150,17 @@ export class ContentService {
         : 'public';
 
     const preparedTargets = await this.prepareTargets(dto.targets);
+    const mediaPaths = this.normalizeMediaPaths(dto.mediaPaths);
 
     const content = this.repository.create({
       type: dto.type,
       title: dto.title.trim(),
       body: dto.body?.trim() || null,
-      coverUrl: dto.coverUrl?.trim() || null,
-      coverLandscapeUrl: dto.coverLandscapeUrl?.trim() || null,
-      mediaUrls: this.normalizeList(dto.mediaUrls),
+      coverMime: null,
+      coverData: null,
+      coverLandscapeMime: null,
+      coverLandscapeData: null,
+      mediaPaths,
       status,
       publishedAt: status === 'published' ? new Date() : null,
       tags: this.normalizeList(dto.tags),
@@ -134,10 +171,10 @@ export class ContentService {
     });
     const saved = await this.repository.save(content);
     const targets = await this.replaceTargets(saved, preparedTargets);
-    return Object.assign(saved, { targets });
+    return this.toContentView(saved, targets);
   }
 
-  async update(id: string, dto: UpdateContentDto): Promise<ContentWithTargets> {
+  async update(id: string, dto: UpdateContentDto): Promise<ContentView> {
     const content = await this.repository.findById(id);
     if (!content) {
       throw new NotFoundException(`Content #${id} not found`);
@@ -149,14 +186,8 @@ export class ContentService {
     if (dto.body !== undefined) {
       content.body = dto.body.trim() || null;
     }
-    if (dto.coverUrl !== undefined) {
-      content.coverUrl = dto.coverUrl.trim() || null;
-    }
-    if (dto.coverLandscapeUrl !== undefined) {
-      content.coverLandscapeUrl = dto.coverLandscapeUrl.trim() || null;
-    }
-    if (dto.mediaUrls !== undefined) {
-      content.mediaUrls = this.normalizeList(dto.mediaUrls);
+    if (dto.mediaPaths !== undefined) {
+      content.mediaPaths = this.normalizeMediaPaths(dto.mediaPaths);
     }
     if (dto.tags !== undefined) {
       content.tags = this.normalizeList(dto.tags);
@@ -187,7 +218,7 @@ export class ContentService {
       preparedTargets !== undefined
         ? await this.replaceTargets(saved, preparedTargets)
         : await this.targetRepository.findByContent(saved.id);
-    return Object.assign(saved, { targets });
+    return this.toContentView(saved, targets);
   }
 
   async remove(id: string): Promise<void> {
@@ -197,6 +228,135 @@ export class ContentService {
     }
     await this.targetRepository.deleteByContent(content.id);
     await this.repository.remove(content);
+  }
+
+  async putCover(
+    contentId: string,
+    kind: ContentCoverKind,
+    file: { buffer?: Buffer; mimetype?: string; size?: number } | undefined,
+  ): Promise<ContentView> {
+    await this.requireContent(contentId);
+    const { mime, data } = this.assertCoverFile(file);
+    await this.repository.setCover(contentId, kind, mime, data);
+    return this.findById(contentId);
+  }
+
+  async deleteCover(
+    contentId: string,
+    kind: ContentCoverKind,
+  ): Promise<ContentView> {
+    await this.requireContent(contentId);
+    await this.repository.clearCover(contentId, kind);
+    return this.findById(contentId);
+  }
+
+  async putTargetCover(
+    contentId: string,
+    targetId: string,
+    kind: ContentCoverKind,
+    file: { buffer?: Buffer; mimetype?: string; size?: number } | undefined,
+  ): Promise<ContentView> {
+    await this.requireTarget(contentId, targetId);
+    const { mime, data } = this.assertCoverFile(file);
+    await this.targetRepository.setCover(targetId, kind, mime, data);
+    return this.findById(contentId);
+  }
+
+  async deleteTargetCover(
+    contentId: string,
+    targetId: string,
+    kind: ContentCoverKind,
+  ): Promise<ContentView> {
+    await this.requireTarget(contentId, targetId);
+    await this.targetRepository.clearCover(targetId, kind);
+    return this.findById(contentId);
+  }
+
+  async getCoverBinary(
+    contentId: string,
+    kind: ContentCoverKind,
+  ): Promise<CoverBinary> {
+    const content = await this.repository.findByIdWithCovers(contentId);
+    if (!content) {
+      throw new NotFoundException(`Content #${contentId} not found`);
+    }
+    return this.pickCover(content, kind);
+  }
+
+  /**
+   * 仅返回 Target 自身差异封面；无差异时 404，由前端回落内容级 URL。
+   */
+  async getTargetCoverBinary(
+    contentId: string,
+    targetId: string,
+    kind: ContentCoverKind,
+  ): Promise<CoverBinary> {
+    const target = await this.targetRepository.findByIdWithCovers(targetId);
+    if (!target || target.contentId !== contentId) {
+      throw new NotFoundException(`Target #${targetId} not found`);
+    }
+    return this.pickCover(target, kind);
+  }
+
+  private pickCover(
+    owner: {
+      coverMime: string | null;
+      coverData: Buffer | null;
+      coverLandscapeMime: string | null;
+      coverLandscapeData: Buffer | null;
+    },
+    kind: ContentCoverKind,
+  ): CoverBinary {
+    if (kind === 'portrait') {
+      if (!owner.coverMime || !owner.coverData?.length) {
+        throw new NotFoundException('竖版封面不存在');
+      }
+      return { mime: owner.coverMime, data: owner.coverData };
+    }
+    if (!owner.coverLandscapeMime || !owner.coverLandscapeData?.length) {
+      throw new NotFoundException('横版封面不存在');
+    }
+    return {
+      mime: owner.coverLandscapeMime,
+      data: owner.coverLandscapeData,
+    };
+  }
+
+  private assertCoverFile(file: {
+    buffer?: Buffer;
+    mimetype?: string;
+    size?: number;
+  } | undefined): CoverBinary {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('请上传封面文件（字段名 file）');
+    }
+    const mime = (file.mimetype ?? '').toLowerCase();
+    if (!COVER_MIME_TYPES.has(mime)) {
+      throw new BadRequestException('封面仅支持 JPEG / PNG / WebP');
+    }
+    if (file.buffer.length > MAX_COVER_BYTES) {
+      throw new BadRequestException('封面文件过大（上限 20MB）');
+    }
+    return { mime, data: file.buffer };
+  }
+
+  private async requireContent(id: string): Promise<Content> {
+    const content = await this.repository.findById(id);
+    if (!content) {
+      throw new NotFoundException(`Content #${id} not found`);
+    }
+    return content;
+  }
+
+  private async requireTarget(
+    contentId: string,
+    targetId: string,
+  ): Promise<ContentTarget> {
+    const target = await this.targetRepository.findById(targetId);
+    if (!target || target.contentId !== contentId) {
+      throw new NotFoundException(`Target #${targetId} not found`);
+    }
+    return target;
   }
 
   /** 校验账号归属并组装分发目标（不落库） */
@@ -225,6 +385,10 @@ export class ContentService {
         platformAccountId: account.id,
         platform: account.platform,
         overrides: this.sanitizeOverrides(target.overrides),
+        coverMime: null,
+        coverData: null,
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
         publishStatus: 'idle',
         platformPostId: null,
         platformUrl: null,
@@ -251,6 +415,7 @@ export class ContentService {
         '发布进行中，无法修改分发账号；请等待完成或取消后再试',
       );
     }
+    // 整体替换会重建 Target 行，账号差异封面需前端按需重新上传
     await this.targetRepository.deleteByContent(content.id);
     if (prepared.length === 0) {
       return [];
@@ -273,12 +438,6 @@ export class ContentService {
     }
     if (overrides.body?.trim()) {
       result.body = overrides.body.trim();
-    }
-    if (overrides.coverUrl?.trim()) {
-      result.coverUrl = overrides.coverUrl.trim();
-    }
-    if (overrides.coverLandscapeUrl?.trim()) {
-      result.coverLandscapeUrl = overrides.coverLandscapeUrl.trim();
     }
     const tags = this.normalizeList(overrides.tags);
     if (tags.length > 0) {
@@ -333,6 +492,50 @@ export class ContentService {
       .filter((value) => value.length > 0);
   }
 
+  /** 保存时只校验绝对路径形态，不强制 exists（源文件可稍后补齐） */
+  private normalizeMediaPaths(values: string[] | undefined): string[] {
+    const paths = this.normalizeList(values);
+    for (const p of paths) {
+      if (!isAbsolute(p)) {
+        throw new BadRequestException(`媒体路径须为本机绝对路径：${p}`);
+      }
+    }
+    return paths;
+  }
+
+  private toContentView(
+    content: Content,
+    targets: ContentTarget[],
+  ): ContentView {
+    const {
+      coverData: _cd,
+      coverLandscapeData: _cld,
+      coverMime,
+      coverLandscapeMime,
+      ...rest
+    } = content;
+    return {
+      ...rest,
+      hasCover: Boolean(coverMime),
+      hasCoverLandscape: Boolean(coverLandscapeMime),
+      targets: targets.map((t) => this.toTargetView(t)),
+    };
+  }
+
+  private toTargetView(target: ContentTarget): ContentTargetView {
+    const {
+      coverData: _cd,
+      coverLandscapeData: _cld,
+      coverMime,
+      coverLandscapeMime,
+      ...rest
+    } = target;
+    return {
+      ...rest,
+      hasCover: Boolean(coverMime),
+      hasCoverLandscape: Boolean(coverLandscapeMime),
+    };
+  }
 }
 
 export type { ContentType };

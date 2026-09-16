@@ -21,15 +21,25 @@ export const ContentEntitySchema = new EntitySchema<Content>({
       type: 'text',
       nullable: true,
     },
-    coverUrl: {
+    coverMime: {
       type: String,
       nullable: true,
     },
-    coverLandscapeUrl: {
+    coverData: {
+      type: 'blob',
+      nullable: true,
+      select: false,
+    },
+    coverLandscapeMime: {
       type: String,
       nullable: true,
     },
-    mediaUrls: {
+    coverLandscapeData: {
+      type: 'blob',
+      nullable: true,
+      select: false,
+    },
+    mediaPaths: {
       type: 'simple-json',
       default: '[]',
     },

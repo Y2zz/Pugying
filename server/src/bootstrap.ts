@@ -11,10 +11,7 @@ export interface LocalServerRuntimeOptions {
   host: string;
   port: number;
   databasePath?: string;
-  mediaStorageDir?: string;
-  mediaPublicBaseUrl?: string;
   credentialSecret?: string;
-  mediaSigningSecret?: string;
   localApiToken?: string;
 }
 
@@ -41,17 +38,8 @@ function applyRuntimeOptions(options: LocalServerRuntimeOptions): void {
   if (options.databasePath) {
     process.env.PUGYING_DATABASE_PATH = options.databasePath;
   }
-  if (options.mediaStorageDir) {
-    process.env.MEDIA_STORAGE_DIR = options.mediaStorageDir;
-  }
-  if (options.mediaPublicBaseUrl) {
-    process.env.MEDIA_PUBLIC_BASE_URL = options.mediaPublicBaseUrl;
-  }
   if (options.credentialSecret) {
     process.env.PLATFORM_CREDENTIAL_SECRET = options.credentialSecret;
-  }
-  if (options.mediaSigningSecret) {
-    process.env.MEDIA_SIGNING_SECRET = options.mediaSigningSecret;
   }
   if (options.localApiToken) {
     process.env.PUGYING_LOCAL_API_TOKEN = options.localApiToken;
@@ -74,10 +62,7 @@ export async function startLocalApiServer(
   if (localApiToken) {
     // Nest 12 的 app.use(...args: any[]) 会把回调参数推成 any，需显式标注 Express 类型
     app.use((request: Request, response: Response, next: NextFunction) => {
-      if (
-        request.path === '/api-json' ||
-        /^\/media\/assets\/[^/]+\/download$/.test(request.path)
-      ) {
+      if (request.path === '/api-json') {
         next();
         return;
       }

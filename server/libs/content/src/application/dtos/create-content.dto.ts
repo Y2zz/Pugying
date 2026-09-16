@@ -34,24 +34,14 @@ export class CreateContentDto {
   @IsString()
   body?: string;
 
-  @ApiPropertyOptional({ description: '竖版封面 URL（3:4）' })
-  @IsOptional()
-  @IsString()
-  coverUrl?: string;
-
-  @ApiPropertyOptional({ description: '横版封面 URL（16:9；抖音等平台必填）' })
-  @IsOptional()
-  @IsString()
-  coverLandscapeUrl?: string;
-
   @ApiPropertyOptional({
     type: [String],
-    description: '素材列表：图文为图片 URL，视频为本机媒体库视频地址',
+    description: '本机绝对路径：图文为图片，视频为视频文件',
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  mediaUrls?: string[];
+  mediaPaths?: string[];
 
   @ApiPropertyOptional({ enum: CONTENT_STATUSES, default: 'draft' })
   @IsOptional()

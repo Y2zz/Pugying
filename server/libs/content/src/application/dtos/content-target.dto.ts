@@ -13,7 +13,7 @@ import {
 import { CONTENT_VISIBILITIES } from '../../domain/content-types';
 import { Type } from 'class-transformer';
 
-/** 针对单个账号的差异字段；留空的字段使用内容通用设置 */
+/** 针对单个账号的差异字段；封面差异走独立 BLOB 接口，不在此 DTO */
 export class TargetOverridesDto {
   @ApiPropertyOptional({ description: '标题（差异）' })
   @IsOptional()
@@ -26,16 +26,6 @@ export class TargetOverridesDto {
   @IsString()
   @MaxLength(1000)
   body?: string;
-
-  @ApiPropertyOptional({ description: '竖版封面 URL（差异）' })
-  @IsOptional()
-  @IsString()
-  coverUrl?: string;
-
-  @ApiPropertyOptional({ description: '横版封面 URL（差异）' })
-  @IsOptional()
-  @IsString()
-  coverLandscapeUrl?: string;
 
   @ApiPropertyOptional({ type: [String], description: '话题标签（差异）' })
   @IsOptional()

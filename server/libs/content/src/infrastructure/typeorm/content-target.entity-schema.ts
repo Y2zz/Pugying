@@ -24,6 +24,24 @@ export const ContentTargetEntitySchema = new EntitySchema<ContentTarget>({
       type: 'simple-json',
       default: '{}',
     },
+    coverMime: {
+      type: String,
+      nullable: true,
+    },
+    coverData: {
+      type: 'blob',
+      nullable: true,
+      select: false,
+    },
+    coverLandscapeMime: {
+      type: String,
+      nullable: true,
+    },
+    coverLandscapeData: {
+      type: 'blob',
+      nullable: true,
+      select: false,
+    },
     publishStatus: {
       type: String,
       default: 'idle',

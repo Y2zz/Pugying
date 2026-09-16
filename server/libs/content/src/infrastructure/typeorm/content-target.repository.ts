@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
+import type { ContentCoverKind } from '@pugying/content/domain/repositories/content.repository';
 import type { IContentTargetRepository } from '@pugying/content/domain/repositories/content-target.repository';
 import { TypeOrmTransactionContext } from '@pugying/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
@@ -30,6 +31,15 @@ export class TypeOrmContentTargetRepository
     return this.repo.findOne({ where: { id } });
   }
 
+  async findByIdWithCovers(id: string): Promise<ContentTarget | null> {
+    return this.repo
+      .createQueryBuilder('target')
+      .addSelect('target.coverData')
+      .addSelect('target.coverLandscapeData')
+      .where('target.id = :id', { id })
+      .getOne();
+  }
+
   async findByContent(contentId: string): Promise<ContentTarget[]> {
     return this.repo.find({
       where: { contentId },
@@ -48,11 +58,11 @@ export class TypeOrmContentTargetRepository
   }
 
   async save(target: ContentTarget): Promise<ContentTarget> {
-    return this.repo.save(target);
+    return this.repo.save(omitUndefinedBlobs(target));
   }
 
   async saveMany(targets: ContentTarget[]): Promise<ContentTarget[]> {
-    return this.repo.save(targets);
+    return this.repo.save(targets.map(omitUndefinedBlobs));
   }
 
   async deleteByContent(contentId: string): Promise<void> {
@@ -61,4 +71,37 @@ export class TypeOrmContentTargetRepository
       await this.repo.remove(existing);
     }
   }
+
+  async setCover(
+    id: string,
+    kind: ContentCoverKind,
+    mime: string,
+    data: Buffer,
+  ): Promise<void> {
+    const patch =
+      kind === 'portrait'
+        ? { coverMime: mime, coverData: data }
+        : { coverLandscapeMime: mime, coverLandscapeData: data };
+    await this.repo.update({ id }, patch);
+  }
+
+  async clearCover(id: string, kind: ContentCoverKind): Promise<void> {
+    const patch =
+      kind === 'portrait'
+        ? { coverMime: null, coverData: null }
+        : { coverLandscapeMime: null, coverLandscapeData: null };
+    await this.repo.update({ id }, patch);
+  }
+}
+
+/** select:false 的 BLOB 未加载时为 undefined，save 时须剔除以免写成 NULL */
+function omitUndefinedBlobs(target: ContentTarget): ContentTarget {
+  const payload: Partial<ContentTarget> = { ...target };
+  if (payload.coverData === undefined) {
+    delete payload.coverData;
+  }
+  if (payload.coverLandscapeData === undefined) {
+    delete payload.coverLandscapeData;
+  }
+  return payload as ContentTarget;
 }

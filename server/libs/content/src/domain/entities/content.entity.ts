@@ -17,17 +17,23 @@ export class Content extends SoftDeleteAuditedEntity {
   @ApiPropertyOptional({ description: '正文（图文）/ 简介（视频）' })
   body: string | null;
 
-  @ApiPropertyOptional({ description: '竖版封面 URL（3:4，视频必填）' })
-  coverUrl: string | null;
+  /** 竖封面 MIME；字节见 coverData，列表 API 不返回字节 */
+  coverMime: string | null;
 
-  @ApiPropertyOptional({ description: '横版封面 URL（16:9；抖音等平台必填）' })
-  coverLandscapeUrl: string | null;
+  /** 竖封面二进制（3:4）；列表/详情默认不序列化 */
+  coverData: Buffer | null;
+
+  /** 横封面 MIME */
+  coverLandscapeMime: string | null;
+
+  /** 横封面二进制（4:3） */
+  coverLandscapeData: Buffer | null;
 
   @ApiProperty({
     type: [String],
-    description: '素材列表：图文为图片 URL，视频为本机媒体库视频地址',
+    description: '本机绝对路径：图文为图片，视频为视频文件（通常 1 个）',
   })
-  mediaUrls: string[];
+  mediaPaths: string[];
 
   @ApiProperty({ enum: ['draft', 'published'], description: '内容状态' })
   status: ContentStatus;

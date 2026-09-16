@@ -20,6 +20,18 @@ export class ContentTarget extends AuditedEntity {
   @ApiProperty({ description: '差异字段；未设置的字段使用内容通用设置' })
   overrides: ContentTargetOverrides;
 
+  /** 账号差异竖封面 MIME；无差异时为 null，回落内容级 */
+  coverMime: string | null;
+
+  /** 账号差异竖封面二进制 */
+  coverData: Buffer | null;
+
+  /** 账号差异横封面 MIME */
+  coverLandscapeMime: string | null;
+
+  /** 账号差异横封面二进制 */
+  coverLandscapeData: Buffer | null;
+
   @ApiProperty({
     enum: ['idle', 'queued', 'running', 'succeeded', 'failed', 'cancelled'],
     description: '对该账号的发布运行态',

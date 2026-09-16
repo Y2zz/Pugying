@@ -8,10 +8,7 @@ async function bootstrap(): Promise<void> {
     host,
     port,
     databasePath: process.env.PUGYING_DATABASE_PATH?.trim(),
-    mediaStorageDir: process.env.MEDIA_STORAGE_DIR?.trim(),
-    mediaPublicBaseUrl: process.env.MEDIA_PUBLIC_BASE_URL?.trim(),
     credentialSecret: process.env.PLATFORM_CREDENTIAL_SECRET?.trim(),
-    mediaSigningSecret: process.env.MEDIA_SIGNING_SECRET?.trim(),
     localApiToken: process.env.PUGYING_LOCAL_API_TOKEN?.trim(),
   });
 }

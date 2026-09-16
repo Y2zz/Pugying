@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Content } from '@pugying/content/domain/entities/content.entity';
 import type {
+  ContentCoverKind,
   ContentListFilter,
   IContentRepository,
 } from '@pugying/content/domain/repositories/content.repository';
@@ -41,14 +42,12 @@ export class TypeOrmContentRepository implements IContentRepository {
     const q = filter.q?.trim();
 
     if (!q) {
-      const [rows, total] = await this.repo.findAndCount(
-        {
-          where: filter.type ? { type: filter.type } : undefined,
-          order: { updatedAt: 'DESC' },
-          skip,
-          take: pageSize,
-        },
-      );
+      const [rows, total] = await this.repo.findAndCount({
+        where: filter.type ? { type: filter.type } : undefined,
+        order: { updatedAt: 'DESC' },
+        skip,
+        take: pageSize,
+      });
       return { rows, total };
     }
 
@@ -78,11 +77,54 @@ export class TypeOrmContentRepository implements IContentRepository {
     return this.repo.findOne({ where: { id } });
   }
 
+  async findByIdWithCovers(id: string): Promise<Content | null> {
+    return this.repo
+      .createQueryBuilder('content')
+      .addSelect('content.coverData')
+      .addSelect('content.coverLandscapeData')
+      .where('content.id = :id', { id })
+      .andWhere('content.deletedAt IS NULL')
+      .getOne();
+  }
+
   async save(content: Content): Promise<Content> {
-    return this.repo.save(content);
+    return this.repo.save(omitUndefinedBlobs(content));
   }
 
   async remove(content: Content): Promise<void> {
     await this.repo.softRemove(content);
   }
+
+  async setCover(
+    id: string,
+    kind: ContentCoverKind,
+    mime: string,
+    data: Buffer,
+  ): Promise<void> {
+    const patch =
+      kind === 'portrait'
+        ? { coverMime: mime, coverData: data }
+        : { coverLandscapeMime: mime, coverLandscapeData: data };
+    await this.repo.update({ id }, patch);
+  }
+
+  async clearCover(id: string, kind: ContentCoverKind): Promise<void> {
+    const patch =
+      kind === 'portrait'
+        ? { coverMime: null, coverData: null }
+        : { coverLandscapeMime: null, coverLandscapeData: null };
+    await this.repo.update({ id }, patch);
+  }
+}
+
+/** select:false 的 BLOB 未加载时为 undefined，save 时须剔除以免写成 NULL */
+function omitUndefinedBlobs(content: Content): Content {
+  const payload: Partial<Content> = { ...content };
+  if (payload.coverData === undefined) {
+    delete payload.coverData;
+  }
+  if (payload.coverLandscapeData === undefined) {
+    delete payload.coverLandscapeData;
+  }
+  return payload as Content;
 }

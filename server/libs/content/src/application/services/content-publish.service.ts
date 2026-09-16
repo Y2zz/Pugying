@@ -5,14 +5,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { access } from 'fs/promises';
+import { constants } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { writeFile, mkdir } from 'fs/promises';
 import {
   PLATFORM_ACCOUNT_REPOSITORY,
   type IPlatformAccountRepository,
 } from '@pugying/platform-account';
 import { decryptCredentialPayload } from '@pugying/platform-account/infrastructure/credential-crypto';
 import type { ReportPublishResultDto } from '@pugying/content/application/dtos/report-publish-result.dto';
-import { MediaService } from '@pugying/content/application/services/media.service';
-import type { ContentWithTargets } from '@pugying/content/application/services/content.service';
+import type { ContentView } from '@pugying/content/application/services/content.service';
 import {
   CONTENT_REPOSITORY,
   type IContentRepository,
@@ -23,6 +27,7 @@ import {
 } from '@pugying/content/domain/repositories/content-target.repository';
 import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
+import { PublishErrorCodes } from '@pugying/content/domain/publish-error-codes';
 
 /** P0：仅抖音短视频真正下发 */
 const P0_PUBLISH_PLATFORMS = new Set(['douyin']);
@@ -38,26 +43,27 @@ export interface PublishCookie {
   sameSite?: string;
 }
 
-/** 浏览器编排 Agent 所需的单 Target 下发载荷（含签名 URL + Cookie） */
+/** 桌面 Agent 所需的单 Target 下发载荷（本机路径，无签名 URL） */
 export interface PublishDispatch {
   targetId: string;
   platform: string;
   accountId: string;
-  mediaUrl: string;
-  coverUrl: string;
-  coverLandscapeUrl: string;
+  /** 本机视频绝对路径 */
+  mediaPath: string;
+  /** 竖封面临时文件路径（由服务端从 BLOB 写出） */
+  coverPath: string;
+  /** 横封面临时文件路径 */
+  coverLandscapePath: string;
   title: string;
   body?: string;
   visibility: string;
   scheduledAt?: string;
   allowDownload: boolean;
   cookies: PublishCookie[];
-  mediaExpiresAt: number;
-  coverExpiresAt: number;
 }
 
 export interface PublishStartResult {
-  content: ContentWithTargets;
+  content: ContentView;
   /** 按创建顺序串行执行；已成功的 Target 不会出现在此列表 */
   dispatches: PublishDispatch[];
 }
@@ -71,7 +77,6 @@ export class ContentPublishService {
     private readonly targets: IContentTargetRepository,
     @Inject(PLATFORM_ACCOUNT_REPOSITORY)
     private readonly accounts: IPlatformAccountRepository,
-    private readonly media: MediaService,
   ) {}
 
   /**
@@ -79,7 +84,7 @@ export class ContentPublishService {
    * 后端不直连 Agent；由浏览器按 dispatches 串行调本机 Agent。
    */
   async publish(contentId: string): Promise<PublishStartResult> {
-    const content = await this.requireContent(contentId);
+    const content = await this.requireContentWithCovers(contentId);
     this.assertVideoReady(content);
 
     const existing = await this.targets.findByContent(content.id);
@@ -137,17 +142,17 @@ export class ContentPublishService {
     }
 
     return {
-      content: await this.attachTargets(content),
+      content: await this.toContentView(content),
       dispatches,
     };
   }
 
-  /** queued → running，并刷新短时签名 URL / Cookie（防止 TTL 过期） */
+  /** queued → running，并刷新本机路径 / Cookie */
   async startTarget(
     contentId: string,
     targetId: string,
   ): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
-    const content = await this.requireContent(contentId);
+    const content = await this.requireContentWithCovers(contentId);
     const target = await this.requireTarget(contentId, targetId);
     if (target.publishStatus !== 'queued') {
       throw new BadRequestException(
@@ -239,7 +244,7 @@ export class ContentPublishService {
     contentId: string,
     targetId: string,
   ): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
-    const content = await this.requireContent(contentId);
+    const content = await this.requireContentWithCovers(contentId);
     this.assertVideoReady(content);
     const target = await this.requireTarget(contentId, targetId);
 
@@ -297,22 +302,38 @@ export class ContentPublishService {
     const cookies = this.decryptCookies(account.credentialCipher);
     const overrides = target.overrides ?? {};
 
-    const mediaRef = content.mediaUrls[0];
-    const coverRef = overrides.coverUrl?.trim() || content.coverUrl;
-    if (!mediaRef || !coverRef) {
-      throw new BadRequestException('缺少视频或竖版封面');
+    const mediaPath = content.mediaPaths?.[0]?.trim();
+    if (!mediaPath) {
+      throw new BadRequestException('缺少视频本地路径');
     }
+    await this.assertReadableFile(mediaPath);
 
-    const mediaSigned = await this.signAssetRef(mediaRef);
-    const coverSigned = await this.signAssetRef(coverRef);
-    const landscapeRef =
-      overrides.coverLandscapeUrl?.trim() || content.coverLandscapeUrl?.trim();
-    if (!landscapeRef) {
+    const targetWithCovers =
+      (await this.targets.findByIdWithCovers(target.id)) ?? target;
+
+    const portrait = this.resolveCover(content, targetWithCovers, 'portrait');
+    const landscape = this.resolveCover(content, targetWithCovers, 'landscape');
+    if (!portrait) {
+      throw new BadRequestException('缺少竖版封面');
+    }
+    if (!landscape) {
       throw new BadRequestException(
         '缺少横版封面（4:3）；抖音发布需同时提供竖版与横版封面',
       );
     }
-    const landscapeSigned = await this.signAssetRef(landscapeRef);
+
+    const workDir = join(tmpdir(), `pugying-dispatch-${target.id}`);
+    await mkdir(workDir, { recursive: true });
+    const coverPath = join(
+      workDir,
+      `cover${extForMime(portrait.mime)}`,
+    );
+    const coverLandscapePath = join(
+      workDir,
+      `cover-landscape${extForMime(landscape.mime)}`,
+    );
+    await writeFile(coverPath, portrait.data);
+    await writeFile(coverLandscapePath, landscape.data);
 
     const scheduled =
       overrides.scheduledAt ||
@@ -322,30 +343,56 @@ export class ContentPublishService {
       targetId: target.id,
       platform: target.platform,
       accountId: account.id,
-      mediaUrl: mediaSigned.url,
-      coverUrl: coverSigned.url,
-      coverLandscapeUrl: landscapeSigned.url,
+      mediaPath,
+      coverPath,
+      coverLandscapePath,
       title: (overrides.title?.trim() || content.title).trim(),
       body: (overrides.body?.trim() || content.body || undefined) || undefined,
       visibility: overrides.visibility ?? content.visibility,
       scheduledAt: scheduled,
       allowDownload: overrides.allowDownload ?? content.allowDownload,
       cookies,
-      mediaExpiresAt: mediaSigned.expiresAt,
-      coverExpiresAt: coverSigned.expiresAt,
     };
   }
 
-  private async signAssetRef(
-    ref: string,
-  ): Promise<{ url: string; expiresAt: number }> {
-    const assetId = parseMediaAssetId(ref);
-    if (!assetId) {
-      throw new BadRequestException(
-        `媒体地址须为本机媒体库资产（/media/assets/{id}），收到：${ref}`,
-      );
+  private resolveCover(
+    content: Content,
+    target: ContentTarget,
+    kind: 'portrait' | 'landscape',
+  ): { mime: string; data: Buffer } | null {
+    if (kind === 'portrait') {
+      if (target.coverMime && target.coverData?.length) {
+        return { mime: target.coverMime, data: target.coverData };
+      }
+      if (content.coverMime && content.coverData?.length) {
+        return { mime: content.coverMime, data: content.coverData };
+      }
+      return null;
     }
-    return this.media.createSignedDownloadUrlForLocalAsset(assetId);
+    if (target.coverLandscapeMime && target.coverLandscapeData?.length) {
+      return {
+        mime: target.coverLandscapeMime,
+        data: target.coverLandscapeData,
+      };
+    }
+    if (content.coverLandscapeMime && content.coverLandscapeData?.length) {
+      return {
+        mime: content.coverLandscapeMime,
+        data: content.coverLandscapeData,
+      };
+    }
+    return null;
+  }
+
+  private async assertReadableFile(filePath: string): Promise<void> {
+    try {
+      await access(filePath, constants.R_OK);
+    } catch {
+      throw new BadRequestException({
+        message: `源文件不可用，请重新选择：${filePath}`,
+        errorCode: PublishErrorCodes.MEDIA_MISSING,
+      });
+    }
   }
 
   private decryptCookies(cipher: string): PublishCookie[] {
@@ -370,21 +417,22 @@ export class ContentPublishService {
     if (!content.title?.trim()) {
       throw new BadRequestException('标题不能为空');
     }
-    if (!content.mediaUrls?.length) {
-      throw new BadRequestException('请先上传视频到本机媒体库');
+    if (!content.mediaPaths?.length) {
+      throw new BadRequestException('请先选择本机视频文件');
     }
-    if (!content.coverUrl?.trim()) {
+    // 发布要求内容级竖/横封面 BLOB；Target 差异封面仅为覆盖，不能替代通用封面
+    if (!content.coverMime || !content.coverData?.length) {
       throw new BadRequestException('请先准备竖版封面（3:4）');
     }
-    if (!content.coverLandscapeUrl?.trim()) {
+    if (!content.coverLandscapeMime || !content.coverLandscapeData?.length) {
       throw new BadRequestException(
-        '请先准备横版封面（16:9）；抖音发布需同时提供竖版与横版封面',
+        '请先准备横版封面（4:3）；抖音发布需同时提供竖版与横版封面',
       );
     }
   }
 
-  private async requireContent(id: string): Promise<Content> {
-    const content = await this.contents.findById(id);
+  private async requireContentWithCovers(id: string): Promise<Content> {
+    const content = await this.contents.findByIdWithCovers(id);
     if (!content) {
       throw new NotFoundException(`Content #${id} not found`);
     }
@@ -402,22 +450,43 @@ export class ContentPublishService {
     return target;
   }
 
-  private async attachTargets(content: Content): Promise<ContentWithTargets> {
+  private async toContentView(content: Content): Promise<ContentView> {
     const targets = await this.targets.findByContent(content.id);
-    return Object.assign(content, { targets });
+    const {
+      coverData: _cd,
+      coverLandscapeData: _cld,
+      coverMime,
+      coverLandscapeMime,
+      ...rest
+    } = content;
+    return {
+      ...rest,
+      hasCover: Boolean(coverMime),
+      hasCoverLandscape: Boolean(coverLandscapeMime),
+      targets: targets.map((t) => {
+        const {
+          coverData: _tcd,
+          coverLandscapeData: _tcld,
+          coverMime: tm,
+          coverLandscapeMime: tlm,
+          ...tRest
+        } = t;
+        return {
+          ...tRest,
+          hasCover: Boolean(tm),
+          hasCoverLandscape: Boolean(tlm),
+        };
+      }),
+    };
   }
 }
 
-/** 从 `/media/assets/{uuid}` 或裸 UUID 解析资产 ID */
-export function parseMediaAssetId(ref: string): string | null {
-  const trimmed = ref.trim();
-  const uuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (uuid.test(trimmed)) {
-    return trimmed;
+function extForMime(mime: string): string {
+  if (mime === 'image/png') {
+    return '.png';
   }
-  const match = trimmed.match(
-    /\/media\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\/|$|\?)/i,
-  );
-  return match?.[1] ?? null;
+  if (mime === 'image/webp') {
+    return '.webp';
+  }
+  return '.jpg';
 }

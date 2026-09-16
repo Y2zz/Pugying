@@ -20,15 +20,6 @@ export const TARGET_PUBLISH_STATUSES = [
 /** 单个分发目标的发布运行态 */
 export type TargetPublishStatus = (typeof TARGET_PUBLISH_STATUSES)[number];
 
-export const MEDIA_ASSET_KINDS = [
-  'video',
-  'cover',
-  'cover_landscape',
-] as const;
-
-/** 本机媒体库视频 / 竖封面 / 横封面 */
-export type MediaAssetKind = (typeof MEDIA_ASSET_KINDS)[number];
-
 export const CONTENT_VISIBILITIES = ['public', 'friends', 'private'] as const;
 
 /** 公开 / 好友可见 / 仅自己可见（参考抖音「谁可以看」） */
@@ -54,17 +45,10 @@ export function isTargetPublishStatus(
   return (TARGET_PUBLISH_STATUSES as readonly string[]).includes(value);
 }
 
-export function isMediaAssetKind(value: string): value is MediaAssetKind {
-  return (MEDIA_ASSET_KINDS as readonly string[]).includes(value);
-}
-
-/** 针对单个平台账号的差异字段；未设置的文案/封面回落到内容通用设置 */
+/** 针对单个平台账号的差异字段；封面差异在 Target 的 BLOB 列，不在此 JSON */
 export interface ContentTargetOverrides {
   title?: string;
   body?: string;
-  coverUrl?: string;
-  /** 横版封面差异；未设置则回落内容通用横封面 */
-  coverLandscapeUrl?: string;
   tags?: string[];
   scheduledAt?: string;
   visibility?: ContentVisibility;

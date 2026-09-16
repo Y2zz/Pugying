@@ -2,6 +2,9 @@
 export const PublishErrorCodes = {
   AUTH_EXPIRED: 'AUTH_EXPIRED',
   CANCELLED: 'cancelled',
+  /** 本机源文件不可读（已删 / 拔盘 / 离线） */
+  MEDIA_MISSING: 'MEDIA_MISSING',
+  /** @deprecated 兼容旧回执；新代码用 MEDIA_MISSING */
   MEDIA_UNREACHABLE: 'MEDIA_UNREACHABLE',
   ADAPTER_UI_CHANGED: 'ADAPTER_UI_CHANGED',
   ADAPTER_PARTIAL: 'ADAPTER_PARTIAL',
