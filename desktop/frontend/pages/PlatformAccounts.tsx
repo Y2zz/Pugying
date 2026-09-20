@@ -36,7 +36,6 @@ import {
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AgentNeededDialog } from '@/components/AgentNeededDialog';
 import { useAgent } from '@/hooks/use-agent';
@@ -54,7 +53,6 @@ import {
   type PlatformCatalogItem,
   type PlatformId,
 } from '@/lib/api';
-import { matchPlatformQuery } from '@/lib/platforms';
 import { cn } from '@/lib/utils';
 
 /** 列表筛选：全部 + 平台目录中的各平台 */
@@ -144,7 +142,7 @@ const STATUS_META: Record<
 
 const AUTH_STEPS: Array<{ id: 'open' | 'login' | 'bind'; label: (platformName: string) => string }> = [
   { id: 'open', label: () => '打开授权窗口' },
-  { id: 'login', label: (platformName) => `在 Agent 登录「${platformName}」` },
+  { id: 'login', label: (platformName) => `在授权窗口登录「${platformName}」` },
   { id: 'bind', label: () => '保存到蒲公英' },
 ];
 
@@ -225,12 +223,10 @@ export default function PlatformAccounts() {
   const [authSuccess, setAuthSuccess] = useState<AuthSuccessState | null>(null);
   const authSessionRef = useRef(0);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('');
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [accountQuery, setAccountQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [platformQuery, setPlatformQuery] = useState('');
   const [renameTarget, setRenameTarget] = useState<PlatformAccountItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<PlatformAccountItem | null>(null);
@@ -238,7 +234,6 @@ export default function PlatformAccounts() {
 
   const platformLabel = (id: string) => catalog.find((item) => item.id === id)?.displayName ?? id;
 
-  const filteredCatalog = catalog.filter((item) => matchPlatformQuery(item, platformQuery));
   // 平台筛选已由服务端完成；此处仅做名称搜索与分页
   const filteredAccounts = accounts.filter((account) => {
     const q = accountQuery.trim().toLowerCase();
@@ -294,9 +289,6 @@ export default function PlatformAccounts() {
       }
       setCatalog(platforms);
       setAccounts(list);
-      if (!selectedPlatform && platforms[0]) {
-        setSelectedPlatform(platforms[0].id);
-      }
     } catch (err) {
       if (seq !== loadSeqRef.current) {
         return;
@@ -365,13 +357,17 @@ export default function PlatformAccounts() {
     }
   };
 
-  const runAuthAndBind = async (mode: 'create' | 'reauth', accountId?: string) => {
+  /**
+   * 发起平台授权并落库。
+   * create：target 为平台 id（来自添加下拉）；reauth：target 为已有账号 id。
+   */
+  const runAuthAndBind = async (mode: 'create' | 'reauth', target: string) => {
     if (!requireAgent()) {
       return;
     }
-    const platform = mode === 'create' ? selectedPlatform : accounts.find((a) => a.id === accountId)?.platform;
+    const platform = mode === 'create' ? target : accounts.find((a) => a.id === target)?.platform;
     if (!platform) {
-      setError('请选择平台');
+      setError(mode === 'create' ? '请选择平台' : '账号不存在或已删除');
       return;
     }
 
@@ -382,7 +378,7 @@ export default function PlatformAccounts() {
     setBusy(true);
     setError('');
     setAuthSuccess(null);
-    setDialogOpen(false);
+    setAddMenuOpen(false);
     setAuthLock({ mode, platformName, requestId, phase: 'opening' });
     try {
       const result = await agentClient.startPlatformAuth({
@@ -409,8 +405,8 @@ export default function PlatformAccounts() {
       setAuthLock((prev) => (prev && prev.requestId === requestId ? { ...prev, phase: 'binding' } : prev));
 
       let bound: PlatformAccountItem;
-      if (mode === 'reauth' && accountId) {
-        bound = await reauthPlatformAccount(accountId, {
+      if (mode === 'reauth') {
+        bound = await reauthPlatformAccount(target, {
           cookies: result.cookies,
           finalUrl: result.finalUrl,
           profile: result.profile,
@@ -505,7 +501,7 @@ export default function PlatformAccounts() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="媒体账号"
-        description="通过蒲公英桌面端打开类 Chrome 授权窗，完成抖音 / 头条 / 视频号 / B 站 / 小红书绑定"
+        description="绑定各平台账号，发布时选用。"
       />
 
       {error ? <FieldError>{error}</FieldError> : null}
@@ -583,23 +579,36 @@ export default function PlatformAccounts() {
             <RefreshCw data-icon="inline-start" />
             刷新
           </Button>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              if (!requireAgent()) {
+          <DropdownMenu
+            open={addMenuOpen}
+            onOpenChange={(open) => {
+              // 未连接桌面端时先提示，不展开空菜单
+              if (open && !requireAgent()) {
                 return;
               }
-              // 从某平台筛选点「添加」时预选该平台，减少二次选择
-              if (platformFilter !== 'all') {
-                setSelectedPlatform(platformFilter);
-              }
-              setPlatformQuery('');
-              setDialogOpen(true);
+              setAddMenuOpen(open);
             }}
           >
-            <Plus data-icon="inline-start" />
-            添加账号
-          </Button>
+            <DropdownMenuTrigger render={<Button disabled={busy || catalog.length === 0} />}>
+              <Plus data-icon="inline-start" />
+              添加账号
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuGroup>
+                {catalog.map((item) => (
+                  <DropdownMenuItem
+                    key={item.id}
+                    onClick={() => {
+                      void runAuthAndBind('create', item.id);
+                    }}
+                  >
+                    <PlatformIcon platform={item.id} className="size-4 rounded-sm" />
+                    {item.displayName}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -729,119 +738,6 @@ export default function PlatformAccounts() {
       )}
 
       <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setPlatformQuery('');
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>添加媒体账号</DialogTitle>
-            <DialogDescription>选择平台后，Agent 将打开隔离的类 Chrome 授权窗口。登录完成后可自动检测，或点击窗口内「完成授权」。</DialogDescription>
-          </DialogHeader>
-          <FieldGroup className="gap-4 py-2">
-            <Field>
-              <FieldLabel htmlFor="platform-search">搜索平台</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id="platform-search"
-                  value={platformQuery}
-                  placeholder="按名称搜索，如 抖音、B站、小红书"
-                  autoFocus
-                  onChange={(e) => {
-                    setPlatformQuery(e.target.value);
-                  }}
-                />
-                <InputGroupAddon>
-                  <SearchIcon />
-                </InputGroupAddon>
-                {platformQuery ? (
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupButton
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label="清除搜索"
-                      onClick={() => {
-                        setPlatformQuery('');
-                      }}
-                    >
-                      <XIcon />
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                ) : null}
-              </InputGroup>
-            </Field>
-            <Field>
-              <FieldLabel id="platform-grid-label">选择平台</FieldLabel>
-              {filteredCatalog.length === 0 ? (
-                <Empty className="border border-dashed py-8">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <SearchIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>未找到平台</EmptyTitle>
-                    <EmptyDescription>换个关键词试试，例如「头条」「视频号」「B站」。</EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                // ToggleGroup 会渲染 children；勿用 outline + spacing=0（会变成连体分段边框）
-                <ToggleGroup
-                  aria-labelledby="platform-grid-label"
-                  value={selectedPlatform ? [selectedPlatform] : []}
-                  onValueChange={(values) => {
-                    const next = values[0];
-                    // 单选：禁止点已选项清空，避免「开始授权」无平台
-                    if (next) {
-                      setSelectedPlatform(next);
-                    }
-                  }}
-                  className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3"
-                >
-                  {filteredCatalog.map((item) => {
-                    return (
-                      <ToggleGroupItem
-                        key={item.id}
-                        value={item.id}
-                        aria-label={item.displayName}
-                        className={cn(
-                          'h-auto min-w-0 flex-col gap-2 rounded-xl border-0 bg-card p-4 text-sm text-foreground shadow-xs ring-1 ring-foreground/10',
-                          'hover:bg-muted/50 data-pressed:bg-muted data-pressed:text-foreground data-pressed:ring-2 data-pressed:ring-ring'
-                        )}
-                      >
-                        <PlatformIcon platform={item.id} className="size-10" />
-                        <span className="truncate font-medium">{item.displayName}</span>
-                      </ToggleGroupItem>
-                    );
-                  })}
-                </ToggleGroup>
-              )}
-            </Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDialogOpen(false);
-              }}
-            >
-              取消
-            </Button>
-            <Button
-              disabled={!selectedPlatform || busy}
-              onClick={() => {
-                void runAuthAndBind('create');
-              }}
-            >
-              开始授权
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
         open={renameTarget !== null}
         onOpenChange={(open) => {
           if (!open) {
@@ -908,7 +804,7 @@ export default function PlatformAccounts() {
             <DialogTitle>{authLock?.mode === 'reauth' ? '正在重新授权' : '正在添加账号'}</DialogTitle>
             <DialogDescription>
               {authLock
-                ? `请在桌面授权窗完成「${authLock.platformName}」登录。登录成功后会自动继续；若长时间无反应，可在授权窗点击「完成授权」。`
+                ? `请在授权窗口完成「${authLock.platformName}」登录。登录成功后会自动继续；若一直未完成，可点窗口内「完成授权」。`
                 : null}
             </DialogDescription>
           </DialogHeader>
@@ -938,10 +834,12 @@ export default function PlatformAccounts() {
                       <p className={cn('text-sm font-medium', status === 'pending' && 'text-muted-foreground')}>{step.label(authLock.platformName)}</p>
                       {status === 'current' && step.id === 'login' ? (
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {authLock.phase === 'finishing' ? '正在读取账号资料…' : '在 Agent 窗口登录目标账号'}
+                          {authLock.phase === 'finishing' ? '正在确认账号…' : '在授权窗口完成登录'}
                         </p>
                       ) : null}
-                      {status === 'current' && step.id === 'bind' ? <p className="mt-0.5 text-xs text-muted-foreground">正在加密保存登录凭证…</p> : null}
+                      {status === 'current' && step.id === 'bind' ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">正在保存账号…</p>
+                      ) : null}
                     </div>
                   </li>
                 );
@@ -971,8 +869,8 @@ export default function PlatformAccounts() {
                 <DialogTitle>{authSuccess.mode === 'reauth' ? '重新授权成功' : '账号添加成功'}</DialogTitle>
                 <DialogDescription>
                   {authSuccess.weakProfile
-                    ? '已保存登录凭证，但未能读取到平台昵称。建议现在设置一个便于识别的名称。'
-                    : '登录凭证已加密保存，可在列表中查看或打开创作者中心。'}
+                    ? '账号已添加。建议设置一个便于识别的名称。'
+                    : '账号已添加，可在列表中查看或打开创作者中心。'}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-3">
