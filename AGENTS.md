@@ -51,6 +51,7 @@ Pugying（蒲公英）是一套**个人单机桌面**自媒体内容发布系统
 - **代码检查**: ESLint
 - **CSS**: Tailwind CSS v4 + shadcn/ui（底层组件库为 Base UI，非 Radix UI）
 - **字号**：对齐 **shadcn vega**——浏览器默认 **1rem = 16px**，不重映射 Tailwind 刻度；控件多为 `text-sm`（≈14px），正文继承 `text-base`。禁止业务层 `text-[Npx]`。详见 `.cursor/rules/frontend-typography.mdc`。
+- **用户可见文案**：界面 / Toast / 引导 / 错误提示须**克制**，不暴露实现细节（错误码、HTTP/DOM、抓包等），通俗易懂、能一句则一句。详见 `.cursor/rules/user-facing-copy.mdc`。
 
 ## 编码规范
 
