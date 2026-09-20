@@ -24,6 +24,6 @@ export function notifyUser(
     return;
   }
   if (Notification.isSupported()) {
-    new Notification({ title: 'Pugying Agent', body: text }).show();
+    new Notification({ title: '蒲公英', body: text }).show();
   }
 }

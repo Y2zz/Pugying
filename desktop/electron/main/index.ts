@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[pugying-desktop] local server failed:', message);
-    dialog.showErrorBox('本机服务启动失败', message);
+    dialog.showErrorBox('蒲公英启动失败', message);
   }
 
   createAppWindow();

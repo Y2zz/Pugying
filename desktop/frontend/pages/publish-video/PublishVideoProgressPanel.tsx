@@ -10,7 +10,7 @@ export type PublishProgressAccount = {
 };
 
 /**
- * 流程第 4/5 步：提交发布与 Agent 推送进度。
+ * 流程第 4/5 步：提交发布与推送进度。
  * activeAccountId 由 publishHint 解析出的当前账号（若有）。
  */
 export function PublishVideoProgressPanel({
@@ -28,7 +28,7 @@ export function PublishVideoProgressPanel({
   const title = flowStep === 'publish' ? '正在发布' : '推送进度';
   const description =
     publishHint.trim() ||
-    (flowStep === 'publish' ? '正在向后端申请发布并准备 Agent 任务…' : '正在串行推送到各抖音账号…');
+    (flowStep === 'publish' ? '正在向后端申请发布并准备发布任务…' : '正在串行推送到各抖音账号…');
 
   return (
     <Card className="flex min-h-[350px] flex-col">
