@@ -5,6 +5,7 @@
 .claude/settings.local.json
 .reasonix
 server/.seed_probe
+.cursor/plans
 
 # Deploy
 .env
@@ -13,3 +14,4 @@ server/*.db
 server/data/
 
 /test-reports/
+desktop/tsconfig.web.tsbuildinfo
