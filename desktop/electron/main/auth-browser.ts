@@ -11,7 +11,10 @@ import {
 import { authBubbleSteps, firstRunSlides } from './guide';
 import { getPlatformAdapter, type CookieLike } from './platforms/adapters';
 import { recordJsonEndpoints } from './platforms/endpoint-recorder';
-import { fetchPlatformProfile } from './platforms/fetch-profile';
+import {
+  fetchPlatformProfile,
+  hasLoggedInUserInfo,
+} from './platforms/fetch-profile';
 import { readPrefs, writePrefs } from './prefs';
 import type {
   AgentCookie,
@@ -30,6 +33,8 @@ import {
 export type { AnchorRect } from '@shared/ipc';
 
 const POLL_MS = 1500;
+/** 资料探测失败后的最短间隔，避免登录前/资料未就绪时狂打接口 */
+const PROFILE_PROBE_COOLDOWN_MS = 3000;
 
 export type AuthResultCallback = (
   result: PlatformAuthResultPayload,
@@ -74,6 +79,13 @@ export interface AuthBrowserHandle {
   onResult: AuthResultCallback;
   /** Auth jobs only — mirrors progress to the SPA lock dialog. */
   onProgress?: AuthProgressCallback;
+  /**
+   * 正在抓取/判定登录用户信息；防止轮询与「完成授权」并发。
+   * 仅 auth 任务使用。
+   */
+  authFinishing?: boolean;
+  /** 上次自动探测资料的时间戳；用于失败冷却 */
+  lastProfileProbeAt?: number;
   dispose: () => Promise<void>;
 }
 
@@ -102,17 +114,27 @@ function preloadPath(): string {
 /**
  * Load the auth UI (toolbar / menu / guide) into a WebContents.
  * In dev, electron-vite serves auth.html; in production it's out/renderer/auth.html.
+ * @param force 强制整页导航（同文档仅改 hash 时 React 根不会重挂，引导切换必须用）
  */
-function loadAuthUi(wc: WebContents, hash?: string): Promise<void> {
+function loadAuthUi(
+  wc: WebContents,
+  hash?: string,
+  force = false,
+): Promise<void> {
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
     const base = `${devUrl.replace(/\/$/, '')}/auth.html`;
-    return wc.loadURL(hash ? `${base}#${hash}` : base);
+    // 查询串使 URL 与当前页不同，避免 Chromium 把「仅 hash 变化」当成同文档导航
+    const q = force ? `?t=${Date.now()}` : '';
+    return wc.loadURL(hash ? `${base}${q}#${hash}` : `${base}${q}`);
   }
-  return wc.loadFile(
-    path.join(__dirname, '../renderer/auth.html'),
-    hash ? { hash } : undefined,
-  );
+  const filePath = path.join(__dirname, '../renderer/auth.html');
+  if (force) {
+    return wc
+      .loadURL('about:blank')
+      .then(() => wc.loadFile(filePath, hash ? { hash } : undefined));
+  }
+  return wc.loadFile(filePath, hash ? { hash } : undefined);
 }
 
 function clampZoom(factor: number): number {
@@ -331,11 +353,9 @@ async function loadGuideHash(
   guideView: WebContentsView,
   hash: string,
 ): Promise<void> {
-  const current = guideView.webContents.getURL();
-  if (current.includes(`#${hash}`) || current.includes(`#/${hash}`)) {
-    return;
-  }
-  await loadAuthUi(guideView.webContents, hash);
+  // 引导模式切换（first-run → bubbles）必须整页重载：仅改 hash 时
+  // App 若未收到 hashchange，会一直停在「开始授权」页，点击像无响应。
+  await loadAuthUi(guideView.webContents, hash, true);
 }
 
 function hideGuide(handle: AuthBrowserHandle): void {
@@ -609,6 +629,10 @@ function wireIpcOnce(): void {
         // re-add to raise above the platform page view
         handle.window.contentView.addChildView(toastView);
         toastView.setVisible(true);
+        // 引导层须压在 toast 之上，否则透明 toast 区域会吞掉「开始授权」点击
+        if (handle.guideView && handle.guideMode !== null) {
+          handle.window.contentView.addChildView(handle.guideView);
+        }
       } else {
         toastView.setVisible(false);
       }
@@ -665,7 +689,7 @@ function wireIpcOnce(): void {
   );
 
   ipcMain.handle(IPC.guideFirstNext, (event) =>
-    withJob(event, (handle) => {
+    withJob(event, async (handle) => {
       if (handle.guideMode !== 'first-run') {
         return;
       }
@@ -673,7 +697,10 @@ function wireIpcOnce(): void {
       if (handle.guideIndex < slides.length - 1) {
         handle.guideIndex += 1;
         pushGuide(handle);
+        return;
       }
+      // 末页误走 next 时也结束指引，避免「开始授权」看起来无响应
+      await finishFirstRun(handle, true);
     }),
   );
   ipcMain.handle(IPC.guideFirstSkip, (event) =>
@@ -788,36 +815,86 @@ function wireIpcOnce(): void {
   );
 }
 
+/**
+ * 完成授权：唯一成功条件是读到 platformUserId + nickname。
+ * isAuthed 只决定「值得探测」，不能单独视为登录成功。
+ */
 async function finishAuth(
   handle: AuthBrowserHandle,
   source: 'auto' | 'manual',
 ): Promise<void> {
-  handle.onProgress?.('finishing');
-  const adapter = getPlatformAdapter(handle.platform);
-  const cookies = await collectCookies(
-    handle.authSession,
-    adapter?.cookieDomains ?? [],
-  );
-  // Best-effort: the account still binds fine if the platform's internal
-  // profile APIs have moved — the user can rename it by hand.
-  const profile = adapter
-    ? await fetchPlatformProfile({
-        adapter,
-        authSession: handle.authSession,
-        cookies: cookies as CookieLike[],
-        webContents: handle.contentView.webContents,
-      })
-    : null;
-  handle.onResult({
-    requestId: handle.requestId,
-    ok: true,
-    platform: handle.platform,
-    cookies,
-    finalUrl: handle.contentView.webContents.getURL(),
-    source,
-    profile: profile ?? undefined,
-  });
-  await disposeAuthJob(handle.requestId);
+  if (handle.kind !== 'auth') {
+    return;
+  }
+  if (handle.authFinishing) {
+    return;
+  }
+  // 自动探测失败后冷却，避免 1.5s 轮询打爆资料接口；手动点击不冷却
+  if (
+    source === 'auto' &&
+    handle.lastProfileProbeAt &&
+    Date.now() - handle.lastProfileProbeAt < PROFILE_PROBE_COOLDOWN_MS
+  ) {
+    return;
+  }
+
+  handle.authFinishing = true;
+  // 仅手动点「完成授权」时推进主窗进度，避免自动探测失败导致文案闪烁
+  if (source === 'manual') {
+    handle.onProgress?.('finishing');
+  }
+  try {
+    const adapter = getPlatformAdapter(handle.platform);
+    if (!adapter) {
+      if (source === 'manual') {
+        // 不经 notify.ts，避免与本文件 sendToastEvent 循环依赖
+        sendToastEvent(handle, IPC.notice, {
+          text: '还没有确认登录成功，请先完成登录后再试',
+          type: 'error',
+        });
+        handle.onProgress?.('awaiting_login');
+      }
+      return;
+    }
+
+    const cookies = await collectCookies(
+      handle.authSession,
+      adapter.cookieDomains,
+    );
+    const profile = await fetchPlatformProfile({
+      adapter,
+      authSession: handle.authSession,
+      cookies: cookies as CookieLike[],
+      webContents: handle.contentView.webContents,
+    });
+
+    if (!hasLoggedInUserInfo(profile)) {
+      handle.lastProfileProbeAt = Date.now();
+      if (source === 'manual') {
+        sendToastEvent(handle, IPC.notice, {
+          text: '还没有确认登录成功，请先完成登录后再试',
+          type: 'error',
+        });
+        handle.onProgress?.('awaiting_login');
+      }
+      return;
+    }
+
+    handle.onProgress?.('finishing');
+    handle.onResult({
+      requestId: handle.requestId,
+      ok: true,
+      platform: handle.platform,
+      cookies,
+      finalUrl: handle.contentView.webContents.getURL(),
+      source,
+      profile: profile ?? undefined,
+    });
+    await disposeAuthJob(handle.requestId);
+  } finally {
+    // dispose 后 handle 可能已从 map 移除；仍清锁以便未成功路径可重试
+    handle.authFinishing = false;
+  }
 }
 
 export function startAuthBrowser(options: {
@@ -958,6 +1035,7 @@ export function startAuthBrowser(options: {
       }
       const url = wc.getURL();
       const cookies = await collectCookies(authSession, adapter.cookieDomains);
+      // isAuthed = 大致已在登录后界面，值得探测资料；成功与否只看用户信息
       if (adapter.isAuthed(cookies as CookieLike[], url)) {
         await finishAuth(handle, 'auto');
       }

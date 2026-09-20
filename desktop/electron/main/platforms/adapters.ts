@@ -48,6 +48,10 @@ export interface PlatformAdapter {
   loginUrl: string;
   /** Domains used when collecting cookies */
   cookieDomains: string[];
+  /**
+   * 探测门槛：大致已进入登录后创作者界面，值得拉取用户信息。
+   * 不是授权成功条件；成功唯一看 hasLoggedInUserInfo（id + 昵称）。
+   */
   isAuthed: (cookies: CookieLike[], url: string) => boolean;
   /** Tried in order; best-effort, all of them may fail */
   profileSources?: ProfileSource[];
@@ -67,6 +71,7 @@ export const PLATFORM_ADAPTERS: Record<PlatformId, PlatformAdapter> = {
     displayName: '抖音',
     loginUrl: 'https://creator.douyin.com/',
     cookieDomains: ['.douyin.com', 'douyin.com', '.creator.douyin.com'],
+    // 探测门槛：创作者域且非登录页 + 会话 cookie（成功仍看用户信息）
     isAuthed: (cookies, url) => {
       const onCreator =
         url.includes('creator.douyin.com') && !url.includes('login');
@@ -114,6 +119,7 @@ export const PLATFORM_ADAPTERS: Record<PlatformId, PlatformAdapter> = {
     displayName: '今日头条',
     loginUrl: 'https://mp.toutiao.com/',
     cookieDomains: ['.toutiao.com', 'toutiao.com', 'mp.toutiao.com'],
+    // 探测门槛：头条号后台且非登录页 + 会话 cookie
     isAuthed: (cookies, url) => {
       const onMp = url.includes('mp.toutiao.com') && !url.includes('login');
       return (
@@ -158,6 +164,7 @@ export const PLATFORM_ADAPTERS: Record<PlatformId, PlatformAdapter> = {
     displayName: '视频号',
     loginUrl: 'https://channels.weixin.qq.com/',
     cookieDomains: ['.weixin.qq.com', 'weixin.qq.com', 'channels.weixin.qq.com'],
+    // 探测门槛：视频号后台且非登录页 + 会话 cookie
     isAuthed: (cookies, url) => {
       const onChannels =
         url.includes('channels.weixin.qq.com') && !url.includes('login');
@@ -194,6 +201,7 @@ export const PLATFORM_ADAPTERS: Record<PlatformId, PlatformAdapter> = {
     displayName: '哔哩哔哩',
     loginUrl: 'https://member.bilibili.com/',
     cookieDomains: ['.bilibili.com', 'bilibili.com', 'member.bilibili.com'],
+    // 探测门槛：创作中心 / 工作室且非登录页 + SESSDATA 等
     isAuthed: (cookies, url) => {
       const onMember =
         (url.includes('member.bilibili.com') ||
@@ -225,6 +233,7 @@ export const PLATFORM_ADAPTERS: Record<PlatformId, PlatformAdapter> = {
       'xiaohongshu.com',
       'creator.xiaohongshu.com',
     ],
+    // 探测门槛：小红书创作者后台且非登录页 + 会话 cookie
     isAuthed: (cookies, url) => {
       const onCreator =
         url.includes('creator.xiaohongshu.com') && !url.includes('login');

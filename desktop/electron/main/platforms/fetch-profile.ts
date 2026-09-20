@@ -94,6 +94,18 @@ function isComplete(profile: PlatformProfile): boolean {
   );
 }
 
+/**
+ * 授权成功唯一条件：登录后用户信息同时包含平台用户 ID 与昵称。
+ * 仅 cookie / URL、或只有 userIdCookie 填出的 uid、或仅有头像 —— 一律不算。
+ */
+export function hasLoggedInUserInfo(
+  profile: PlatformProfile | null | undefined,
+): boolean {
+  return Boolean(
+    profile?.platformUserId?.trim() && profile?.nickname?.trim(),
+  );
+}
+
 function merge(
   target: PlatformProfile,
   source: PlatformProfile | null,
@@ -466,8 +478,8 @@ async function scrapeFromPage(
 /**
  * Best-effort account profile lookup, in increasing order of brittleness:
  * a user-id cookie, then each declared API endpoint, then a DOM scrape.
- * Partial results are merged, and null means nothing could be determined —
- * callers must treat every field as optional.
+ * Partial results are merged; callers that gate auth success must use
+ * {@link hasLoggedInUserInfo} (id + nickname), not mere non-emptiness.
  */
 export async function fetchPlatformProfile(options: {
   adapter: PlatformAdapter;

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Badge } from '@auth/components/ui/badge';
+import { XIcon } from 'lucide-react';
 import { Button } from '@auth/components/ui/button';
 import {
   Card,
+  CardAction,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -11,13 +12,13 @@ import {
 import { getChromeShell, type GuidePayload } from '@auth/lib/chrome-api';
 import { CHROME_HEIGHT } from '@shared/ipc';
 
-const CARD_WIDTH = 320;
+const CARD_WIDTH = 400;
 const EDGE = 12;
 const ARROW_SIZE = 12;
 /** Keep the arrow clear of the card's rounded corners */
 const ARROW_INSET = 28;
 /** Gap between the anchored control and the card */
-const ANCHOR_GAP = 2;
+const ANCHOR_GAP = 8;
 
 interface CardPlacement {
   left: number;
@@ -26,22 +27,22 @@ interface CardPlacement {
 }
 
 /**
- * Rendered in a WebContentsView covering the whole auth window, so the guide
- * is fully modal: the scrim dims and blocks both the platform page and the
- * toolbar. Anchor rects arrive in window-content coordinates, which are also
- * this view's coordinates.
+ * 操作气泡：全窗 WebContentsView 遮罩，不能套 Popover/HoverCard。
+ * 内容区用标准 Card 组合；箭头仅为锚点定位所需的最小自定义。
  */
 export function StepBubble() {
   const api = getChromeShell();
   const [guide, setGuide] = useState<GuidePayload | null>(null);
 
   useEffect(() => {
-    void api.guideReady();
-    return api.onGuide((payload) => {
+    // 先订阅再 ready：结束首次指引切到气泡时，主进程可能立刻 push
+    const off = api.onGuide((payload) => {
       if (payload.kind === 'bubbles') {
         setGuide(payload);
       }
     });
+    void api.guideReady();
+    return off;
   }, [api]);
 
   if (!guide || guide.kind !== 'bubbles') {
@@ -99,7 +100,6 @@ export function StepBubble() {
   return (
     <div className="relative size-full bg-black/30">
       <Card
-        size="sm"
         style={{
           width: CARD_WIDTH,
           left,
@@ -111,7 +111,7 @@ export function StepBubble() {
               }
             : { top }),
         }}
-        className="absolute overflow-visible shadow-lg"
+        className="absolute overflow-visible"
       >
         {anchoredUp && arrowLeft != null ? (
           <span
@@ -121,44 +121,40 @@ export function StepBubble() {
           />
         ) : null}
         <CardHeader>
-          <Badge variant="secondary">
-            操作提示 · {guide.stepIndex + 1}/{guide.steps.length}
-          </Badge>
           <CardTitle>{step.title}</CardTitle>
           <CardDescription>{step.body}</CardDescription>
+          <CardAction>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="关闭提示"
+              onClick={() => void api.guideCloseBubbles()}
+            >
+              <XIcon />
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardFooter className="justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
-            size="xs"
             onClick={() => void api.guideDismissBubblesForever()}
           >
             不再提示
           </Button>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => void api.guideCloseBubbles()}
-            >
-              关闭
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              onClick={() => {
-                if (isLast) {
-                  void api.guideCloseBubbles();
-                } else {
-                  void api.guideNextBubble();
-                }
-              }}
-            >
-              {isLast ? '知道了' : '下一步'}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              if (isLast) {
+                void api.guideCloseBubbles();
+              } else {
+                void api.guideNextBubble();
+              }
+            }}
+          >
+            {isLast ? '知道了' : '下一步'}
+          </Button>
         </CardFooter>
       </Card>
     </div>

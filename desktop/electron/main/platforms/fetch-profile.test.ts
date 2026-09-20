@@ -1,7 +1,7 @@
 import type { Session } from 'electron';
 import type { PlatformAdapter } from './adapters';
 import { recordJsonEndpoints } from './endpoint-recorder';
-import { fetchPlatformProfile } from './fetch-profile';
+import { fetchPlatformProfile, hasLoggedInUserInfo } from './fetch-profile';
 
 interface CompletedDetails {
   url: string;
@@ -294,5 +294,34 @@ describe('fetchPlatformProfile', () => {
     });
 
     expect(profile).toBeNull();
+  });
+});
+
+describe('hasLoggedInUserInfo', () => {
+  it('requires both platformUserId and nickname', () => {
+    expect(hasLoggedInUserInfo(null)).toBe(false);
+    expect(hasLoggedInUserInfo(undefined)).toBe(false);
+    expect(hasLoggedInUserInfo({})).toBe(false);
+    expect(hasLoggedInUserInfo({ avatarUrl: 'https://img.example.com/a.png' })).toBe(
+      false,
+    );
+    expect(hasLoggedInUserInfo({ platformUserId: 'u1' })).toBe(false);
+    expect(hasLoggedInUserInfo({ nickname: '小明' })).toBe(false);
+    expect(hasLoggedInUserInfo({ platformUserId: '  ', nickname: '小明' })).toBe(
+      false,
+    );
+    expect(hasLoggedInUserInfo({ platformUserId: 'u1', nickname: '  ' })).toBe(
+      false,
+    );
+    expect(hasLoggedInUserInfo({ platformUserId: 'u1', nickname: '小明' })).toBe(
+      true,
+    );
+    expect(
+      hasLoggedInUserInfo({
+        platformUserId: 'u1',
+        nickname: '小明',
+        avatarUrl: 'https://img.example.com/a.png',
+      }),
+    ).toBe(true);
   });
 });
