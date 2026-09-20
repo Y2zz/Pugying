@@ -21,6 +21,9 @@ export function DistributionAccountEditor({
   className,
   onDraftChange,
   onEditCover,
+  portraitOnly = false,
+  /** 无外框/顶部分割线（图文页减线） */
+  plain = false,
 }: {
   account: PlatformAccountItem | null;
   platformLabel: string;
@@ -36,13 +39,16 @@ export function DistributionAccountEditor({
   className?: string;
   onDraftChange: (draft: OverrideDraft) => void;
   onEditCover: (kind: CoverKind) => void;
+  portraitOnly?: boolean;
+  plain?: boolean;
 }) {
   if (!account) {
     return (
       <div
         className={cn(
-          'flex min-h-48 items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 text-center text-muted-foreground',
-          className
+          'flex min-h-48 items-center justify-center rounded-lg px-4 text-center text-muted-foreground',
+          plain ? 'bg-muted/15' : 'border border-dashed bg-muted/20',
+          className,
         )}
       >
         在左侧选择账号以配置发布选项
@@ -51,8 +57,19 @@ export function DistributionAccountEditor({
   }
 
   return (
-    <div className={cn('flex min-h-0 flex-col rounded-lg border bg-background', className)}>
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
+    <div
+      className={cn(
+        'flex min-h-0 flex-col bg-background',
+        plain ? 'rounded-lg' : 'rounded-lg border',
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          'flex shrink-0 items-center justify-between gap-2 px-4 py-3',
+          plain ? null : 'border-b',
+        )}
+      >
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
             <Badge variant="outline" className="mr-2 font-normal">
@@ -86,7 +103,7 @@ export function DistributionAccountEditor({
           重置
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className={cn('min-h-0 flex-1 overflow-y-auto', plain ? 'px-1 py-2' : 'p-4')}>
         <AccountOverrideForm
           account={account}
           draft={draft}
@@ -100,6 +117,7 @@ export function DistributionAccountEditor({
           disabled={disabled}
           onDraftChange={onDraftChange}
           onEditCover={onEditCover}
+          portraitOnly={portraitOnly}
         />
       </div>
     </div>

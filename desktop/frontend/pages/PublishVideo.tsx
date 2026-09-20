@@ -3,7 +3,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Clapperboard } from 'lucide-react';
 import {
   PageHeader,
-  PageHeaderAction,
   PageHeaderDescription,
   PageHeaderTitle,
 } from '@/components/layouts/PageHeader';
@@ -14,7 +13,6 @@ import {
   type EditCoverSavedResult,
 } from '@/components/EditCoverDialog';
 import { toast } from '@/components/AppToaster';
-import { AgentStatusBadge } from '@/components/AgentStatusBadge';
 import { useAgent } from '@/hooks/use-agent';
 import { agentClient } from '@/lib/agent-client';
 import {
@@ -616,12 +614,12 @@ export default function PublishVideo() {
     if (status === 'published') {
       agentClient.connect();
       if (agentClient.getStatus() !== 'connected') {
-        setError('本机服务未连接。请从「蒲公英」桌面应用打开后再发布。');
+        setError('应用未就绪，请重启「蒲公英」后再发布。');
         focusBlock('agent');
         return;
       }
       if (!agentClient.getHello()?.capabilities.includes('platform.publish.start')) {
-        setError('当前桌面端不支持发布能力，请升级蒲公英桌面应用');
+        setError('当前版本无发布能力，请升级蒲公英');
         focusBlock('agent');
         return;
       }
@@ -687,7 +685,9 @@ export default function PublishVideo() {
             targetId: live.targetId,
             platform: live.platform,
             accountId: live.accountId,
+            contentType: live.contentType ?? 'video',
             mediaPath: live.mediaPath,
+            mediaPaths: live.mediaPaths,
             coverPath: live.coverPath,
             coverLandscapePath: live.coverLandscapePath,
             title: live.title,
@@ -1109,17 +1109,17 @@ export default function PublishVideo() {
     },
     {
       id: 'agent',
-      label: '本机服务',
+      label: '发布能力',
       ok: connected && canPublish,
       fix:
         agentStatus === 'connecting' ? (
-          '正在连接本机服务…'
+          '应用正在就绪…'
         ) : publishBusy ? (
-          '本机服务正忙于其它发布任务，请稍候'
+          '正有其它发布任务进行中，请稍候'
         ) : connected ? (
-          '当前桌面端无发布能力，请升级'
+          '当前版本无发布能力，请升级'
         ) : (
-          <span>请从「蒲公英」桌面应用打开后再试</span>
+          <span>应用未就绪，请重启后再试</span>
         ),
       env: true,
       focusKind: 'agent',
@@ -1185,9 +1185,6 @@ export default function PublishVideo() {
           {editId ? '编辑视频' : '发布视频'}
         </PageHeaderTitle>
         <PageHeaderDescription>{describePublishFlowStep(flowStep)}</PageHeaderDescription>
-        <PageHeaderAction>
-          <AgentStatusBadge />
-        </PageHeaderAction>
       </PageHeader>
 
       {error ? (

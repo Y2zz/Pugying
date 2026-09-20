@@ -103,9 +103,15 @@ export interface PlatformPublishStartInput {
   targetId: string;
   platform: string;
   accountId: string;
-  mediaPath: string;
+  /** 缺省 video；图文传 article */
+  contentType?: 'video' | 'article';
+  /** 视频本机路径；图文可省略 */
+  mediaPath?: string;
+  /** 图文多图本机路径 */
+  mediaPaths?: string[];
   coverPath: string;
-  coverLandscapePath: string;
+  /** 横封面；图文可不传 */
+  coverLandscapePath?: string;
   title: string;
   body?: string;
   visibility?: string;
@@ -331,7 +337,7 @@ class AgentClient {
   }): Promise<PlatformAuthResult> {
     return new Promise((resolve, reject) => {
       if (!this.isTransportOpen()) {
-        reject(new Error('本机服务未连接'));
+        reject(new Error('应用未就绪'));
         return;
       }
 
@@ -406,7 +412,7 @@ class AgentClient {
   }): Promise<PlatformOpenResult> {
     return new Promise((resolve, reject) => {
       if (!this.isTransportOpen()) {
-        reject(new Error('本机服务未连接'));
+        reject(new Error('应用未就绪'));
         return;
       }
 
@@ -457,7 +463,7 @@ class AgentClient {
   ): Promise<PlatformPublishResult> {
     return new Promise((resolve, reject) => {
       if (!this.isTransportOpen()) {
-        reject(new Error('本机服务未连接'));
+        reject(new Error('应用未就绪'));
         return;
       }
 
@@ -492,7 +498,9 @@ class AgentClient {
           targetId: input.targetId,
           platform: input.platform,
           accountId: input.accountId,
+          contentType: input.contentType,
           mediaPath: input.mediaPath,
+          mediaPaths: input.mediaPaths,
           coverPath: input.coverPath,
           coverLandscapePath: input.coverLandscapePath,
           title: input.title,

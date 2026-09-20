@@ -21,7 +21,7 @@ export interface AccountGroup {
   accounts: PlatformAccountItem[];
 }
 
-export type FocusKind = 'video' | 'cover' | 'title' | 'accounts' | 'accountConfig' | 'agent';
+export type FocusKind = 'video' | 'images' | 'body' | 'cover' | 'title' | 'accounts' | 'accountConfig' | 'agent';
 
 export type PrecheckItem = {
   id: string;
@@ -68,6 +68,7 @@ export function PublishVideoFormPanel({
   titleInputRef,
   disabled,
   coverDisabled,
+  portraitCoverOnly = false,
 }: {
   catalog: PlatformCatalogItem[];
   accounts: PlatformAccountItem[];
@@ -100,6 +101,8 @@ export function PublishVideoFormPanel({
   disabled: boolean;
   /** 视频处理/截帧进行中禁用封面操作，避免与自动截帧冲突 */
   coverDisabled?: boolean;
+  /** 图文仅竖版封面 */
+  portraitCoverOnly?: boolean;
 }) {
   const isMobile = useIsMobile();
   const [addOpen, setAddOpen] = useState(false);
@@ -218,6 +221,7 @@ export function PublishVideoFormPanel({
             coverHint={coverHint}
             disabled={coverFormDisabled}
             onEditCover={onEditCover}
+            portraitOnly={portraitCoverOnly}
           />
         </CardContent>
       </Card>
@@ -296,6 +300,7 @@ export function PublishVideoFormPanel({
                   coverDisabled={editorProps?.coverDisabled ?? coverFormDisabled}
                   disabled={editorProps?.disabled ?? formDisabled}
                   className="h-full min-h-[280px]"
+                  portraitOnly={portraitCoverOnly}
                   onDraftChange={
                     editorProps?.onDraftChange ??
                     (() => {
@@ -361,6 +366,7 @@ export function PublishVideoFormPanel({
               coverDisabled={editorProps.coverDisabled}
               disabled={editorProps.disabled}
               className="min-h-0 flex-1 border-0"
+              portraitOnly={portraitCoverOnly}
               onDraftChange={editorProps.onDraftChange}
               onEditCover={editorProps.onEditCover}
             />
@@ -383,6 +389,7 @@ export function PublishVideoActionBar({
   onFocusItem,
   onSaveDraft,
   onPublish,
+  className,
 }: {
   prechecks: PrecheckItem[];
   readyCount: number;
@@ -394,9 +401,15 @@ export function PublishVideoActionBar({
   onFocusItem: (item: PrecheckItem) => void;
   onSaveDraft: () => void;
   onPublish: () => void;
+  className?: string;
 }) {
   return (
-    <div className="sticky bottom-0 z-10 mt-auto shrink-0 border-t bg-background/95 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
+    <div
+      className={cn(
+        'sticky bottom-0 z-10 mt-auto shrink-0 border-t bg-background/95 py-3 backdrop-blur supports-backdrop-filter:bg-background/80',
+        className,
+      )}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
           <p className="text-sm font-medium">

@@ -21,6 +21,8 @@ export function DistributionAccountList({
   onFocusAccount,
   onRemoveAccount,
   className,
+  /** 无外框/行描边，用底色表达选中（图文页减线） */
+  plain = false,
 }: {
   entries: DistributionAccountEntry[];
   drafts: Record<string, OverrideDraft>;
@@ -29,10 +31,17 @@ export function DistributionAccountList({
   onFocusAccount: (accountId: string) => void;
   onRemoveAccount: (accountId: string) => void;
   className?: string;
+  plain?: boolean;
 }) {
   return (
-    <ScrollArea className={cn('min-h-[200px] rounded-lg border bg-muted/20 lg:min-h-0 lg:h-full', className)}>
-      <div className="flex flex-col gap-1.5 p-2">
+    <ScrollArea
+      className={cn(
+        'min-h-[200px] rounded-lg lg:min-h-0 lg:h-full',
+        plain ? 'bg-muted/15' : 'border bg-muted/20',
+        className,
+      )}
+    >
+      <div className={cn('flex flex-col gap-1 p-1.5', plain ? 'p-1' : 'p-2 gap-1.5')}>
         {entries.map(({ account }) => (
           <DistributionAccountRow
             key={account.id}
@@ -40,6 +49,7 @@ export function DistributionAccountList({
             draft={distributionAccountDraftOrEmpty(drafts, account.id)}
             focused={focusedAccountId === account.id}
             disabled={disabled}
+            plain={plain}
             onFocus={() => {
               onFocusAccount(account.id);
             }}

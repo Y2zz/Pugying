@@ -9,8 +9,8 @@ import {
 describe('describePublishError', () => {
   it('maps stable codes to Chinese copy', () => {
     expect(describePublishError('AUTH_EXPIRED')).toContain('重新授权');
-    expect(describePublishError('MEDIA_MISSING')).toContain('本机视频或封面');
-    expect(describePublishError('MEDIA_UNREACHABLE')).toContain('本机视频或封面');
+    expect(describePublishError('MEDIA_MISSING')).toContain('本机视频、图片或封面');
+    expect(describePublishError('MEDIA_UNREACHABLE')).toContain('本机视频、图片或封面');
     expect(describePublishError('PUBLISH_FAILED')).toContain('内容列表重试');
     expect(describePublishError('PUBLISH_FAILED', '平台拒绝')).toBe('平台拒绝');
   });
@@ -23,14 +23,14 @@ describe('describePublishError', () => {
 
 describe('describePublishPhase', () => {
   it('maps agent phases', () => {
-    expect(describePublishPhase('fetching_media')).toBe('拉取视频与封面');
+    expect(describePublishPhase('fetching_media')).toBe('校验素材与封面');
     expect(describePublishPhase('submitting')).toBe('提交发布');
   });
 });
 
 describe('describeCaughtError', () => {
   it('maps known codes from Error.message', () => {
-    expect(describeCaughtError(new Error('busy'))).toContain('正忙');
+    expect(describeCaughtError(new Error('busy'))).toContain('正有其它发布任务');
   });
 
   it('keeps Chinese backend messages', () => {

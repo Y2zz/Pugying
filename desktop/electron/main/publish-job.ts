@@ -1,4 +1,5 @@
 import type {
+  PlatformPublishContentType,
   PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
   PlatformPublishStartPayload,
@@ -24,6 +25,42 @@ export function isPublishBusy(): boolean {
   return active !== null;
 }
 
+function resolveContentType(
+  payload: PlatformPublishStartPayload,
+): PlatformPublishContentType {
+  return payload.contentType === 'article' ? 'article' : 'video';
+}
+
+/** 校验短视频 / 图文载荷；图文不要求横封面与单 mediaPath */
+function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
+  const baseOk =
+    Boolean(payload.requestId?.trim()) &&
+    Boolean(payload.targetId?.trim()) &&
+    Boolean(payload.platform?.trim()) &&
+    Boolean(payload.accountId?.trim()) &&
+    Boolean(payload.coverPath?.trim()) &&
+    Boolean(payload.title?.trim()) &&
+    Array.isArray(payload.cookies) &&
+    payload.cookies.length > 0;
+
+  if (!baseOk) {
+    return false;
+  }
+
+  if (resolveContentType(payload) === 'article') {
+    const paths = (payload.mediaPaths ?? [])
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const fallback = payload.mediaPath?.trim();
+    return paths.length > 0 || Boolean(fallback);
+  }
+
+  return (
+    Boolean(payload.mediaPath?.trim()) &&
+    Boolean(payload.coverLandscapePath?.trim())
+  );
+}
+
 /**
  * Validates payload, enforces single-flight, then runs Douyin adapter (or stub).
  * Set PUGYING_PUBLISH_STUB=1 to force the progress stub (unit tests / CI).
@@ -38,18 +75,7 @@ export function startPublishJob(options: {
   }
 
   const { payload } = options;
-  if (
-    !payload.requestId?.trim() ||
-    !payload.targetId?.trim() ||
-    !payload.platform?.trim() ||
-    !payload.accountId?.trim() ||
-    !payload.mediaPath?.trim() ||
-    !payload.coverPath?.trim() ||
-    !payload.coverLandscapePath?.trim() ||
-    !payload.title?.trim() ||
-    !Array.isArray(payload.cookies) ||
-    payload.cookies.length === 0
-  ) {
+  if (!isValidPublishPayload(payload)) {
     return { error: 'invalid_payload' };
   }
 
@@ -57,6 +83,7 @@ export function startPublishJob(options: {
     return { error: 'unsupported_platform' };
   }
 
+  const contentType = resolveContentType(payload);
   const signal = { cancelled: false };
   const job: ActivePublish = {
     requestId: payload.requestId,
@@ -91,14 +118,28 @@ export function startPublishJob(options: {
     return { ok: true };
   }
 
-  void import('./platforms/publish-douyin-strategy')
-    .then(({ runDouyinPublishByMode }) => {
-      return runDouyinPublishByMode({
-        payload,
-        onProgress: options.onProgress,
-        signal,
-      });
-    })
+  const runAdapter =
+    contentType === 'article'
+      ? () =>
+          import('./platforms/publish-douyin-article').then(
+            ({ runDouyinArticlePublish }) =>
+              runDouyinArticlePublish({
+                payload,
+                onProgress: options.onProgress,
+                signal,
+              }),
+          )
+      : () =>
+          import('./platforms/publish-douyin-strategy').then(
+            ({ runDouyinPublishByMode }) =>
+              runDouyinPublishByMode({
+                payload,
+                onProgress: options.onProgress,
+                signal,
+              }),
+          );
+
+  void runAdapter()
     .then((result) => {
       if (job.cancelled || signal.cancelled) {
         finish({

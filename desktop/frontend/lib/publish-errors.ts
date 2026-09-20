@@ -26,13 +26,13 @@ export function describePublishError(
     case 'MEDIA_MISSING':
     case 'MEDIA_UNREACHABLE':
       // MEDIA_UNREACHABLE 为旧码别名，文案与 MEDIA_MISSING 一致
-      return '找不到本机视频或封面文件，请确认文件未被移动或删除后再重试';
+      return '找不到本机视频、图片或封面文件，请确认文件未被移动或删除后再重试';
     case 'ADAPTER_UI_CHANGED':
-      return '抖音创作者页结构有变，未能自动定位控件；已打开窗口时可手动完成，或稍后更新 Agent';
+      return '抖音创作者页结构有变，未能自动定位控件；已打开窗口时可手动完成，或稍后更新应用';
     case 'ADAPTER_PARTIAL':
       return '已尽量自动填写，请在打开的抖音窗口确认封面并点击发布；完成后可在内容列表查看或重试';
     case 'HTTP_PIPELINE_NOT_CONFIGURED':
-      return 'Agent 尚未配置抖音 HTTP 发布映射，请改用 DOM 模式或先完成抓包对齐';
+      return '尚未配置抖音 HTTP 发布映射，请改用 DOM 模式或先完成抓包对齐';
     case 'HTTP_TIMEOUT':
     case 'HTTP_REQUEST_FAILED':
       return fallback?.trim() || '抖音后台 HTTP 请求失败，可重试或切换 DOM 模式';
@@ -41,15 +41,15 @@ export function describePublishError(
     case 'cancelled':
       return '发布已取消';
     case 'busy':
-      return '本机 Agent 正忙于其它发布任务，请稍候再试';
+      return '正有其它发布任务进行中，请稍候再试';
     case 'unsupported_platform':
-      return 'P0 仅支持抖音短视频发布';
+      return 'P0 仅支持抖音短视频与图文发布';
     default:
       return fallback?.trim() || errorCode || '发布失败';
   }
 }
 
-/** Agent 推送的 phase 偏机器可读，进度提示需中文 */
+/** 发布进度 phase 偏机器可读，需转为中文提示 */
 export function describePublishPhase(
   phase: PlatformPublishProgressPhase | string | null | undefined,
 ): string {
@@ -57,7 +57,7 @@ export function describePublishPhase(
     case 'accepted':
       return '已受理';
     case 'fetching_media':
-      return '拉取视频与封面';
+      return '校验素材与封面';
     case 'opening_creator':
       return '打开创作者中心';
     case 'uploading':

@@ -22,6 +22,7 @@ export function DistributionAccountRow({
   onFocus,
   onRemove,
   className,
+  plain = false,
 }: {
   account: PlatformAccountItem;
   draft: OverrideDraft;
@@ -30,6 +31,7 @@ export function DistributionAccountRow({
   onFocus: () => void;
   onRemove: () => void;
   className?: string;
+  plain?: boolean;
 }) {
   const usable = account.status === 'active';
   const summary = describeAccountPublishSummary(draft);
@@ -39,8 +41,14 @@ export function DistributionAccountRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-2 rounded-lg border px-2 py-2 transition-colors',
-        focused ? 'border-primary/40 bg-primary/5' : 'hover:bg-muted/50',
+        'group flex items-center gap-2 rounded-lg px-2 py-2 transition-colors',
+        plain
+          ? focused
+            ? 'bg-primary/10'
+            : 'hover:bg-muted/50'
+          : focused
+            ? 'border border-primary/40 bg-primary/5'
+            : 'border hover:bg-muted/50',
         !usable && 'opacity-60',
         className
       )}

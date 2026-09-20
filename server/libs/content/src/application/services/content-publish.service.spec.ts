@@ -150,14 +150,75 @@ describe('ContentPublishService', () => {
         targetId: TARGET_ID,
         platform: 'douyin',
         accountId: ACCOUNT_ID,
+        contentType: 'video',
         title: '测试视频',
         mediaPath: videoPath,
+        mediaPaths: [videoPath],
       });
       expect(result.dispatches[0].coverPath).toBeTruthy();
       expect(result.dispatches[0].coverLandscapePath).toBeTruthy();
       expect(result.dispatches[0].cookies[0].name).toBe('sessionid');
       expect(contents.save).toHaveBeenCalled();
       expect(content.status).toBe('published');
+    });
+
+    it('queues article with images and portrait-only cover', async () => {
+      const imageA = join(tempRoot, 'a.jpg');
+      const imageB = join(tempRoot, 'b.jpg');
+      await writeFile(imageA, Buffer.from('img-a'));
+      await writeFile(imageB, Buffer.from('img-b'));
+      const content = createVideo({
+        type: 'article',
+        title: '测试图文',
+        mediaPaths: [imageA, imageB],
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
+      });
+      const target = createTarget();
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent
+        .mockResolvedValueOnce([target])
+        .mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches[0]).toMatchObject({
+        contentType: 'article',
+        mediaPath: imageA,
+        mediaPaths: [imageA, imageB],
+        coverLandscapePath: '',
+      });
+      expect(result.dispatches[0].coverPath).toBeTruthy();
+    });
+
+    it('rejects article without images', async () => {
+      contents.findByIdWithCovers.mockResolvedValue(
+        createVideo({
+          type: 'article',
+          mediaPaths: [],
+          coverLandscapeMime: null,
+          coverLandscapeData: null,
+        }),
+      );
+      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('rejects article without portrait cover', async () => {
+      contents.findByIdWithCovers.mockResolvedValue(
+        createVideo({
+          type: 'article',
+          mediaPaths: [videoPath],
+          coverMime: null,
+          coverData: null,
+          coverLandscapeMime: null,
+          coverLandscapeData: null,
+        }),
+      );
+      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('rejects when a job is already running', async () => {

@@ -29,7 +29,7 @@ import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
 import { PublishErrorCodes } from '@pugying/content/domain/publish-error-codes';
 
-/** P0：仅抖音短视频真正下发 */
+/** P0：仅抖音真正下发（短视频 / 图文） */
 const P0_PUBLISH_PLATFORMS = new Set(['douyin']);
 
 export interface PublishCookie {
@@ -48,11 +48,15 @@ export interface PublishDispatch {
   targetId: string;
   platform: string;
   accountId: string;
-  /** 本机视频绝对路径 */
+  /** 与内容 type 对齐 */
+  contentType: 'video' | 'article';
+  /** 本机视频绝对路径（video）；图文时为首图路径兼容字段 */
   mediaPath: string;
+  /** 图文全部图片本机路径；视频通常为单元素 */
+  mediaPaths: string[];
   /** 竖封面临时文件路径（由服务端从 BLOB 写出） */
   coverPath: string;
-  /** 横封面临时文件路径 */
+  /** 横封面临时文件路径；图文可为空字符串 */
   coverLandscapePath: string;
   title: string;
   body?: string;
@@ -85,7 +89,7 @@ export class ContentPublishService {
    */
   async publish(contentId: string): Promise<PublishStartResult> {
     const content = await this.requireContentWithCovers(contentId);
-    this.assertVideoReady(content);
+    this.assertContentReady(content);
 
     const existing = await this.targets.findByContent(content.id);
     if (existing.length === 0) {
@@ -115,7 +119,9 @@ export class ContentPublishService {
         throw new BadRequestException('所有目标已发布成功；失败账号请使用重试');
       }
       throw new BadRequestException(
-        'P0 仅支持抖音短视频发布；请绑定可用的抖音账号后再试',
+        content.type === 'article'
+          ? 'P0 仅支持抖音图文发布；请绑定可用的抖音账号后再试'
+          : 'P0 仅支持抖音短视频发布；请绑定可用的抖音账号后再试',
       );
     }
 
@@ -245,7 +251,7 @@ export class ContentPublishService {
     targetId: string,
   ): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
     const content = await this.requireContentWithCovers(contentId);
-    this.assertVideoReady(content);
+    this.assertContentReady(content);
     const target = await this.requireTarget(contentId, targetId);
 
     const siblings = await this.targets.findByContent(contentId);
@@ -268,7 +274,11 @@ export class ContentPublishService {
       );
     }
     if (!P0_PUBLISH_PLATFORMS.has(target.platform)) {
-      throw new BadRequestException('P0 仅支持抖音短视频重试');
+      throw new BadRequestException(
+        content.type === 'article'
+          ? 'P0 仅支持抖音图文重试'
+          : 'P0 仅支持抖音短视频重试',
+      );
     }
 
     target.publishStatus = 'queued';
@@ -301,24 +311,35 @@ export class ContentPublishService {
 
     const cookies = this.decryptCookies(account.credentialCipher);
     const overrides = target.overrides ?? {};
+    const isArticle = content.type === 'article';
 
-    const mediaPath = content.mediaPaths?.[0]?.trim();
-    if (!mediaPath) {
-      throw new BadRequestException('缺少视频本地路径');
+    const mediaPaths = (content.mediaPaths ?? [])
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (mediaPaths.length === 0) {
+      throw new BadRequestException(
+        isArticle ? '缺少图片本地路径' : '缺少视频本地路径',
+      );
     }
-    await this.assertReadableFile(mediaPath);
+    for (const path of mediaPaths) {
+      await this.assertReadableFile(path);
+    }
+    const mediaPath = mediaPaths[0];
 
     const targetWithCovers =
       (await this.targets.findByIdWithCovers(target.id)) ?? target;
 
     const portrait = this.resolveCover(content, targetWithCovers, 'portrait');
-    const landscape = this.resolveCover(content, targetWithCovers, 'landscape');
     if (!portrait) {
       throw new BadRequestException('缺少竖版封面');
     }
-    if (!landscape) {
+
+    const landscape = isArticle
+      ? null
+      : this.resolveCover(content, targetWithCovers, 'landscape');
+    if (!isArticle && !landscape) {
       throw new BadRequestException(
-        '缺少横版封面（4:3）；抖音发布需同时提供竖版与横版封面',
+        '缺少横版封面（4:3）；抖音短视频发布需同时提供竖版与横版封面',
       );
     }
 
@@ -328,12 +349,16 @@ export class ContentPublishService {
       workDir,
       `cover${extForMime(portrait.mime)}`,
     );
-    const coverLandscapePath = join(
-      workDir,
-      `cover-landscape${extForMime(landscape.mime)}`,
-    );
     await writeFile(coverPath, portrait.data);
-    await writeFile(coverLandscapePath, landscape.data);
+
+    let coverLandscapePath = '';
+    if (landscape) {
+      coverLandscapePath = join(
+        workDir,
+        `cover-landscape${extForMime(landscape.mime)}`,
+      );
+      await writeFile(coverLandscapePath, landscape.data);
+    }
 
     const scheduled =
       overrides.scheduledAt ||
@@ -343,7 +368,9 @@ export class ContentPublishService {
       targetId: target.id,
       platform: target.platform,
       accountId: account.id,
+      contentType: isArticle ? 'article' : 'video',
       mediaPath,
+      mediaPaths,
       coverPath,
       coverLandscapePath,
       title: (overrides.title?.trim() || content.title).trim(),
@@ -408,6 +435,30 @@ export class ContentPublishService {
       throw new BadRequestException('账号无 Cookie，请重新授权');
     }
     return payload.cookies;
+  }
+
+  private assertContentReady(content: Content): void {
+    if (content.type === 'article') {
+      this.assertArticleReady(content);
+      return;
+    }
+    this.assertVideoReady(content);
+  }
+
+  private assertArticleReady(content: Content): void {
+    if (content.type !== 'article') {
+      throw new BadRequestException('内容类型不是图文');
+    }
+    if (!content.title?.trim()) {
+      throw new BadRequestException('标题不能为空');
+    }
+    if (!content.mediaPaths?.length) {
+      throw new BadRequestException('请先选择本机图片文件');
+    }
+    // 图文仅要求内容级竖封面；Target 差异封面为覆盖项
+    if (!content.coverMime || !content.coverData?.length) {
+      throw new BadRequestException('请先准备竖版封面（3:4）');
+    }
   }
 
   private assertVideoReady(content: Content): void {

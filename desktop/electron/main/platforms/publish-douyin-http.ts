@@ -75,10 +75,16 @@ export async function runDouyinHttpPublish(options: {
     }
 
     emit('fetching_media', '校验本机视频与封面文件');
+    const videoPath = payload.mediaPath?.trim() ?? '';
+    const coverPath = payload.coverPath?.trim() ?? '';
+    const coverLandscapePath = payload.coverLandscapePath?.trim() ?? '';
+    if (!videoPath || !coverPath || !coverLandscapePath) {
+      return fail(base, 'invalid_payload', '短视频发布缺少视频或双封面路径');
+    }
     const media: DouyinHttpMediaFiles = {
-      videoPath: payload.mediaPath,
-      coverPath: payload.coverPath,
-      coverLandscapePath: payload.coverLandscapePath,
+      videoPath,
+      coverPath,
+      coverLandscapePath,
     };
     await Promise.all([
       assertReadable(media.videoPath),

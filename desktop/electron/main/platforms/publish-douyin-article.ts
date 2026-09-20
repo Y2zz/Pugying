@@ -9,10 +9,10 @@ import type {
   PlatformPublishStartPayload,
 } from '../publish-protocol';
 
-const UPLOAD_URL = 'https://creator.douyin.com/creator-micro/content/upload';
-/** 上传后进入编辑页的最长等待 */
+/** 创作者中心上传页；default-tab=3 一般为图文 Tab（改版时需实测校正） */
+const ARTICLE_UPLOAD_URL =
+  'https://creator.douyin.com/creator-micro/content/upload?default-tab=3';
 const EDITOR_WAIT_MS = 90_000;
-/** 点击发布后等待结果 */
 const RESULT_WAIT_MS = 60_000;
 /** 半自动：挂文件后留给用户的窗口保留时间 */
 const MANUAL_HOLD_MS = 5 * 60_000;
@@ -20,13 +20,13 @@ const MANUAL_HOLD_MS = 5 * 60_000;
 type ProgressFn = (progress: PlatformPublishProgressPayload) => void;
 
 /**
- * Douyin short-video publish (ephemeral session):
- * 1) 校验本机视频/封面临时路径
+ * 抖音图文发布（ephemeral session）：
+ * 1) 校验多图路径 + 竖封面
  * 2) temp:publish-* 注入 Cookie
- * 3) 挂载 video input → 等编辑页 → 填标题/简介 → 点发布
+ * 3) 打开图文上传入口 → 注入图片 → 填标题/正文 → 尽量点发布
  * 4) 选择器失效时不伪造成功；可短暂保留窗口供人工收尾
  */
-export function runDouyinPublish(options: {
+export function runDouyinArticlePublish(options: {
   payload: PlatformPublishStartPayload;
   onProgress: ProgressFn;
   signal: { cancelled: boolean };
@@ -65,22 +65,26 @@ export function runDouyinPublish(options: {
         return fail(base, 'cancelled', '已取消');
       }
 
-      emit('fetching_media', '校验本机视频与封面文件');
-      const videoPath = payload.mediaPath?.trim() ?? '';
+      const imagePaths = resolveArticleImagePaths(payload);
       const coverPath = payload.coverPath?.trim() ?? '';
-      const coverLandscapePath = payload.coverLandscapePath?.trim() ?? '';
-      if (!videoPath || !coverPath || !coverLandscapePath) {
-        return fail(base, 'invalid_payload', '短视频发布缺少视频或双封面路径');
+      if (imagePaths.length === 0) {
+        return fail(base, 'invalid_payload', '缺少图文图片路径');
       }
-      await assertReadable(videoPath);
+      if (!coverPath) {
+        return fail(base, 'invalid_payload', '缺少竖版封面路径');
+      }
+
+      emit('fetching_media', `校验本机图片（${imagePaths.length}）与封面`);
+      for (const path of imagePaths) {
+        await assertReadable(path);
+      }
       await assertReadable(coverPath);
-      await assertReadable(coverLandscapePath);
 
       if (signal.cancelled) {
         return fail(base, 'cancelled', '已取消');
       }
 
-      emit('opening_creator', '打开创作者中心（临时会话）');
+      emit('opening_creator', '打开创作者中心图文入口（临时会话）');
       partition = `temp:publish-${payload.requestId}`;
       const publishSession = session.fromPartition(partition, { cache: false });
       await injectCookies(publishSession, payload.cookies as AgentCookie[]);
@@ -89,7 +93,7 @@ export function runDouyinPublish(options: {
         width: 1280,
         height: 860,
         show: true,
-        title: '蒲公英 · 抖音发布',
+        title: '蒲公英 · 抖音图文发布',
         webPreferences: {
           session: publishSession,
           contextIsolation: true,
@@ -98,8 +102,9 @@ export function runDouyinPublish(options: {
         },
       });
 
-      await win.loadURL(UPLOAD_URL);
+      await win.loadURL(ARTICLE_UPLOAD_URL);
       await sleep(1800);
+      await tryClickImageTab(win.webContents);
 
       if (signal.cancelled) {
         return fail(base, 'cancelled', '已取消');
@@ -126,18 +131,18 @@ export function runDouyinPublish(options: {
         return fail(base, 'AUTH_EXPIRED', '抖音登录已失效，请重新授权媒体账号');
       }
 
-      emit('uploading', '注入视频到上传控件');
-      const attached = await tryAttachVideoFile(win, videoPath);
+      emit('uploading', `注入 ${imagePaths.length} 张图片`);
+      const attached = await tryAttachImageFiles(win, imagePaths);
       if (!attached) {
         keepWindowForManual = true;
         return fail(
           base,
           'ADAPTER_UI_CHANGED',
-          '未能定位抖音上传控件（创作者页改版时需更新适配器）。窗口已保留，可手动选文件。',
+          '未能定位抖音图文上传控件（创作者页改版时需更新适配器）。窗口已保留，可手动选图。',
         );
       }
 
-      emit('uploading', '等待进入作品编辑页');
+      emit('uploading', '等待进入图文编辑页');
       const editorReady = await waitUntil(
         () => isEditorPage(win!),
         EDITOR_WAIT_MS,
@@ -148,11 +153,11 @@ export function runDouyinPublish(options: {
         return fail(
           base,
           'ADAPTER_PARTIAL',
-          '视频已挂载，但未在时限内进入编辑页；请在打开的窗口继续完成发布。',
+          '图片已挂载，但未在时限内进入编辑页；请在打开的窗口继续完成发布。',
         );
       }
 
-      emit('submitting', '填写标题与简介');
+      emit('submitting', '填写标题与正文');
       await fillPostMeta(win.webContents, {
         title: payload.title,
         body: payload.body ?? '',
@@ -163,9 +168,8 @@ export function runDouyinPublish(options: {
         await tryEnableSchedule(win.webContents, payload.scheduledAt);
       }
 
-      // 竖/横封面：抖音创作者中心可能有多个图片 input，依次尝试挂载
+      // 编辑页若有封面槽则挂竖封面；失败不阻断，留给半自动
       await tryAttachCoverFile(win, coverPath);
-      await tryAttachCoverFile(win, coverLandscapePath);
 
       emit('submitting', '点击发布');
       const clicked = await clickPublishButton(win.webContents);
@@ -204,7 +208,7 @@ export function runDouyinPublish(options: {
           base,
           'MEDIA_MISSING',
           message.replace(/^MEDIA_MISSING:\s*/, '') ||
-            '源文件不可用，请重新选择视频或封面',
+            '源文件不可用，请重新选择图片或封面',
         );
       }
       if (signal.cancelled || message === 'cancelled') {
@@ -213,7 +217,6 @@ export function runDouyinPublish(options: {
       return fail(base, 'PUBLISH_FAILED', message);
     } finally {
       if (keepWindowForManual && win && !win.isDestroyed()) {
-        // 立即回传结果给前端；窗口后台保留供人工收尾，超时后销毁。
         const heldWin = win;
         const heldPartition = partition;
         win = null;
@@ -256,6 +259,17 @@ export function runDouyinPublish(options: {
   })();
 }
 
+function resolveArticleImagePaths(payload: PlatformPublishStartPayload): string[] {
+  const fromList = (payload.mediaPaths ?? [])
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (fromList.length > 0) {
+    return fromList;
+  }
+  const single = payload.mediaPath?.trim();
+  return single ? [single] : [];
+}
+
 function fail(
   base: { requestId: string; targetId: string; platform: string },
   errorCode: string,
@@ -277,13 +291,35 @@ async function assertReadable(filePath: string): Promise<void> {
   }
 }
 
-async function tryAttachVideoFile(
+/** 上传页可能仍停在视频 Tab，尽量点一次「图文」 */
+async function tryClickImageTab(wc: WebContents): Promise<void> {
+  try {
+    await wc.executeJavaScript(`(() => {
+      const nodes = Array.from(document.querySelectorAll('div, span, button, a, li'));
+      const tab = nodes.find((n) => {
+        const text = (n.textContent || '').replace(/\\s+/g, '');
+        return text === '图文' || text === '发布图文';
+      });
+      if (tab) {
+        tab.click();
+      }
+      return !!tab;
+    })()`);
+    await sleep(800);
+  } catch {
+    // ignore
+  }
+}
+
+async function tryAttachImageFiles(
   win: BrowserWindow,
-  videoPath: string,
+  imagePaths: string[],
 ): Promise<boolean> {
-  return setFileOnFirstMatchingInput(win, videoPath, [
-    'input[type="file"][accept*="video"]',
-    'input[type="file"][accept*="mp4"]',
+  return setFilesOnFirstMatchingInput(win, imagePaths, [
+    'input[type="file"][accept*="image"]',
+    'input[type="file"][accept*="jpeg"]',
+    'input[type="file"][accept*="png"]',
+    'input[type="file"][multiple]',
     'input[type="file"]',
   ]);
 }
@@ -292,16 +328,16 @@ async function tryAttachCoverFile(
   win: BrowserWindow,
   coverPath: string,
 ): Promise<boolean> {
-  return setFileOnFirstMatchingInput(win, coverPath, [
+  return setFilesOnFirstMatchingInput(win, [coverPath], [
     'input[type="file"][accept*="image"]',
     'input[type="file"][accept*="jpeg"]',
     'input[type="file"][accept*="png"]',
   ]);
 }
 
-async function setFileOnFirstMatchingInput(
+async function setFilesOnFirstMatchingInput(
   win: BrowserWindow,
-  filePath: string,
+  filePaths: string[],
   selectors: string[],
 ): Promise<boolean> {
   try {
@@ -324,7 +360,7 @@ async function setFileOnFirstMatchingInput(
       }
       await wc.debugger.sendCommand('DOM.setFileInputFiles', {
         nodeId,
-        files: [filePath],
+        files: filePaths,
       });
       return true;
     }
@@ -348,7 +384,7 @@ async function isEditorPage(win: BrowserWindow): Promise<boolean> {
       const hasTitle =
         !!document.querySelector('[contenteditable="true"]') ||
         !!document.querySelector('textarea') ||
-        /作品描述|标题|添加作品描述/.test(text);
+        /作品描述|标题|添加作品描述|图文/.test(text);
       const hasPublish = /发布|定时发布/.test(text);
       return hasTitle && hasPublish;
     })()`);
@@ -419,7 +455,6 @@ async function tryEnableSchedule(
       if (toggle) {
         toggle.click();
       }
-      // Best-effort: fill any datetime-looking inputs
       const inputs = Array.from(document.querySelectorAll('input'));
       for (const el of inputs) {
         const t = (el.type || '') + (el.placeholder || '');
@@ -446,7 +481,6 @@ async function clickPublishButton(wc: WebContents): Promise<boolean> {
         const disabled = b.disabled || b.getAttribute('aria-disabled') === 'true';
         return !disabled && (text === '发布' || text === '定时发布' || text.endsWith('发布'));
       });
-      // Prefer exact 「发布」 over longer labels like 「保存草稿」
       const exact = candidates.find((b) => (b.textContent || '').replace(/\\s+/g, '') === '发布')
         || candidates.find((b) => (b.textContent || '').replace(/\\s+/g, '') === '定时发布')
         || candidates[0];
@@ -490,9 +524,9 @@ async function waitForPublishOutcome(
         const text = document.body ? document.body.innerText : '';
         const ok =
           /发布成功|作品发布成功|已发布/.test(text) ||
-          /\\/content\\/manage|\\/content\\/works|\\/video\\//.test(url);
+          /\\/content\\/manage|\\/content\\/works|\\/note\\//.test(url);
         const authLost = /登录|重新登录|扫码/.test(text) && /失效|过期|重新/.test(text);
-        return { url, ok, authLost, textSnippet: text.slice(0, 200) };
+        return { url, ok, authLost };
       })()`);
       if (snap.authLost) {
         return {

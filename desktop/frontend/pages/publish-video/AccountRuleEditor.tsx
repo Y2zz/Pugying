@@ -96,6 +96,7 @@ export function AccountOverrideForm({
   onDraftChange,
   onEditCover,
   disabled,
+  portraitOnly = false,
 }: {
   account: PlatformAccountItem;
   draft: OverrideDraft;
@@ -109,6 +110,8 @@ export function AccountOverrideForm({
   onDraftChange: (draft: OverrideDraft) => void;
   onEditCover: (kind: CoverKind) => void;
   disabled?: boolean;
+  /** 图文账号差异封面仅竖版 */
+  portraitOnly?: boolean;
 }) {
   const scheduleEnabled = Boolean(draft.scheduledLocal.trim());
 
@@ -263,19 +266,21 @@ export function AccountOverrideForm({
               onEditCover('cover');
             }}
           />
-          <CoverHoverCard
-            label="横版 4:3"
-            ready={accountLandscapeReady || commonCoverLandscapeReady}
-            src={landscapeSrc}
-            aspectRatio={4 / 3}
-            previewClassName="h-24 shrink-0"
-            disabled={disabled || coverDisabled}
-            onEdit={() => {
-              onEditCover('cover_landscape');
-            }}
-          />
+          {!portraitOnly ? (
+            <CoverHoverCard
+              label="横版 4:3"
+              ready={accountLandscapeReady || commonCoverLandscapeReady}
+              src={landscapeSrc}
+              aspectRatio={4 / 3}
+              previewClassName="h-24 shrink-0"
+              disabled={disabled || coverDisabled}
+              onEdit={() => {
+                onEditCover('cover_landscape');
+              }}
+            />
+          ) : null}
         </div>
-        {!accountCoverReady && !accountLandscapeReady ? (
+        {!accountCoverReady && (portraitOnly || !accountLandscapeReady) ? (
           <p className="mt-2 text-xs text-muted-foreground">当前使用通用封面；点击槽位可为该账号单独设置</p>
         ) : (
           <p className="mt-2 text-xs text-muted-foreground">已覆盖该账号封面；重置账号可清除本地覆盖（已上传的需重新编辑）</p>

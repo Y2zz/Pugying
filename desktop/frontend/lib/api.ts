@@ -282,7 +282,9 @@ export interface PublishDispatch {
   targetId: string;
   platform: string;
   accountId: string;
+  contentType: 'video' | 'article';
   mediaPath: string;
+  mediaPaths: string[];
   coverPath: string;
   coverLandscapePath: string;
   title: string;

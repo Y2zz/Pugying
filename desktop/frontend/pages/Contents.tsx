@@ -374,7 +374,7 @@ export default function Contents() {
     try {
       agentClient.connect();
       if (agentClient.getStatus() !== 'connected') {
-        throw new Error('本机服务未连接，请从「蒲公英」桌面应用打开后再试');
+        throw new Error('应用未就绪，请重启「蒲公英」后再试');
       }
       const { dispatch } = await retryContentTarget(item.id, target.id);
       const { dispatch: started } = await startContentTarget(
@@ -386,7 +386,9 @@ export default function Contents() {
         targetId: payload.targetId,
         platform: payload.platform,
         accountId: payload.accountId,
+        contentType: payload.contentType ?? 'video',
         mediaPath: payload.mediaPath,
+        mediaPaths: payload.mediaPaths,
         coverPath: payload.coverPath,
         coverLandscapePath: payload.coverLandscapePath,
         title: payload.title,
