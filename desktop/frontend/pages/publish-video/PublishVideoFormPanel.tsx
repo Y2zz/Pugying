@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Circle, Plus } from 'lucide-react';
+import { CheckCircle2, Circle, Plus, Save, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -196,7 +196,7 @@ export function PublishVideoFormPanel({
     : null;
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 lg:min-h-[min(720px,calc(100dvh-14rem))]">
+    <div className="flex flex-col gap-6">
       <Card className="shrink-0">
         <CardHeader>
           <CardTitle>通用信息</CardTitle>
@@ -226,7 +226,7 @@ export function PublishVideoFormPanel({
         </CardContent>
       </Card>
 
-      <Card ref={accountsSectionRef} className="flex min-h-0 flex-1 flex-col">
+      <Card ref={accountsSectionRef} className="flex flex-col">
         <CardHeader className="shrink-0 pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -248,7 +248,7 @@ export function PublishVideoFormPanel({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        <CardContent className="flex flex-col gap-3">
           {accountsEmpty ? (
             <p className="text-muted-foreground">
               还没有绑定媒体账号，请先前往
@@ -273,16 +273,17 @@ export function PublishVideoFormPanel({
               选择要推送的账号。
             </p>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(200px,280px)_minmax(0,1fr)] lg:grid-rows-1">
+            <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(200px,280px)_minmax(0,1fr)]">
               <DistributionAccountList
                 entries={selectedEntries}
                 drafts={drafts}
                 focusedAccountId={focusedEntry?.account.id ?? null}
                 disabled={loading || formDisabled}
+                plain
                 onFocusAccount={focusAccount}
                 onRemoveAccount={removeAccount}
               />
-              <div className="hidden min-h-0 lg:block">
+              <div className="hidden lg:block">
                 <DistributionAccountEditor
                   account={editorProps?.account ?? null}
                   platformLabel={editorProps?.platformLabel ?? '抖音'}
@@ -299,7 +300,8 @@ export function PublishVideoFormPanel({
                   }
                   coverDisabled={editorProps?.coverDisabled ?? coverFormDisabled}
                   disabled={editorProps?.disabled ?? formDisabled}
-                  className="h-full min-h-[280px]"
+                  className="min-h-[280px]"
+                  plain
                   portraitOnly={portraitCoverOnly}
                   onDraftChange={
                     editorProps?.onDraftChange ??
@@ -365,7 +367,8 @@ export function PublishVideoFormPanel({
               commonCoverLandscapePreviewUrl={editorProps.commonCoverLandscapePreviewUrl}
               coverDisabled={editorProps.coverDisabled}
               disabled={editorProps.disabled}
-              className="min-h-0 flex-1 border-0"
+              className="min-h-0 flex-1"
+              plain
               portraitOnly={portraitCoverOnly}
               onDraftChange={editorProps.onDraftChange}
               onEditCover={editorProps.onEditCover}
@@ -377,7 +380,7 @@ export function PublishVideoFormPanel({
   );
 }
 
-/** 底栏就绪清单：复用 submit 前校验项，让用户知道还差什么 */
+/** 底栏就绪清单：复用 submit 前校验项，让用户知道还差什么；随页面正常滚动。 */
 export function PublishVideoActionBar({
   prechecks,
   readyCount,
@@ -406,51 +409,52 @@ export function PublishVideoActionBar({
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-10 mt-auto shrink-0 border-t bg-background/95 py-3 backdrop-blur supports-backdrop-filter:bg-background/80',
+        'shrink-0 bg-background py-3',
+        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-2">
-          <p className="text-sm font-medium">
-            就绪 {readyCount}/{totalCount}
-            {publishHint ? <span className="ml-2 font-normal text-muted-foreground">{publishHint}</span> : null}
-          </p>
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {prechecks.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={cn(
-                  'inline-flex items-center gap-1 text-xs transition-colors',
-                  item.ok ? 'text-muted-foreground' : 'text-foreground hover:underline',
-                  !item.focusKind || item.ok ? 'cursor-default' : 'cursor-pointer'
-                )}
-                disabled={item.ok || !item.focusKind}
-                onClick={() => {
-                  if (!item.ok && item.focusKind) {
-                    onFocusItem(item);
-                  }
-                }}
-              >
-                {item.ok ? (
-                  <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden />
-                ) : (
-                  <Circle className="size-3.5 text-muted-foreground" aria-hidden />
-                )}
-                {item.label}
-              </button>
-            ))}
-          </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <p className="text-sm font-medium">
+          就绪 {readyCount}/{totalCount}
+          {publishHint ? <span className="ml-2 font-normal text-muted-foreground">{publishHint}</span> : null}
+        </p>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {prechecks.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 text-xs transition-colors',
+                item.ok ? 'text-muted-foreground' : 'text-foreground hover:underline',
+                !item.focusKind || item.ok ? 'cursor-default' : 'cursor-pointer'
+              )}
+              disabled={item.ok || !item.focusKind}
+              onClick={() => {
+                if (!item.ok && item.focusKind) {
+                  onFocusItem(item);
+                }
+              }}
+            >
+              {item.ok ? (
+                <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden />
+              ) : (
+                <Circle className="size-3.5 text-muted-foreground" aria-hidden />
+              )}
+              {item.label}
+            </button>
+          ))}
         </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          <Button variant="outline" disabled={busy} onClick={onSaveDraft}>
-            存草稿
-          </Button>
-          <Button disabled={busy || publishBlocked} onClick={onPublish}>
-            {busy ? busyLabel : '推送到抖音'}
-          </Button>
-        </div>
+      </div>
+      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <Button variant="outline" disabled={busy} onClick={onSaveDraft}>
+          <Save data-icon="inline-start" />
+          存草稿
+        </Button>
+        <Button disabled={busy || publishBlocked} onClick={onPublish}>
+          <Send data-icon="inline-start" />
+          {busy ? busyLabel : '发布'}
+        </Button>
       </div>
     </div>
   );

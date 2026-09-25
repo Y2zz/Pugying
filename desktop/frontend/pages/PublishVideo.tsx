@@ -661,7 +661,7 @@ export default function PublishVideo() {
         return;
       }
 
-      setPublishHint('正在向后端申请发布…');
+      setPublishHint('正在提交发布任务…');
       const started = await publishContent(contentId);
       const accountLabel = (accountId: string) =>
         accounts.find((a) => a.id === accountId)?.displayName ??
@@ -1178,7 +1178,7 @@ export default function PublishVideo() {
   };
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-6xl flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <PageHeader>
         <PageHeaderTitle className="flex items-center gap-2">
           <Clapperboard className="size-5" />
@@ -1213,12 +1213,12 @@ export default function PublishVideo() {
 
       <div
         className={cn(
-          'grid min-h-0 flex-1 gap-6 lg:items-stretch',
+          'grid gap-6 lg:items-start',
           showSplitLayout ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : 'w-full',
         )}
       >
         {showFormPanel ? (
-          <div className="order-2 min-h-0 lg:order-1">
+          <div className="order-2 min-w-0 lg:order-1">
             <PublishVideoFormPanel
               catalog={catalog}
               accounts={accounts}
@@ -1263,7 +1263,7 @@ export default function PublishVideo() {
         ) : null}
 
         {showPublishPanel ? (
-          <div className="order-2 min-h-0 lg:order-1">
+          <div className="order-2 min-w-0 lg:order-1">
             <PublishVideoProgressPanel
               flowStep={flowStep}
               publishHint={publishHint}

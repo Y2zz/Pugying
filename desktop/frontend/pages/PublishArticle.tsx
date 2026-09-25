@@ -534,7 +534,7 @@ export default function PublishArticle() {
         return;
       }
 
-      setPublishHint('正在向后端申请发布…');
+      setPublishHint('正在提交发布任务…');
       const started = await publishContent(contentId);
       const accountLabel = (accountId: string) =>
         accounts.find((a) => a.id === accountId)?.displayName ??
@@ -798,7 +798,7 @@ export default function PublishArticle() {
     : '封面已就绪；点击可重新上传或调整裁剪';
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-6xl flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <PageHeader>
         <PageHeaderTitle className="flex items-center gap-2">
           <FileText className="size-5" />
@@ -890,7 +890,6 @@ export default function PublishArticle() {
           busyLabel={primaryBusyLabel}
           publishBlocked={publishBlocked}
           publishHint={publishHint}
-          className="border-t-0"
           onFocusItem={focusPrecheck}
           onSaveDraft={() => {
             void submit('draft');

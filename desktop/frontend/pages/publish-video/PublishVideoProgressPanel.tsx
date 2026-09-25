@@ -28,7 +28,7 @@ export function PublishVideoProgressPanel({
   const title = flowStep === 'publish' ? '正在发布' : '推送进度';
   const description =
     publishHint.trim() ||
-    (flowStep === 'publish' ? '正在向后端申请发布并准备发布任务…' : '正在串行推送到各抖音账号…');
+    (flowStep === 'publish' ? '正在提交发布任务…' : '正在发布到各账号…');
 
   return (
     <Card className="flex min-h-[350px] flex-col">

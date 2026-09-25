@@ -55,7 +55,7 @@ export function describePublishFlowStep(step: PublishFlowStepId): string {
     case 'publish':
       return '正在提交发布任务';
     case 'progress':
-      return '正在推送到抖音';
+      return '正在发布';
     default:
       return '';
   }
