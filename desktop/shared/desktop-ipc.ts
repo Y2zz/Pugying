@@ -15,4 +15,12 @@ export const DESKTOP_IPC = {
   getWindowChrome: 'desktop:get-window-chrome',
   /** Windows：同步 titleBarOverlay 颜色 */
   setTitleBarOverlay: 'desktop:set-title-bar-overlay',
+  /** 顶栏菜单：显示/聚焦主窗口 */
+  appShow: 'desktop:app-show',
+  /** 顶栏菜单：退出应用（走 before-quit 清理） */
+  appQuit: 'desktop:app-quit',
+  /** 顶栏菜单：关于对话框 */
+  appAbout: 'desktop:app-about',
+  /** 顶栏菜单：切换业务主窗 DevTools（仅未打包） */
+  toggleDevTools: 'desktop:toggle-devtools',
 } as const;

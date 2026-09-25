@@ -144,6 +144,10 @@ export type PugyingDesktopBridge = {
   setTitleBarOverlay?: (
     theme: import('@shared/window-chrome').TitleBarOverlayTheme,
   ) => Promise<boolean>;
+  showAppWindow?: () => Promise<void>;
+  quitApp?: () => Promise<void>;
+  showAbout?: () => Promise<void>;
+  toggleDevTools?: () => Promise<boolean>;
 };
 
 type StatusListener = (status: AgentConnectionStatus) => void;

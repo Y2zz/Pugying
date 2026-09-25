@@ -35,6 +35,14 @@ const pugyingDesktop = {
       DESKTOP_IPC.setTitleBarOverlay,
       theme,
     ) as Promise<boolean>,
+  showAppWindow: (): Promise<void> =>
+    ipcRenderer.invoke(DESKTOP_IPC.appShow) as Promise<void>,
+  quitApp: (): Promise<void> =>
+    ipcRenderer.invoke(DESKTOP_IPC.appQuit) as Promise<void>,
+  showAbout: (): Promise<void> =>
+    ipcRenderer.invoke(DESKTOP_IPC.appAbout) as Promise<void>,
+  toggleDevTools: (): Promise<boolean> =>
+    ipcRenderer.invoke(DESKTOP_IPC.toggleDevTools) as Promise<boolean>,
 };
 
 export type PugyingDesktopBridge = typeof pugyingDesktop;
