@@ -5,9 +5,10 @@
   "description": "Pugying desktop — electron-vite UI + local Nest server host",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "dev": "node scripts/run-electron-vite.mjs dev",
     "build": "electron-vite build",
-    "start": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
+    "start": "node scripts/run-electron-vite.mjs preview",
+    "postinstall": "node ./node_modules/electron/install.js",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
