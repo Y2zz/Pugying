@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "dist": "npm run build && npm run pack:server && electron-builder --dir",
+    "dist": "npm run build && npm run pack:server && electron-builder",
+    "dist:dir": "npm run build && npm run pack:server && electron-builder --dir",
     "dist:linux": "npm run build && npm run pack:server -- --platform linux --arch x64 && electron-builder --linux --x64 --dir",
     "dist:win": "npm run build && npm run pack:server -- --platform win32 --arch x64 && electron-builder --win --x64 --dir",
     "pack:server": "node scripts/pack-server.mjs",
@@ -89,15 +90,26 @@
         "to": "server/node_modules"
       }
     ],
+    "afterPack": "./scripts/after-pack-mac-adhoc-sign.mjs",
     "mac": {
       "category": "public.app-category.productivity",
       "electronLanguages": [
         "zh-CN",
         "en"
       ],
+      "identity": null,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
+        "dmg",
         "dir"
       ]
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "writeUpdateInfo": false
     },
     "linux": {
       "target": [
