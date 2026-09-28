@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 用 electronuserland/builder 镜像打 Linux / Windows 目录包。
 # 用法：
-#   ./scripts/docker-dist.sh linux
-#   ./scripts/docker-dist.sh win
-#   ./scripts/docker-dist.sh all
+#   ./scripts/docker-package.sh linux
+#   ./scripts/docker-package.sh win
+#   ./scripts/docker-package.sh all
 #
 # Windows：官方说明「无 prebuild 的原生依赖无法在 Docker/Wine 下交叉编译」。
 # 本仓库 better-sqlite3 需匹配 Electron ABI；无 win32 预编译包时 win 目标会失败。
@@ -31,7 +31,7 @@ mkdir -p "${CACHE_ELECTRON}" "${CACHE_BUILDER}"
 run_in_image() {
   local image="$1"
   local npm_script="$2"
-  echo "[docker-dist] image=${image} platform=${DOCKER_PLATFORM} script=${npm_script}"
+  echo "[docker-package] image=${image} platform=${DOCKER_PLATFORM} script=${npm_script}"
   docker run --rm \
     --platform "${DOCKER_PLATFORM}" \
     --env ELECTRON_CACHE=/root/.cache/electron \
@@ -46,26 +46,26 @@ run_in_image() {
     bash -lc "npm ci --prefer-offline && npm run ${npm_script}"
 }
 
-dist_linux() {
-  run_in_image "${LINUX_IMAGE}" "dist:linux"
-  echo "[docker-dist] Linux 产物: desktop/release/linux-unpacked/"
+package_linux() {
+  run_in_image "${LINUX_IMAGE}" "package:linux"
+  echo "[docker-package] Linux 产物: desktop/release/linux-unpacked/"
 }
 
-dist_win() {
-  run_in_image "${WINE_IMAGE}" "dist:win"
-  echo "[docker-dist] Windows 产物: desktop/release/win-unpacked/"
+package_win() {
+  run_in_image "${WINE_IMAGE}" "package:win"
+  echo "[docker-package] Windows 产物: desktop/release/win-unpacked/"
 }
 
 case "${TARGET}" in
   linux)
-    dist_linux
+    package_linux
     ;;
   win|windows)
-    dist_win
+    package_win
     ;;
   all)
-    dist_linux
-    dist_win
+    package_linux
+    package_win
     ;;
   *)
     echo "未知目标: ${TARGET}（期望 linux|win|all）" >&2

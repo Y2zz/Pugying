@@ -191,8 +191,8 @@ function rebuildBetterSqlite3(target) {
   throw new Error(
     [
       `无法为 ${target.platform}/${target.arch} 获取 better-sqlite3（Electron ${electronVersion}）预编译包，且本机（${process.platform}/${process.arch}）不能交叉编译。`,
-      'Linux 请用：npm run docker:dist:linux（容器内同平台编译）。',
-      'Windows 请在 Windows 主机执行 npm run dist:win，或等待/自建对应 Electron ABI 的 prebuild。',
+      'Linux 请用：npm run docker:package:linux（容器内同平台编译）。',
+      'Windows 请在 Windows 主机执行 npm run package:win，或等待/自建对应 Electron ABI 的 prebuild。',
       '参考：https://www.electron.build/multi-platform-build#build-for-windows-on-linux',
     ].join('\n'),
   );

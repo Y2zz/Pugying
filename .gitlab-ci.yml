@@ -1,13 +1,13 @@
 # Pugying CI/CD
 #
 # CI（check 阶段）：server / desktop 各自测试与编译。
-# desktop:dist:linux：electronuserland/builder 镜像打 Linux 目录包。
+# desktop:package:linux：electronuserland/builder 镜像打 Linux 目录包。
 # Windows 含 better-sqlite3（Electron ABI），Docker/Wine 无 prebuild 时不可交叉编译，
-# 故不在此打 win 包；请在 Windows 主机执行 npm run dist:win。
+# 故不在此打 win 包；请在 Windows 主机执行 npm run package:win。
 
 stages:
   - check
-  - dist
+  - package
 
 workflow:
   rules:
@@ -65,10 +65,10 @@ desktop:check:
     - npm test
     - npm run build
 
-# ---------------- dist ----------------
+# ---------------- package ----------------
 
-desktop:dist:linux:
-  stage: dist
+desktop:package:linux:
+  stage: package
   image: electronuserland/builder:22-05.26
   needs:
     - job: desktop:check
@@ -93,7 +93,7 @@ desktop:dist:linux:
   script:
     - cd desktop
     - npm ci --prefer-offline
-    - npm run dist:linux
+    - npm run package:linux
   artifacts:
     name: pugying-desktop-linux-$CI_COMMIT_SHORT_SHA
     paths:

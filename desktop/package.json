@@ -15,13 +15,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "dist": "npm run build && npm run pack:server && electron-builder",
-    "dist:dir": "npm run build && npm run pack:server && electron-builder --dir",
-    "dist:linux": "npm run build && npm run pack:server -- --platform linux --arch x64 && electron-builder --linux --x64 --dir",
-    "dist:win": "npm run build && npm run pack:server -- --platform win32 --arch x64 && electron-builder --win --x64 --dir",
+    "package": "npm run build && npm run pack:server && electron-builder",
+    "package:dir": "npm run build && npm run pack:server && electron-builder --dir",
+    "package:linux": "npm run build && npm run pack:server -- --platform linux --arch x64 && electron-builder --linux --x64 --dir",
+    "package:win": "npm run build && npm run pack:server -- --platform win32 --arch x64 && electron-builder --win --x64 --dir",
     "pack:server": "node scripts/pack-server.mjs",
-    "docker:dist:linux": "bash scripts/docker-dist.sh linux",
-    "docker:dist:win": "bash scripts/docker-dist.sh win"
+    "docker:package:linux": "bash scripts/docker-package.sh linux",
+    "docker:package:win": "bash scripts/docker-package.sh win"
   },
   "devDependencies": {
     "@base-ui/react": "1.8.0",

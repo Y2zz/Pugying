@@ -219,10 +219,11 @@ Pugying/
 | 启动桌面端 | `cd desktop && npm run dev`（需已起 Server，或设 `PUGYING_EXTERNAL_SERVER=1`） |
 | 单元测试 | `cd desktop && npm test` |
 | 构建 | `cd desktop && npm run build` |
-| 打出本地目录包（含 Server + 内置 Node） | `cd desktop && npm run dist` |
-| Docker 打 Linux x64 目录包 | `cd desktop && npm run docker:dist:linux` |
-| Docker（Wine）打 Windows x64（需 native prebuild） | `cd desktop && npm run docker:dist:win` |
-| 本机打 Linux / Windows 目录包 | `cd desktop && npm run dist:linux` / `npm run dist:win` |
+| 打出本地发行包（macOS：dmg + 目录包；含 Server + 内置 Node） | `cd desktop && npm run package` |
+| 仅打出目录包 | `cd desktop && npm run package:dir` |
+| Docker 打 Linux x64 目录包 | `cd desktop && npm run docker:package:linux` |
+| Docker（Wine）打 Windows x64（需 native prebuild） | `cd desktop && npm run docker:package:win` |
+| 本机打 Linux / Windows 目录包 | `cd desktop && npm run package:linux` / `npm run package:win` |
 | 类型检查 | `cd desktop && npm run typecheck` |
 
 > `npm run dev` / `start` 会清除 `ELECTRON_RUN_AS_NODE`。发行版 **自带 Node**，终端用户无需安装 Node.js。

@@ -8,14 +8,15 @@
 |------|------|
 | `.gitlab-ci.yml` | CI：Server / Desktop 测试与编译；可选 Docker 打 Linux 包 |
 | `./start.sh` | 本地开发：Server watch + Desktop |
-| `cd desktop && npm run dist` | 打出**当前主机**可运行目录包 |
-| `cd desktop && npm run docker:dist:linux` | Docker 打 Linux x64 目录包 |
-| `cd desktop && npm run docker:dist:win` | Docker（Wine）打 Windows x64（需 better-sqlite3 prebuild） |
+| `cd desktop && npm run package` | 打出**当前主机**发行包（macOS 含 dmg + 目录包） |
+| `cd desktop && npm run package:dir` | 仅打出目录包（不生成 dmg） |
+| `cd desktop && npm run docker:package:linux` | Docker 打 Linux x64 目录包 |
+| `cd desktop && npm run docker:package:win` | Docker（Wine）打 Windows x64（需 better-sqlite3 prebuild） |
 | `.env.example` | 环境变量模板 |
 
 ## CI（GitLab）
 
-推送 MR / main / tag 自动触发。check 阶段并行执行 Server 与 Desktop 的测试、类型检查和构建；另有 `desktop:dist:linux` 用官方 builder 镜像打 Linux 目录包。
+推送 MR / main / tag 自动触发。check 阶段并行执行 Server 与 Desktop 的测试、类型检查和构建；另有 `desktop:package:linux` 用官方 builder 镜像打 Linux 目录包。
 
 ## 桌面发行包
 
@@ -24,7 +25,8 @@
 ```bash
 cd desktop
 npm ci
-npm run dist   # 当前 OS 目录包 → desktop/release/
+npm run package       # 当前 OS 发行包 → desktop/release/（macOS：.dmg + .app 目录）
+npm run package:dir   # 仅目录包
 ```
 
 ### Docker 打包（推荐在 macOS / 任意机打 Linux；Windows 见下）
@@ -36,10 +38,10 @@ npm run dist   # 当前 OS 目录包 → desktop/release/
 
 ```bash
 cd desktop
-npm run docker:dist:linux   # → desktop/release/linux-unpacked/
-npm run docker:dist:win     # → desktop/release/win-unpacked/（见原生模块限制）
+npm run docker:package:linux   # → desktop/release/linux-unpacked/
+npm run docker:package:win     # → desktop/release/win-unpacked/（见原生模块限制）
 # 或
-./scripts/docker-dist.sh all
+./scripts/docker-package.sh all
 ```
 
 发行包由 Electron 内嵌 Node 跑 Nest；`better-sqlite3` 必须按 **Electron ABI** 为**目标平台**编译。
@@ -47,7 +49,7 @@ npm run docker:dist:win     # → desktop/release/win-unpacked/（见原生模�
 | 目标 | Docker | 说明 |
 |------|--------|------|
 | Linux x64 | ✅ | 容器内同平台 `electron-rebuild`，可用 |
-| Windows x64 | ⚠️ | Wine 只能打壳；**无**对应 Electron 的 win32 prebuild 时会失败。须在 Windows 主机 `npm run dist:win`，或自建/上游提供 prebuild |
+| Windows x64 | ⚠️ | Wine 只能打壳；**无**对应 Electron 的 win32 prebuild 时会失败。须在 Windows 主机 `npm run package:win`，或自建/上游提供 prebuild |
 
 官方说明：[Build for Windows on Linux](https://www.electron.build/multi-platform-build) — *You cannot build for Windows using Docker if your app has native dependencies that don't use prebuild.*
 
