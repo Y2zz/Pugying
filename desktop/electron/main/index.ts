@@ -1,6 +1,7 @@
 import { app, Menu, dialog } from 'electron';
 import {
   createAppWindow,
+  getAppWindow,
   markAppQuitting,
   showAppWindow,
 } from './app-window';
@@ -11,7 +12,10 @@ import {
 } from './server-process';
 import { createTray, destroyTray } from './tray';
 
+/** 清理已完成，允许 before-quit 放行真正的退出 */
 let allowQuit = false;
+/** 避免 Dock / Cmd+Q 连点时重复启动清理 */
+let quitCleanupStarted = false;
 
 /**
  * Replace Electron's default application menu, whose View→Reload
@@ -74,12 +78,33 @@ app.on('before-quit', (event) => {
   if (allowQuit) {
     return;
   }
+  // 拦截首次退出做异步清理；清理完成后再发一次真正的 quit
   event.preventDefault();
+  if (quitCleanupStarted) {
+    return;
+  }
+  quitCleanupStarted = true;
   markAppQuitting();
   void (async () => {
-    destroyTray();
-    await stopLocalServer();
-    allowQuit = true;
-    app.quit();
+    try {
+      // 先拆主窗：避免本机 HTTP 长连接拖住 Nest close，也避免关窗被当成「藏托盘」
+      const win = getAppWindow();
+      if (win) {
+        win.destroy();
+      }
+      destroyTray();
+      await stopLocalServer();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[pugying-desktop] quit cleanup failed:', message);
+    } finally {
+      allowQuit = true;
+      // 必须放到下一宏任务：在同一 before-quit 的 Promise 微任务里再 app.quit()
+      // 会复入尚未结束的 macOS 退出事务，只关窗并走到 window-all-closed，
+      // 进程仍留在 Dock，表现为「要退出两次」。
+      setImmediate(() => {
+        app.quit();
+      });
+    }
   })();
 });
