@@ -223,8 +223,27 @@ function packServerDist(target) {
   }
 
   console.log('[pack-server] npm ci --omit=dev in resources/server…');
-  run('npm', ['ci', '--omit=dev'], serverOut);
-  rebuildBetterSqlite3(target);
+  // ignore-scripts：避免 install 阶段因本机无 Xcode 许可而强行 node-gyp 失败；
+  // 随后优先 electron-rebuild，失败则回退 better-sqlite3 自带的 N-API prebuilds。
+  run('npm', ['ci', '--omit=dev', '--ignore-scripts'], serverOut);
+  try {
+    rebuildBetterSqlite3(target);
+  } catch (err) {
+    const prebuild = path.join(
+      serverOut,
+      'node_modules',
+      'better-sqlite3',
+      'prebuilds',
+      `${target.platform}-${target.arch}.node`,
+    );
+    if (!existsSync(prebuild)) {
+      throw err;
+    }
+    console.warn(
+      `[pack-server] electron-rebuild 失败，改用 better-sqlite3 N-API 预编译：${prebuild}`,
+    );
+    console.warn(String(err));
+  }
 
   const pkg = JSON.parse(
     readFileSync(path.join(serverOut, 'package.json'), 'utf8'),
