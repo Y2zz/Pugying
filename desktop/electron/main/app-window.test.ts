@@ -122,6 +122,7 @@ describe('buildAppWindowOptions', () => {
     expect(options.titleBarStyle).toBe('hiddenInset');
     expect(options.trafficLightPosition).toEqual({ x: 14, y: 18 });
     expect(options.titleBarOverlay).toBeUndefined();
+    expect(options.icon).toEqual(expect.any(String));
     expect(resolveDesktopWindowChrome('darwin').controls).toBe('trafficLights');
   });
 

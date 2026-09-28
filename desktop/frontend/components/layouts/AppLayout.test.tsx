@@ -103,6 +103,7 @@ describe('AppLayout (SSR)', () => {
     expect(html).toContain('href="/dashboard"');
     expect(html).toContain('Pugying');
     expect(html).toContain('蒲公英');
+    expect(html).toMatch(/assets\/logo|logo\.png|logo-[A-Za-z0-9_-]+\.png/);
     expect(html).not.toContain('本机服务');
     expect(html).not.toContain('个人单机版');
   });

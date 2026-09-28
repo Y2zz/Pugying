@@ -22,6 +22,7 @@ import {
 } from './protocol';
 import { applyTitleBarOverlayTheme, getAppWindow } from './app-window-state';
 import { currentDesktopPlatform } from './desktop-platform';
+import { getProductLogoNativeImage } from './product-logo';
 import { getApiBaseUrl, getLocalApiToken } from './server-process';
 
 function focusOrCreateAppWindow(): void {
@@ -128,6 +129,7 @@ export function wireDesktopIpc(): void {
       buttons: ['确定'],
       defaultId: 0,
       noLink: true,
+      icon: getProductLogoNativeImage(),
     };
     // 仅当调用方就是业务主窗时做模态父窗，避免误绑到其它 webContents
     if (win && !win.isDestroyed() && event.sender === win.webContents) {

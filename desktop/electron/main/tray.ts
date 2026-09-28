@@ -1,4 +1,3 @@
-import trayIconAsset from '../../assets/tray-icon.png?asset';
 import {
   app,
   Menu,
@@ -18,19 +17,23 @@ import {
   getActiveBrowseWindowCount,
 } from './auth-browser';
 import { notifyUser } from './notify';
+import { getTrayIconNativeImage } from './tray-icon';
 
 let tray: Tray | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
+/** 专用托盘图；缩放到菜单栏尺寸，macOS 标为 template 以便随系统着色。 */
 function createTrayIcon(): NativeImage {
-  const image = nativeImage.createFromPath(trayIconAsset);
-  if (image.isEmpty()) {
-    // Fallback if asset missing after unexpected cwd/outDir
+  const icon = getTrayIconNativeImage();
+  if (icon.isEmpty()) {
     return nativeImage.createEmpty();
   }
-  // 资产为白前景 + 透明底；勿开 template（template 期望黑剪影）
-  const size = process.platform === 'darwin' ? 22 : 16;
-  return image.resize({ width: size, height: size, quality: 'best' });
+  // macOS 菜单栏约 16–22pt；Windows/Linux 托盘略大一些同样可接受
+  const sized = icon.resize({ width: 18, height: 18 });
+  if (process.platform === 'darwin') {
+    sized.setTemplateImage(true);
+  }
+  return sized;
 }
 
 function buildMenuTemplate(): MenuItemConstructorOptions[] {

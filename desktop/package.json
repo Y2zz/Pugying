@@ -71,7 +71,6 @@
       "output": "release",
       "buildResources": "build"
     },
-    "icon": "icon",
     "files": [
       "out/**/*",
       "package.json"
@@ -91,7 +90,6 @@
       }
     ],
     "mac": {
-      "icon": "icon.icns",
       "category": "public.app-category.productivity",
       "electronLanguages": [
         "zh-CN",
@@ -102,13 +100,11 @@
       ]
     },
     "linux": {
-      "icon": "icon.png",
       "target": [
         "dir"
       ]
     },
     "win": {
-      "icon": "icon.ico",
       "target": [
         "dir"
       ]

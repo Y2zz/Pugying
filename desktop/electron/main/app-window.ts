@@ -4,7 +4,6 @@
  * macOS：hiddenInset + 红绿灯；Windows：hidden + titleBarOverlay（系统 caption）+ DesktopTitleBar 顶行。
  * Linux 暂用系统边框。
  */
-import appIconAsset from '../../assets/app-icon.png?asset';
 import { BrowserWindow, shell, type BrowserWindowConstructorOptions } from 'electron';
 import path from 'path';
 import { attachAppWindowBridge } from './app-ipc';
@@ -15,6 +14,7 @@ import {
   TITLEBAR_OVERLAY_THEME,
 } from '../../shared/window-chrome';
 import { currentDesktopPlatform } from './desktop-platform';
+import { getProductLogoPath } from './product-logo';
 
 export {
   getAppWindow,
@@ -62,8 +62,8 @@ export function buildAppWindowOptions(
     minHeight: 640,
     show: false,
     title: '蒲公英',
-    // Win/Linux 任务栏与窗口图标；macOS Dock 由 app.dock / 打包 icns 负责
-    icon: appIconAsset,
+    // Windows/Linux 窗框图标；macOS 仍用打包 icns（build/，本处不改）
+    icon: getProductLogoPath(),
     backgroundColor: TITLEBAR_OVERLAY_THEME.light.color,
     webPreferences: {
       // 业务窗专用 preload（pugyingDesktop）；禁止 nodeIntegration，与 chromeShell 隔离

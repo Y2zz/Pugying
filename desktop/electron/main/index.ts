@@ -1,5 +1,4 @@
-import { app, Menu, dialog, nativeImage } from 'electron';
-import appIconAsset from '../../assets/app-icon.png?asset';
+import { app, Menu, dialog } from 'electron';
 import {
   createAppWindow,
   markAppQuitting,
@@ -44,11 +43,6 @@ app.whenReady().then(async () => {
   // 桌面一体：业务主窗常驻，Dock/任务切换应可见
   if (process.platform === 'darwin') {
     void app.dock?.show();
-    // 开发态使用同一套 App 图标；打包后 Finder 由 icns 负责
-    const dockIcon = nativeImage.createFromPath(appIconAsset);
-    if (!dockIcon.isEmpty()) {
-      app.dock?.setIcon(dockIcon);
-    }
   }
 
   installAppMenu();

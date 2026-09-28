@@ -400,12 +400,16 @@ class FakeNativeImage {
     return this.empty;
   }
 
+  resize(_options: { width?: number; height?: number }): FakeNativeImage {
+    return new FakeNativeImage(this.empty);
+  }
+
   setTemplateImage(_flag: boolean): void {}
 }
 
 export const nativeImage = {
   createFromPath(_path: string): FakeNativeImage {
-    return new FakeNativeImage(true);
+    return new FakeNativeImage(false);
   },
   createEmpty(): FakeNativeImage {
     return new FakeNativeImage(true);
