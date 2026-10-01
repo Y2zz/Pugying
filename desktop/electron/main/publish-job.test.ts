@@ -43,11 +43,11 @@ describe('publish-job stub', () => {
     expect(started).toEqual({ error: 'invalid_payload' });
   });
 
-  it('accepts article payload without landscape cover', async () => {
+  it('accepts graphic payload without landscape cover', async () => {
     const result = await new Promise<{ ok: boolean }>((resolve) => {
       const started = startPublishJob({
         payload: basePayload({
-          contentType: 'article',
+          contentType: 'graphic',
           mediaPath: undefined,
           mediaPaths: ['/tmp/pugying-test/a.jpg', '/tmp/pugying-test/b.jpg'],
           coverLandscapePath: undefined,
@@ -62,10 +62,10 @@ describe('publish-job stub', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejects article payload without images', () => {
+  it('rejects graphic payload without images', () => {
     const started = startPublishJob({
       payload: basePayload({
-        contentType: 'article',
+        contentType: 'graphic',
         mediaPath: undefined,
         mediaPaths: [],
         coverLandscapePath: undefined,
@@ -74,6 +74,25 @@ describe('publish-job stub', () => {
       onResult: () => undefined,
     });
     expect(started).toEqual({ error: 'invalid_payload' });
+  });
+
+  it('accepts article payload without images', async () => {
+    const result = await new Promise<{ ok: boolean }>((resolve) => {
+      const started = startPublishJob({
+        payload: basePayload({
+          contentType: 'article',
+          mediaPath: undefined,
+          mediaPaths: [],
+          coverLandscapePath: '/tmp/pugying-test/cover-landscape.jpg',
+        }),
+        onProgress: () => undefined,
+        onResult: (r) => {
+          resolve(r);
+        },
+      });
+      expect(started).toEqual({ ok: true });
+    });
+    expect(result.ok).toBe(true);
   });
 
   it('rejects unsupported platforms', () => {

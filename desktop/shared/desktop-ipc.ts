@@ -25,4 +25,6 @@ export const DESKTOP_IPC = {
   toggleDevTools: 'desktop:toggle-devtools',
   /** 本机绝对路径是否可读（草稿打开 / 选片后校验） */
   checkLocalPathReadable: 'desktop:check-local-path-readable',
+  /** 读取本机图片供编辑器预览，不将本机文件 URL 暴露给 renderer */
+  readLocalImageDataUrl: 'desktop:read-local-image-data-url',
 } as const;

@@ -13,6 +13,7 @@ import {
   isContentStatus,
   isContentType,
   isContentVisibility,
+  isPlatformAllowedForContentType,
   type ContentStatus,
   type ContentTargetOverrides,
   type ContentType,
@@ -149,7 +150,7 @@ export class ContentService {
         ? dto.visibility
         : 'public';
 
-    const preparedTargets = await this.prepareTargets(dto.targets);
+    const preparedTargets = await this.prepareTargets(dto.type, dto.targets);
     const mediaPaths = this.normalizeMediaPaths(dto.mediaPaths);
 
     const content = this.repository.create({
@@ -210,7 +211,7 @@ export class ContentService {
 
     let preparedTargets: Partial<ContentTarget>[] | undefined;
     if (dto.targets !== undefined) {
-      preparedTargets = await this.prepareTargets(dto.targets);
+      preparedTargets = await this.prepareTargets(content.type, dto.targets);
     }
 
     const saved = await this.repository.save(content);
@@ -359,8 +360,9 @@ export class ContentService {
     return target;
   }
 
-  /** 校验账号归属并组装分发目标（不落库） */
+  /** 校验账号归属、内容形态与平台匹配，并组装分发目标（不落库） */
   private async prepareTargets(
+    contentType: ContentType,
     targets: ContentTargetDto[] | undefined,
   ): Promise<Partial<ContentTarget>[]> {
     if (!targets?.length) {
@@ -379,6 +381,15 @@ export class ContentService {
       if (!account) {
         throw new BadRequestException(
           `Platform account #${target.platformAccountId} not found`,
+        );
+      }
+      if (!isPlatformAllowedForContentType(contentType, account.platform)) {
+        throw new BadRequestException(
+          contentType === 'article'
+            ? `「${account.displayName}」不支持文章分发`
+            : contentType === 'graphic'
+              ? `「${account.displayName}」不支持图文分发`
+              : `「${account.displayName}」不支持该内容类型`,
         );
       }
       prepared.push({
@@ -457,6 +468,12 @@ export class ContentService {
     }
     if (overrides.allowDownload !== undefined) {
       result.allowDownload = overrides.allowDownload;
+    }
+    if (overrides.location?.trim()) {
+      result.location = overrides.location.trim();
+    }
+    if (overrides.partition?.trim()) {
+      result.partition = overrides.partition.trim();
     }
     return result;
   }

@@ -109,6 +109,10 @@ export interface OverrideDraft {
   scheduledLocal: string;
   visibility: ContentVisibility;
   allowDownload: boolean;
+  /** 地点（图文：小红书等） */
+  location: string;
+  /** 分区文案（图文：哔哩哔哩等） */
+  partition: string;
 }
 
 export function emptyDraft(): OverrideDraft {
@@ -129,6 +133,8 @@ export function emptyDraft(): OverrideDraft {
     scheduledLocal: '',
     visibility: 'public',
     allowDownload: true,
+    location: '',
+    partition: '',
   };
 }
 
@@ -217,6 +223,8 @@ export function overridesToDraft(o: ContentTargetOverrides | undefined): Overrid
     scheduledLocal: isoToLocalInput(o?.scheduledAt),
     visibility: o?.visibility ?? 'public',
     allowDownload: o?.allowDownload ?? true,
+    location: o?.location ?? '',
+    partition: o?.partition ?? '',
   };
 }
 
@@ -230,6 +238,7 @@ export function draftFromTargetAndContent(
     visibility: ContentVisibility;
     scheduledAt: string | null;
     allowDownload: boolean;
+    location?: string | null;
   }
 ): OverrideDraft {
   const draft = overridesToDraft(overrides);
@@ -239,6 +248,7 @@ export function draftFromTargetAndContent(
     scheduledLocal: draft.scheduledLocal || isoToLocalInput(content.scheduledAt),
     visibility: overrides?.visibility ?? content.visibility,
     allowDownload: overrides?.allowDownload ?? content.allowDownload,
+    location: draft.location || (content.location ?? '').trim(),
   };
 }
 
@@ -260,6 +270,12 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   }
   result.visibility = draft.visibility;
   result.allowDownload = draft.allowDownload;
+  if (draft.location.trim()) {
+    result.location = draft.location.trim();
+  }
+  if (draft.partition.trim()) {
+    result.partition = draft.partition.trim();
+  }
   return result;
 }
 

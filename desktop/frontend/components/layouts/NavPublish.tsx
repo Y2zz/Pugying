@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Clapperboard, FileText, Plus } from 'lucide-react';
+import { ChevronDown, Clapperboard, FileText, Images, Plus } from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 
-/** 主菜单上方的发布入口：下拉选择发布图文 / 视频 */
+/** 主菜单上方的发布入口：文章 / 图文 / 视频 */
 export function NavPublish() {
   const { isMobile } = useSidebar();
   const { pathname } = useLocation();
@@ -51,8 +51,15 @@ export function NavPublish() {
                 <DropdownMenuItem render={<Link to="/publish/article" />}>
                   <FileText />
                   <div className="grid leading-tight">
+                    <span>发布文章</span>
+                    <span className="text-xs text-muted-foreground">富文本，图嵌在正文里</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link to="/publish/graphic" />}>
+                  <Images />
+                  <div className="grid leading-tight">
                     <span>发布图文</span>
-                    <span className="text-xs text-muted-foreground">图片 + 文字内容</span>
+                    <span className="text-xs text-muted-foreground">多图轮播 + 文案</span>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem render={<Link to="/publish/video" />}>

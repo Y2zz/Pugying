@@ -29,14 +29,17 @@ export class CreateContentDto {
   @MaxLength(200)
   title: string;
 
-  @ApiPropertyOptional({ description: '正文（图文）/ 简介（视频）' })
+  @ApiPropertyOptional({
+    description: '正文（文章富文本 / 图文文案）或简介（视频）',
+  })
   @IsOptional()
   @IsString()
   body?: string;
 
   @ApiPropertyOptional({
     type: [String],
-    description: '本机绝对路径：图文为图片，视频为视频文件',
+    description:
+      '本机绝对路径：文章为插图；图文为轮播图；视频为视频文件',
   })
   @IsOptional()
   @IsArray()

@@ -25,20 +25,19 @@ export const CharCountInput = forwardRef<HTMLInputElement, Omit<ComponentProps<'
 );
 
 /** 多行输入 + 框内右下角字数；超出 max 仍可输入，计数变红 */
-export function CharCountTextarea({
-  value,
-  max,
-  className,
-  ...props
-}: Omit<ComponentProps<'textarea'>, 'value' | 'maxLength'> & {
-  value: string;
-  max: number;
-}) {
+export const CharCountTextarea = forwardRef<
+  HTMLTextAreaElement,
+  Omit<ComponentProps<'textarea'>, 'value' | 'maxLength'> & {
+    value: string;
+    max: number;
+  }
+>(function CharCountTextarea({ value, max, className, ...props }, ref) {
   const over = value.length > max;
 
   return (
     <InputGroup className="h-auto items-stretch has-[>textarea]:h-auto">
       <InputGroupTextarea
+        ref={ref}
         value={value}
         aria-invalid={over || undefined}
         className={cn('min-h-24 pb-7', className)}
@@ -51,4 +50,4 @@ export function CharCountTextarea({
       </InputGroupAddon>
     </InputGroup>
   );
-}
+});

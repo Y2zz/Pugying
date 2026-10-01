@@ -79,13 +79,15 @@ type TypeFilter = 'all' | ContentType;
 
 const TYPE_META: Record<ContentType, { label: string; icon: typeof FileText }> =
   {
-    article: { label: '图文', icon: FileText },
+    article: { label: '文章', icon: FileText },
+    graphic: { label: '图文', icon: ImageIcon },
     video: { label: '视频', icon: Clapperboard },
   };
 
 const TYPE_FILTER_OPTIONS: Array<{ value: TypeFilter; label: string }> = [
   { value: 'all', label: '全部类型' },
-  { value: 'article', label: '图文' },
+  { value: 'article', label: '文章' },
+  { value: 'graphic', label: '图文' },
   { value: 'video', label: '视频' },
 ];
 
@@ -157,9 +159,13 @@ function formatScheduleTime(value: string): string {
 }
 
 function editPath(item: ContentItem): string {
-  return item.type === 'article'
-    ? `/publish/article?id=${item.id}`
-    : `/publish/video?id=${item.id}`;
+  if (item.type === 'article') {
+    return `/publish/article?id=${item.id}`;
+  }
+  if (item.type === 'graphic') {
+    return `/publish/graphic?id=${item.id}`;
+  }
+  return `/publish/video?id=${item.id}`;
 }
 
 function summarizeTargets(targets: ContentTargetItem[]): {
@@ -438,7 +444,7 @@ export default function Contents() {
       <StickyPageHeader showDivider>
         <PageHeader
           title="作品管理"
-          description="回看与重试分发结果；新建请走左侧「发布 → 发布视频」"
+          description="回看与重试分发结果；新建请走左侧「发布」"
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -568,7 +574,7 @@ export default function Contents() {
             {/* !hasSearchFilters 时 filter 必为 all，此处不必再按类型分支 */}
             <EmptyTitle>暂无作品</EmptyTitle>
             <EmptyDescription>
-              使用左侧菜单上方的「发布」按钮创建第一条图文或视频作品。
+              使用左侧菜单上方的「发布」按钮创建第一条作品。
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -8,13 +8,18 @@ import type {
 
 export class Content extends SoftDeleteAuditedEntity {
 
-  @ApiProperty({ enum: ['article', 'video'], description: '内容类型' })
+  @ApiProperty({
+    enum: ['article', 'graphic', 'video'],
+    description: '内容类型：文章 / 图文 / 视频',
+  })
   type: ContentType;
 
-  @ApiProperty({ example: '我的第一篇图文', description: '标题' })
+  @ApiProperty({ example: '我的第一篇文章', description: '标题' })
   title: string;
 
-  @ApiPropertyOptional({ description: '正文（图文）/ 简介（视频）' })
+  @ApiPropertyOptional({
+    description: '正文（文章富文本 / 图文文案）或简介（视频）',
+  })
   body: string | null;
 
   /** 竖封面 MIME；字节见 coverData，列表 API 不返回字节 */
@@ -31,7 +36,8 @@ export class Content extends SoftDeleteAuditedEntity {
 
   @ApiProperty({
     type: [String],
-    description: '本机绝对路径：图文为图片，视频为视频文件（通常 1 个）',
+    description:
+      '本机绝对路径：文章为正文插图；图文为轮播图列表；视频为视频文件（通常 1 个）',
   })
   mediaPaths: string[];
 

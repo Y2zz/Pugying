@@ -162,13 +162,13 @@ describe('ContentPublishService', () => {
       expect(content.status).toBe('published');
     });
 
-    it('queues article with images and portrait-only cover', async () => {
+    it('queues graphic with images and portrait-only cover', async () => {
       const imageA = join(tempRoot, 'a.jpg');
       const imageB = join(tempRoot, 'b.jpg');
       await writeFile(imageA, Buffer.from('img-a'));
       await writeFile(imageB, Buffer.from('img-b'));
       const content = createVideo({
-        type: 'article',
+        type: 'graphic',
         title: '测试图文',
         mediaPaths: [imageA, imageB],
         coverLandscapeMime: null,
@@ -183,7 +183,7 @@ describe('ContentPublishService', () => {
 
       const result = await service.publish(CONTENT_ID);
       expect(result.dispatches[0]).toMatchObject({
-        contentType: 'article',
+        contentType: 'graphic',
         mediaPath: imageA,
         mediaPaths: [imageA, imageB],
         coverLandscapePath: '',
@@ -191,10 +191,10 @@ describe('ContentPublishService', () => {
       expect(result.dispatches[0].coverPath).toBeTruthy();
     });
 
-    it('rejects article without images', async () => {
+    it('rejects graphic without images', async () => {
       contents.findByIdWithCovers.mockResolvedValue(
         createVideo({
-          type: 'article',
+          type: 'graphic',
           mediaPaths: [],
           coverLandscapeMime: null,
           coverLandscapeData: null,
@@ -205,10 +205,10 @@ describe('ContentPublishService', () => {
       );
     });
 
-    it('rejects article without portrait cover', async () => {
+    it('rejects graphic without portrait cover', async () => {
       contents.findByIdWithCovers.mockResolvedValue(
         createVideo({
-          type: 'article',
+          type: 'graphic',
           mediaPaths: [videoPath],
           coverMime: null,
           coverData: null,

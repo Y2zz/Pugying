@@ -186,7 +186,7 @@ export async function fetchPlatformAccountCredentials(
   );
 }
 
-export type ContentType = 'article' | 'video';
+export type ContentType = 'article' | 'graphic' | 'video';
 export type ContentStatus = 'draft' | 'published';
 export type ContentVisibility = 'public' | 'friends' | 'private';
 export type TargetPublishStatus =
@@ -205,6 +205,10 @@ export interface ContentTargetOverrides {
   scheduledAt?: string;
   visibility?: ContentVisibility;
   allowDownload?: boolean;
+  /** 地点（如小红书笔记） */
+  location?: string;
+  /** 分区等扩展文案（如哔哩哔哩） */
+  partition?: string;
 }
 
 export interface ContentTargetItem {
@@ -282,7 +286,7 @@ export interface PublishDispatch {
   targetId: string;
   platform: string;
   accountId: string;
-  contentType: 'video' | 'article';
+  contentType: 'video' | 'article' | 'graphic';
   mediaPath: string;
   mediaPaths: string[];
   coverPath: string;

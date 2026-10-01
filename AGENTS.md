@@ -6,17 +6,18 @@ Pugying（蒲公英）是一套**个人单机桌面**自媒体内容发布系统
 
 系统支持以下核心能力：
 
-- **图文发布**：撰写富文本图文，一键推送至多个自媒体平台。
+- **文章发布**：富文本正文（图片嵌在文中），分发至头条 / B 站专栏 / 抖音发文章等。
+- **图文发布**：多图轮播 + 文案分离，分发至抖音图文 / 小红书 / 视频号图文等。
 - **短视频发布**：上传视频素材并同步分发，覆盖主流短视频渠道。
 
 目前已接入或规划接入的平台包括：
 
 | 平台 | 内容形态 |
 |------|----------|
-| 抖音 | 图文、短视频 |
-| 今日头条 | 图文 |
+| 抖音 | 文章、图文、短视频 |
+| 今日头条 | 文章 |
 | 视频号 | 图文、短视频 |
-| 哔哩哔哩 | 图文、短视频 |
+| 哔哩哔哩 | 文章（专栏）、短视频 |
 | 小红书 | 图文、短视频 |
 
 产品形态为 **单机一体桌面应用**（Desktop 托管本机 Server）：一套数据仅属于当前操作系统用户，不提供账号登录、团队、成员、角色或多机共享能力。
@@ -30,13 +31,13 @@ Pugying（蒲公英）是一套**个人单机桌面**自媒体内容发布系统
 | `@pugying/core` | 开源 | 框架层：审计/软删基类、UoW 接口、商业包注册钩子（**不含 ORM**） |
 | `@pugying/typeorm` | 开源 | TypeORM 框架层：Sqlite 连接、UoW 实现 |
 | `@pugying/platform-account` | 开源 | 平台账号绑定（抖音/头条/视频号/B 站/小红书）；Cookie 加密存储；含 `PlatformAccountTypeOrmModule` |
-| `@pugying/content` | 开源 | 图文/短视频内容、分发 Target 状态机、本机路径素材 + 封面 BLOB、发布编排 API；含 `ContentTypeOrmModule` |
+| `@pugying/content` | 开源 | 文章 / 图文 / 短视频内容、分发 Target 状态机、本机路径素材 + 封面 BLOB、发布编排 API；含 `ContentTypeOrmModule` |
 | `@pugying/media-storage-pro`（已取消） | — | 原商业媒体存储规划已取消；见 `docs/media-storage.md` |
 | `@pugying/*-pro`（规划） | 商业 | 其它高阶能力（如高级发布、多平台适配等），宿主通过 `imports` 装配 |
 
 商业包不得改开源源码；通过依赖 `@pugying/core` 的 `CommercialModuleRegistry` 自注册，并在宿主 `AppModule` 中与开源模块同级 `imports`。
 
-媒体与封面边界详见 [`docs/media-storage.md`](docs/media-storage.md)：视频/图片为本机绝对路径；封面 BLOB 落库；无独立媒体库。
+媒体与封面边界详见 [`docs/media-storage.md`](docs/media-storage.md)：视频/图片为本机绝对路径；封面 BLOB 落库；无独立媒体库。文章见 [`docs/publish-article.md`](docs/publish-article.md)；图文见 [`docs/publish-graphic.md`](docs/publish-graphic.md)。
 
 ## 技术栈
 
@@ -173,7 +174,8 @@ Pugying/
 │   ├── scripts/pack-server.mjs
 │   └── package.json          # pugying-desktop
 ├── docs/
-│   └── media-storage.md
+│   ├── media-storage.md
+│   └── publish-article.md   # 图文发布核心业务
 └── AGENTS.md
 ```
 

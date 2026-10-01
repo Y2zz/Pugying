@@ -393,6 +393,13 @@ export function PublishVideoActionBar({
   onSaveDraft,
   onPublish,
   className,
+  /** 图文等：全部通过只提示可发布；有阻塞时只列未通过项 */
+  showOnlyBlocked = false,
+  /** 隐藏「发布」按钮（图文暂未接真实推送） */
+  hidePublish = false,
+  /** 全部通过时的就绪文案（showOnlyBlocked 时） */
+  readyLabel = '可以发布',
+  saveLabel = '存草稿',
 }: {
   prechecks: PrecheckItem[];
   readyCount: number;
@@ -403,9 +410,17 @@ export function PublishVideoActionBar({
   publishHint: string;
   onFocusItem: (item: PrecheckItem) => void;
   onSaveDraft: () => void;
-  onPublish: () => void;
+  onPublish?: () => void;
   className?: string;
+  showOnlyBlocked?: boolean;
+  hidePublish?: boolean;
+  readyLabel?: string;
+  saveLabel?: string;
 }) {
+  const visiblePrechecks = showOnlyBlocked
+    ? prechecks.filter((item) => !item.ok)
+    : prechecks;
+
   return (
     <div
       className={cn(
@@ -416,45 +431,57 @@ export function PublishVideoActionBar({
     >
       <div className="flex min-w-0 flex-col gap-2">
         <p className="text-sm font-medium">
-          就绪 {readyCount}/{totalCount}
+          {showOnlyBlocked
+            ? publishBlocked
+              ? '还有几项待完成'
+              : readyLabel
+            : `就绪 ${readyCount}/${totalCount}`}
           {publishHint ? <span className="ml-2 font-normal text-muted-foreground">{publishHint}</span> : null}
         </p>
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {prechecks.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1 text-xs transition-colors',
-                item.ok ? 'text-muted-foreground' : 'text-foreground hover:underline',
-                !item.focusKind || item.ok ? 'cursor-default' : 'cursor-pointer'
-              )}
-              disabled={item.ok || !item.focusKind}
-              onClick={() => {
-                if (!item.ok && item.focusKind) {
-                  onFocusItem(item);
-                }
-              }}
-            >
-              {item.ok ? (
-                <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden />
-              ) : (
-                <Circle className="size-3.5 text-muted-foreground" aria-hidden />
-              )}
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {visiblePrechecks.length > 0 ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {visiblePrechecks.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={cn(
+                  'inline-flex items-center gap-1 text-xs transition-colors',
+                  item.ok ? 'text-muted-foreground' : 'text-foreground hover:underline',
+                  !item.focusKind || item.ok ? 'cursor-default' : 'cursor-pointer'
+                )}
+                disabled={item.ok || !item.focusKind}
+                onClick={() => {
+                  if (!item.ok && item.focusKind) {
+                    onFocusItem(item);
+                  }
+                }}
+              >
+                {item.ok ? (
+                  <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden />
+                ) : (
+                  <Circle className="size-3.5 text-muted-foreground" aria-hidden />
+                )}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap justify-end gap-2">
-        <Button variant="outline" disabled={busy} onClick={onSaveDraft}>
+        <Button
+          variant={hidePublish ? 'default' : 'outline'}
+          disabled={busy || (hidePublish && publishBlocked)}
+          onClick={onSaveDraft}
+        >
           <Save data-icon="inline-start" />
-          存草稿
+          {busy && hidePublish ? busyLabel : saveLabel}
         </Button>
-        <Button disabled={busy || publishBlocked} onClick={onPublish}>
-          <Send data-icon="inline-start" />
-          {busy ? busyLabel : '发布'}
-        </Button>
+        {!hidePublish && onPublish ? (
+          <Button disabled={busy || publishBlocked} onClick={onPublish}>
+            <Send data-icon="inline-start" />
+            {busy ? busyLabel : '发布'}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

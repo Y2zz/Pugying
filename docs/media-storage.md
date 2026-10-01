@@ -4,8 +4,16 @@
 
 | 素材 | 存储方式 |
 |------|----------|
-| 视频 / 图文图片 | Content.`mediaPaths` 记录本机**绝对路径**（不拷贝） |
+| 视频 / 图文轮播图 / 文章插图 | Content.`mediaPaths` 记录本机**绝对路径**（不拷贝） |
 | 竖/横封面及账号差异封面 | SQLite **BLOB**（Content / ContentTarget 列） |
+
+`mediaPaths` 语义随 `Content.type`：
+
+| type | mediaPaths |
+|------|------------|
+| `article` | 正文插图路径（可空） |
+| `graphic` | 轮播图有序列表（至少 1 张才可发布） |
+| `video` | 视频文件（通常 1 个） |
 
 源文件被移动、删除或拔盘后，草稿仍可打开，但预览/发布会失败，需重新选择文件。
 

@@ -48,6 +48,11 @@ const pugyingDesktop = {
       DESKTOP_IPC.checkLocalPathReadable,
       absPath,
     ) as Promise<boolean>,
+  readLocalImageDataUrl: (absPath: string): Promise<string | null> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.readLocalImageDataUrl,
+      absPath,
+    ) as Promise<string | null>,
   /**
    * Electron 32+ 移除了 File.path；选片与拖拽均须经 webUtils 取绝对路径。
    * 须在 preload 内调用，并把 File 从 renderer 传入。

@@ -29,7 +29,7 @@ export function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="size-2 rounded-full bg-muted-foreground" />
-            在「内容」中创建图文或短视频草稿
+            在「内容」中创建文章、图文或短视频草稿
           </div>
           <div className="flex items-center gap-3">
             <span className="size-2 rounded-full bg-secondary-foreground/40" />

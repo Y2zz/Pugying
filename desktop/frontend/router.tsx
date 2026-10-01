@@ -4,6 +4,7 @@ import Dashboard from '@/pages/Dashboard';
 import PlatformAccounts from '@/pages/PlatformAccounts';
 import Contents from '@/pages/Contents';
 import PublishArticle from '@/pages/PublishArticle';
+import PublishGraphic from '@/pages/PublishGraphic';
 import PublishVideo from '@/pages/PublishVideo';
 import Preferences from '@/pages/Preferences';
 
@@ -20,6 +21,7 @@ const routes = [
       { path: 'platform-accounts', element: <PlatformAccounts /> },
       { path: 'contents', element: <Contents /> },
       { path: 'publish/article', element: <PublishArticle /> },
+      { path: 'publish/graphic', element: <PublishGraphic /> },
       { path: 'publish/video', element: <PublishVideo /> },
       { path: 'preferences', element: <Preferences /> },
       { path: '*', element: <Navigate to="/dashboard" replace /> },

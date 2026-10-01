@@ -3,9 +3,9 @@
  * 不与授权壳 chrome:* handlers 共用。
  */
 import { app, dialog, ipcMain, type MessageBoxOptions, type WebContents } from 'electron';
-import { access } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { extname, isAbsolute } from 'node:path';
 import { DESKTOP_IPC } from '@shared/desktop-ipc';
 import {
   resolveDesktopWindowChrome,
@@ -107,6 +107,48 @@ export function wireDesktopIpc(): void {
         return true;
       } catch {
         return false;
+      }
+    },
+  );
+  ipcMain.handle(
+    DESKTOP_IPC.readLocalImageDataUrl,
+    async (event, rawPath: unknown): Promise<string | null> => {
+      if (event.sender !== getAppWindow()?.webContents) {
+        return null;
+      }
+      if (typeof rawPath !== 'string') {
+        return null;
+      }
+      const filePath = rawPath.trim();
+      if (!filePath || !isAbsolute(filePath)) {
+        return null;
+      }
+      const mimeByExtension: Record<string, string> = {
+        '.apng': 'image/apng',
+        '.avif': 'image/avif',
+        '.bmp': 'image/bmp',
+        '.gif': 'image/gif',
+        '.heic': 'image/heic',
+        '.heif': 'image/heif',
+        '.jpeg': 'image/jpeg',
+        '.jpg': 'image/jpeg',
+        '.png': 'image/png',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+      };
+      const mimeType = mimeByExtension[extname(filePath).toLowerCase()];
+      if (!mimeType) {
+        return null;
+      }
+      try {
+        const fileStat = await stat(filePath);
+        if (!fileStat.isFile()) {
+          return null;
+        }
+        const contents = await readFile(filePath);
+        return `data:${mimeType};base64,${contents.toString('base64')}`;
+      } catch {
+        return null;
       }
     },
   );

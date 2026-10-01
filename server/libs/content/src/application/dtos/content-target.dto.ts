@@ -47,6 +47,18 @@ export class TargetOverridesDto {
   @IsOptional()
   @IsBoolean()
   allowDownload?: boolean;
+
+  @ApiPropertyOptional({ description: '地点（按账号，如小红书）' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @ApiPropertyOptional({ description: '分区等扩展文案（按账号，如哔哩哔哩）' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  partition?: string;
 }
 
 export class ContentTargetDto {

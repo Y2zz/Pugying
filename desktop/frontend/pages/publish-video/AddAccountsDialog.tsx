@@ -48,6 +48,7 @@ export function AddAccountsDialog({
   accounts,
   selected,
   onConfirm,
+  className,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,6 +56,7 @@ export function AddAccountsDialog({
   accounts: PlatformAccountItem[];
   selected: Record<string, boolean>;
   onConfirm: (nextSelected: Record<string, boolean>) => void;
+  className?: string;
 }) {
   const [platformFocus, setPlatformFocus] = useState<PlatformId | 'all'>('all');
   const [draft, setDraft] = useState<Record<string, boolean>>({});
@@ -109,7 +111,12 @@ export function AddAccountsDialog({
         }
       }}
     >
-      <DialogContent className="flex h-[min(640px,80vh)] flex-col gap-4 overflow-hidden sm:max-w-3xl">
+      <DialogContent
+        className={cn(
+          'flex h-[min(640px,80vh)] flex-col gap-4 overflow-hidden sm:max-w-3xl',
+          className,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>添加分发账号</DialogTitle>
           <DialogDescription>

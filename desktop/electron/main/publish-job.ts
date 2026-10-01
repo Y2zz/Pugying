@@ -28,10 +28,16 @@ export function isPublishBusy(): boolean {
 function resolveContentType(
   payload: PlatformPublishStartPayload,
 ): PlatformPublishContentType {
-  return payload.contentType === 'article' ? 'article' : 'video';
+  if (payload.contentType === 'graphic') {
+    return 'graphic';
+  }
+  if (payload.contentType === 'article') {
+    return 'article';
+  }
+  return 'video';
 }
 
-/** 校验短视频 / 图文载荷；图文不要求横封面与单 mediaPath */
+/** 校验短视频 / 图文 / 文章载荷；图文不要求横封面；文章可不要求 mediaPaths */
 function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
   const baseOk =
     Boolean(payload.requestId?.trim()) &&
@@ -47,12 +53,18 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
     return false;
   }
 
-  if (resolveContentType(payload) === 'article') {
+  const contentType = resolveContentType(payload);
+  if (contentType === 'graphic') {
     const paths = (payload.mediaPaths ?? [])
       .map((p) => p.trim())
       .filter(Boolean);
     const fallback = payload.mediaPath?.trim();
     return paths.length > 0 || Boolean(fallback);
+  }
+
+  if (contentType === 'article') {
+    // 正文由服务端校验；Agent 侧至少要有标题与封面
+    return true;
   }
 
   return (
@@ -119,25 +131,35 @@ export function startPublishJob(options: {
   }
 
   const runAdapter =
-    contentType === 'article'
+    contentType === 'graphic'
       ? () =>
-          import('./platforms/publish-douyin-article').then(
-            ({ runDouyinArticlePublish }) =>
-              runDouyinArticlePublish({
+          import('./platforms/publish-douyin-graphic').then(
+            ({ runDouyinGraphicPublish }) =>
+              runDouyinGraphicPublish({
                 payload,
                 onProgress: options.onProgress,
                 signal,
               }),
           )
-      : () =>
-          import('./platforms/publish-douyin-strategy').then(
-            ({ runDouyinPublishByMode }) =>
-              runDouyinPublishByMode({
-                payload,
-                onProgress: options.onProgress,
-                signal,
-              }),
-          );
+      : contentType === 'article'
+        ? () =>
+            import('./platforms/publish-douyin-article').then(
+              ({ runDouyinArticlePublish }) =>
+                runDouyinArticlePublish({
+                  payload,
+                  onProgress: options.onProgress,
+                  signal,
+                }),
+            )
+        : () =>
+            import('./platforms/publish-douyin-strategy').then(
+              ({ runDouyinPublishByMode }) =>
+                runDouyinPublishByMode({
+                  payload,
+                  onProgress: options.onProgress,
+                  signal,
+                }),
+            );
 
   void runAdapter()
     .then((result) => {

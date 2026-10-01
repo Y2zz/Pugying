@@ -104,7 +104,7 @@ export interface PlatformPublishStartInput {
   platform: string;
   accountId: string;
   /** 缺省 video；图文传 article */
-  contentType?: 'video' | 'article';
+  contentType?: 'video' | 'article' | 'graphic';
   /** 视频本机路径；图文可省略 */
   mediaPath?: string;
   /** 图文多图本机路径 */
@@ -156,6 +156,8 @@ export type PugyingDesktopBridge = {
   toggleDevTools?: () => Promise<boolean>;
   /** 本机绝对路径是否可读；非 Electron 或未注入时缺省 */
   checkLocalPathReadable?: (absPath: string) => Promise<boolean>;
+  /** 读取本机图片供编辑器预览；失败时返回 null */
+  readLocalImageDataUrl?: (absPath: string) => Promise<string | null>;
   /** Electron 32+：从 File 取本机绝对路径（选片/拖拽通用） */
   getPathForFile?: (file: File) => string;
 };

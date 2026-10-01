@@ -23,6 +23,12 @@ export function DistributionAccountRow({
   onRemove,
   className,
   plain = false,
+  /** 覆盖项数量；不传则用视频默认 optionalOverrideCount */
+  overrideCount,
+  /** 角标文案前缀，默认「覆盖」；图文用「改过」 */
+  overrideLabel = '覆盖',
+  /** 行级问题文案；不传则用 getAccountDraftIssues */
+  issues: issuesProp,
 }: {
   account: PlatformAccountItem;
   draft: OverrideDraft;
@@ -32,11 +38,14 @@ export function DistributionAccountRow({
   onRemove: () => void;
   className?: string;
   plain?: boolean;
+  overrideCount?: number;
+  overrideLabel?: string;
+  issues?: string[];
 }) {
   const usable = account.status === 'active';
   const summary = describeAccountPublishSummary(draft);
-  const issues = getAccountDraftIssues(draft);
-  const ovCount = optionalOverrideCount(draft);
+  const issues = issuesProp ?? getAccountDraftIssues(draft);
+  const ovCount = overrideCount ?? optionalOverrideCount(draft);
 
   return (
     <div
@@ -50,7 +59,7 @@ export function DistributionAccountRow({
             ? 'border border-primary/40 bg-primary/5'
             : 'border hover:bg-muted/50',
         !usable && 'opacity-60',
-        className
+        className,
       )}
     >
       <button
@@ -61,7 +70,11 @@ export function DistributionAccountRow({
       >
         <Avatar size="sm">
           {account.avatarUrl ? (
-            <AvatarImage src={account.avatarUrl} alt={account.displayName} referrerPolicy="no-referrer" />
+            <AvatarImage
+              src={account.avatarUrl}
+              alt={account.displayName}
+              referrerPolicy="no-referrer"
+            />
           ) : null}
           <AvatarFallback>{account.displayName.slice(0, 1)}</AvatarFallback>
         </Avatar>
@@ -80,7 +93,7 @@ export function DistributionAccountRow({
             ) : null}
             {usable && ovCount > 0 ? (
               <Badge variant="secondary" className="shrink-0 font-normal">
-                覆盖 {ovCount}
+                {overrideLabel} {ovCount}
               </Badge>
             ) : null}
           </div>
@@ -105,6 +118,9 @@ export function DistributionAccountRow({
   );
 }
 
-export function distributionAccountDraftOrEmpty(drafts: Record<string, OverrideDraft>, accountId: string): OverrideDraft {
+export function distributionAccountDraftOrEmpty(
+  drafts: Record<string, OverrideDraft>,
+  accountId: string,
+): OverrideDraft {
   return drafts[accountId] ?? emptyDraft();
 }

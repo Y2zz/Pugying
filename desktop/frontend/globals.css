@@ -151,6 +151,15 @@
   }
 }
 
+/* Tiptap placeholder 使用空段落伪元素，与正文行盒和插入光标保持对齐。 */
+[data-slot='rich-text-control'] p.is-empty::before {
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
 /*
  * Electron：仅 sidebar-header 可拖窗；品牌链接等交互用 no-drag。
  * 导航区不设 drag，避免与滚动/点击冲突。

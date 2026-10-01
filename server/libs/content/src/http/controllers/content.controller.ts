@@ -40,7 +40,11 @@ export class ContentController {
 
   @Get()
   @ApiOperation({ summary: '本机内容列表' })
-  @ApiQuery({ name: 'type', required: false, enum: ['article', 'video'] })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['article', 'graphic', 'video'],
+  })
   @ApiQuery({
     name: 'q',
     required: false,
@@ -219,7 +223,7 @@ export class ContentController {
   }
 
   @Post()
-  @ApiOperation({ summary: '创建内容（图文/视频，草稿或直接发布）' })
+  @ApiOperation({ summary: '创建内容（文章/图文/视频，草稿或直接发布）' })
   create(@Body() dto: CreateContentDto) {
     return this.service.create(dto);
   }
