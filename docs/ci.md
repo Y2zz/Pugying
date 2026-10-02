@@ -11,14 +11,18 @@ E2E 当前没有测试用例，命令允许空测试集。
 
 检查通过后，推送 `main`、推送标签或手动运行会继续打包；Pull Request 只执行检查。
 
-| 平台        | Runner              | 产物               |
-| ----------- | ------------------- | ------------------ |
-| Linux x64   | Ubuntu 24.04        | 目录包 tar.gz      |
-| Windows x64 | Windows Server 2022 | 目录包 zip         |
-| macOS x64   | macOS 15 Intel      | DMG、目录包 tar.gz |
-| macOS arm64 | macOS 15            | DMG、目录包 tar.gz |
+| 平台        | Runner              | 产物            |
+| ----------- | ------------------- | --------------- |
+| Linux x64   | Ubuntu 24.04        | DEB、RPM 安装包 |
+| Windows x64 | Windows Server 2022 | NSIS EXE 安装器 |
+| macOS x64   | macOS 15 Intel      | DMG 安装镜像    |
+| macOS arm64 | macOS 15            | DMG 安装镜像    |
 
-每个平台使用本机 runner 编译原生 SQLite 模块，避免跨平台编译问题。产物在运行页面的 Artifacts 中下载，保留 14 天；Linux/macOS 先归档以保留执行权限和符号链接。macOS 沿用项目的 ad-hoc 签名，未进行 Apple 公证。Windows 当前提供目录包，无安装器和代码签名。
+每个平台使用本机 runner 编译原生 SQLite 模块，避免跨平台编译问题。仅上传安装文件，不将应用目录制作成 ZIP 或 tar.gz。产物在运行页面的 Artifacts 中下载，保留 14 天；GitHub 的 Artifacts 下载界面可能以 ZIP 容器提供这些安装文件。
+
+Windows 使用当前用户的一键安装器，卸载时保留本机数据，尚未配置代码签名。macOS 沿用项目的 ad-hoc 签名，未进行 Apple 公证。Linux 提供 DEB 和 RPM，分别用于 Debian/Ubuntu 与 Fedora/RHEL 等发行版。
+
+本地 `npm run package` 生成 macOS DMG；`npm run package:win` 生成 EXE；`npm run package:linux` 生成 DEB 和 RPM。`npm run package:dir` 仍可用于本地调试，CI 不上传目录包。
 
 打包任务包含本机 Server 及生产依赖，不自动创建 GitHub Release。
 

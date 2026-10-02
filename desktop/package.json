@@ -17,8 +17,8 @@
     "test:cov": "vitest run --coverage",
     "package": "npm run build && npm run pack:server && electron-builder",
     "package:dir": "npm run build && npm run pack:server && electron-builder --dir",
-    "package:linux": "npm run build && npm run pack:server -- --platform linux --arch x64 && electron-builder --linux --x64 --dir",
-    "package:win": "npm run build && npm run pack:server -- --platform win32 --arch x64 && electron-builder --win --x64 --dir",
+    "package:linux": "npm run build && npm run pack:server -- --platform linux --arch x64 && electron-builder --linux --x64",
+    "package:win": "npm run build && npm run pack:server -- --platform win32 --arch x64 && electron-builder --win --x64",
     "pack:server": "node scripts/pack-server.mjs",
     "docker:package:linux": "bash scripts/docker-package.sh linux",
     "docker:package:win": "bash scripts/docker-package.sh win"
@@ -103,8 +103,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
-        "dmg",
-        "dir"
+        "dmg"
       ]
     },
     "dmg": {
@@ -113,13 +112,22 @@
     },
     "linux": {
       "target": [
-        "dir"
-      ]
+        "deb",
+        "rpm"
+      ],
+      "maintainer": "Y2zz",
+      "category": "Office"
     },
     "win": {
       "target": [
-        "dir"
+        "nsis"
       ]
+    },
+    "artifactName": "pugying-${version}-${os}-${arch}.${ext}",
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
     }
   },
   "allowScripts": {
@@ -135,5 +143,6 @@
     "@tiptap/react": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "parse5": "8.0.1"
-  }
+  },
+  "homepage": "https://github.com/Y2zz/Pugying"
 }

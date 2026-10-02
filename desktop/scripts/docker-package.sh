@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 用 electronuserland/builder 镜像打 Linux / Windows 目录包。
+# 用 electronuserland/builder 镜像打 Linux / Windows 安装包。
 # 用法：
 #   ./scripts/docker-package.sh linux
 #   ./scripts/docker-package.sh win
@@ -48,12 +48,12 @@ run_in_image() {
 
 package_linux() {
   run_in_image "${LINUX_IMAGE}" "package:linux"
-  echo "[docker-package] Linux 产物: desktop/release/linux-unpacked/"
+  echo "[docker-package] Linux 安装包: desktop/release/*.deb 和 *.rpm"
 }
 
 package_win() {
   run_in_image "${WINE_IMAGE}" "package:win"
-  echo "[docker-package] Windows 产物: desktop/release/win-unpacked/"
+  echo "[docker-package] Windows 安装包: desktop/release/*.exe"
 }
 
 case "${TARGET}" in

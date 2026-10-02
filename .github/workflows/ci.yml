@@ -92,22 +92,18 @@ jobs:
             platform: linux
             arch: x64
             command: npm run package:linux -- --publish never
-            directory: linux-unpacked
           - os: windows-2022
             platform: win
             arch: x64
             command: npm run package:win -- --publish never
-            directory: win-unpacked
           - os: macos-15-intel
             platform: mac
             arch: x64
             command: npm run package -- --mac --x64 --publish never
-            directory: mac
           - os: macos-15
             platform: mac
             arch: arm64
             command: npm run package -- --mac --arm64 --publish never
-            directory: mac-arm64
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: ""
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -147,26 +143,14 @@ jobs:
         working-directory: desktop
         run: ${{ matrix.command }}
 
-      # 先打归档再上传，保留 Linux/macOS 的执行权限和符号链接。
-      - name: Archive Linux or macOS application
-        if: matrix.platform != 'win'
-        env:
-          PACKAGE_DIRECTORY: ${{ matrix.directory }}
-          PACKAGE_NAME: pugying-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
-        run: tar -czf "desktop/release/$PACKAGE_NAME" -C desktop/release "$PACKAGE_DIRECTORY"
-
-      - name: Archive Windows application
-        if: matrix.platform == 'win'
-        shell: pwsh
-        run: Compress-Archive -Path desktop/release/win-unpacked -DestinationPath desktop/release/pugying-win-x64.zip
-
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pugying-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
           path: |
-            desktop/release/*.tar.gz
-            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.deb
+            desktop/release/*.rpm
             desktop/release/*.dmg
           if-no-files-found: error
           compression-level: 0
