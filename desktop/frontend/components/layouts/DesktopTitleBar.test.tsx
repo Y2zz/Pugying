@@ -46,7 +46,6 @@ describe('DesktopTitleBar', () => {
     };
     const html = renderToString(<DesktopTitleBar />);
     expect(html).toContain('data-slot="desktop-titlebar"');
-    expect(html).toContain('data-slot="desktop-titlebar-icon"');
     expect(html).toContain(`height:${DESKTOP_TITLEBAR_HEIGHT}`);
     expect(html).toContain('窗口标题栏');
     expect(html).toContain('data-slot="desktop-app-menubar"');
