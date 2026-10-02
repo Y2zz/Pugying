@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  npm_config_registry: https://registry.npmjs.org/
+  npm_config_audit: "false"
+  npm_config_fund: "false"
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+jobs:
+  check:
+    name: ${{ matrix.project }} checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [server, desktop]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ matrix.project }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+
+      - name: Pin npm version
+        run: npm install --global npm@12.2.0
+
+      - name: Verify exact dependency versions and lockfiles
+        run: node ../scripts/check-dependency-versions.mjs
+
+      - name: Install locked dependencies
+        run: npm ci --prefer-offline
+
+      - name: Lint Server
+        if: matrix.project == 'server'
+        run: npx --no-install eslint "src/**/*.ts" "libs/**/*.ts" "test/**/*.ts"
+
+      - name: Typecheck Desktop
+        if: matrix.project == 'desktop'
+        run: npm run typecheck
+
+      - name: Run Server tests
+        if: matrix.project == 'server'
+        run: npm test -- --runInBand
+
+      - name: Run Desktop tests
+        if: matrix.project == 'desktop'
+        run: npm test
+
+      - name: Run Server E2E tests
+        if: matrix.project == 'server'
+        run: npm run test:e2e -- --runInBand
+
+      - name: Build
+        run: npm run build
