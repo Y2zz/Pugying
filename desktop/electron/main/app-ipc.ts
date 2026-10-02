@@ -3,9 +3,10 @@
  * 不与授权壳 chrome:* handlers 共用。
  */
 import { app, dialog, ipcMain, type MessageBoxOptions, type WebContents } from 'electron';
-import { access, readFile, stat } from 'node:fs/promises';
+import { access, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
-import { extname, isAbsolute } from 'node:path';
+import { extname, isAbsolute, basename, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { DESKTOP_IPC } from '@shared/desktop-ipc';
 import {
   resolveDesktopWindowChrome,
@@ -150,6 +151,59 @@ export function wireDesktopIpc(): void {
       } catch {
         return null;
       }
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.saveArticleImage,
+    async (
+      event,
+      dataUrl: unknown,
+      sourcePath: unknown,
+    ): Promise<string | null> => {
+      const win = getAppWindow();
+      if (
+        !win ||
+        event.sender !== win.webContents ||
+        typeof dataUrl !== 'string' ||
+        dataUrl.length > 48 * 1024 * 1024 ||
+        !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl)
+      ) {
+        return null;
+      }
+      const bytes = Buffer.from(
+        dataUrl.slice('data:image/png;base64,'.length),
+        'base64',
+      );
+      if (
+        !bytes
+          .subarray(0, 8)
+          .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      ) {
+        return null;
+      }
+      const source =
+        typeof sourcePath === 'string' && isAbsolute(sourcePath)
+          ? sourcePath
+          : null;
+      if (source) {
+        // 裁剪产生的新文件随草稿保留；源图片不拷贝、不覆盖，无独立素材库。
+        const directory = join(app.getPath('userData'), 'article-images');
+        await mkdir(directory, { recursive: true });
+        const path = join(directory, `${basename(source, extname(source))}-裁剪-${randomUUID()}.png`);
+        await writeFile(path, bytes, { flag: 'wx' });
+        return path;
+      }
+      const result = await dialog.showSaveDialog(win, {
+        title: '保存文章图片',
+        defaultPath: join(app.getPath('pictures'), `文章图片-${randomUUID().slice(0, 8)}.png`),
+        filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+      });
+      if (result.canceled || !result.filePath) {
+        return null;
+      }
+      await writeFile(result.filePath, bytes, { flag: 'wx' });
+      return result.filePath;
     },
   );
 

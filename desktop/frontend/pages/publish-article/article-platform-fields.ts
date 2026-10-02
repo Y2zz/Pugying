@@ -50,7 +50,9 @@ export const ARTICLE_PLATFORM_FIELDS: {
   },
   toutiao: {
     platformId: 'toutiao',
-    titleMax: 64,
+    // 官方图文创作指南的文章编辑器截图：标题 2～30 字。
+    // https://baike.toutiao.com/detail/211/212/214?enter_from=left_navigation
+    titleMax: 30,
     titleRequired: true,
     bodyPlainMin: 200,
     bodyPlainMax: 50_000,
@@ -64,7 +66,8 @@ export const ARTICLE_PLATFORM_FIELDS: {
   },
   bilibili: {
     platformId: 'bilibili',
-    titleMax: 80,
+    // https://www.bilibili.com/blackboard/help.html#/?qid=410&pid=408
+    titleMax: 40,
     titleRequired: true,
     bodyPlainMin: 1,
     bodyPlainMax: 50_000,
@@ -112,14 +115,6 @@ export function isArticleCoverRequired(platform: PlatformId, aspect: CoverKind):
   return aspect === 'portrait'
     ? spec.cover.mode === 'portrait_3_4'
     : spec.cover.mode === 'landscape_4_3';
-}
-
-/** 主内容标题上限：取所选平台中最严（最小 max） */
-export function intersectArticleTitleMax(platforms: PlatformId[]): number {
-  if (platforms.length === 0) {
-    return Math.max(...ARTICLE_SUPPORTED_PLATFORMS.map((p) => ARTICLE_PLATFORM_FIELDS[p].titleMax));
-  }
-  return Math.min(...platforms.map((p) => getArticlePlatformFields(p).titleMax));
 }
 
 /** 正文纯文字约束：取所选平台最严交集；未选平台时只要求非空 */

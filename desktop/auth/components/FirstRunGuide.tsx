@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Badge } from '@auth/components/ui/badge';
 import { Button } from '@auth/components/ui/button';
 import {
   Card,
-  CardAction,
+  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -35,23 +34,31 @@ export function FirstRunGuide() {
   }
 
   const slide = guide.slides[guide.slideIndex];
-  const isLast = guide.slideIndex >= guide.slides.length - 1;
   if (!slide) {
     return null;
   }
 
   return (
     <div className="flex size-full items-center justify-center bg-black/45 p-6">
-      <Card className="w-full max-w-md">
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-guide-title"
+        aria-describedby="auth-guide-description"
+        className="w-full max-w-md"
+      >
         <CardHeader>
-          <CardTitle>{slide.title}</CardTitle>
-          <CardDescription>{slide.body}</CardDescription>
-          <CardAction>
-            <Badge variant="secondary">
-              首次指引 · {guide.slideIndex + 1}/{guide.slides.length}
-            </Badge>
-          </CardAction>
+          <CardTitle id="auth-guide-title">{slide.title}</CardTitle>
+          <CardDescription id="auth-guide-description">
+            {slide.body}
+          </CardDescription>
         </CardHeader>
+        <CardContent>
+          <p>若未自动完成，可点击右上角「完成授权」。</p>
+          <p className="text-muted-foreground">
+            登录信息仅用于蒲公英绑定账号。
+          </p>
+        </CardContent>
         <CardFooter className="justify-between gap-2">
           <Button
             type="button"
@@ -62,15 +69,10 @@ export function FirstRunGuide() {
           </Button>
           <Button
             type="button"
-            onClick={() => {
-              if (isLast) {
-                void api.guideFinishFirstRun();
-              } else {
-                void api.guideNextFirstRun();
-              }
-            }}
+            autoFocus
+            onClick={() => void api.guideFinishFirstRun()}
           >
-            {isLast ? '开始授权' : '下一步'}
+            开始登录
           </Button>
         </CardFooter>
       </Card>

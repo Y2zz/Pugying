@@ -17,13 +17,18 @@ import {
   Underline,
 } from 'lucide-react';
 import Image from '@tiptap/extension-image';
+import { NodeSelection } from '@tiptap/pm/state';
+import { Input } from '@/components/ui/input';
+import { ArticleImageEditDialog } from './ArticleImageEditDialog';
 import { Placeholder } from '@tiptap/extensions';
 import {
   EditorContent,
+  mergeAttributes,
   NodeViewWrapper,
   ReactNodeViewRenderer,
   useEditor,
   type NodeViewProps,
+  type Editor,
 } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Button } from '@/components/ui/button';
@@ -43,9 +48,27 @@ const ArticleImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      ...Object.fromEntries(
+        ['src', 'alt', 'title', 'width', 'height'].map((attribute) => [
+          attribute,
+          {
+            default: null,
+            parseHTML: (element: HTMLElement) =>
+              (element.querySelector('img') || element).getAttribute(attribute),
+          },
+        ]),
+      ),
+      caption: {
+        default: '',
+        parseHTML: (element) =>
+          element.closest('figure')?.querySelector('figcaption')?.textContent ||
+          '',
+        renderHTML: () => ({}),
+      },
       localPath: {
         default: null,
-        parseHTML: (element) => localImagePath(element),
+        parseHTML: (element) =>
+          localImagePath(element.querySelector('img') || element),
         renderHTML: (attributes) => {
           if (!attributes.localPath) {
             return {};
@@ -60,12 +83,125 @@ const ArticleImage = Image.extend({
       },
     };
   },
+  parseHTML() {
+    return [
+      {
+        tag: 'figure[data-article-image]',
+        contentElement: 'img',
+        getAttrs: (element) => {
+          const img = element.querySelector('img');
+          if (!img) {
+            return false;
+          }
+          return {
+            src: img.getAttribute('src'),
+            alt: img.getAttribute('alt'),
+            title: img.getAttribute('title'),
+            localPath: localImagePath(img),
+            caption: element.querySelector('figcaption')?.textContent || '',
+          };
+        },
+      },
+      { tag: 'img[src]:not([src^="data:"])' },
+    ];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const image: [string, Record<string, unknown>] = [
+      'img',
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+    ];
+    return node.attrs.caption
+      ? [
+          'figure',
+          { 'data-article-image': '' },
+          image,
+          ['figcaption', {}, node.attrs.caption],
+        ]
+      : image;
+  },
   addNodeView() {
     return ReactNodeViewRenderer(ArticleImageView);
   },
 }).configure({ HTMLAttributes: { class: 'article-body-image' } });
 
-function ArticleImageView({ node }: NodeViewProps) {
+/** 图片边界始终可以回到正文；有相邻段落时直接使用它。 */
+function focusImageText(
+  editor: Editor,
+  position: number,
+  side: 'before' | 'after',
+) {
+  const image = editor.state.doc.nodeAt(position);
+  if (!editor.isEditable || image?.type.name !== 'image') {
+    return;
+  }
+  const boundary = side === 'before' ? position : position + image.nodeSize;
+  const adjacent =
+    side === 'before'
+      ? editor.state.doc.resolve(boundary).nodeBefore
+      : editor.state.doc.resolve(boundary).nodeAfter;
+  if (adjacent?.isTextblock) {
+    editor
+      .chain()
+      .setTextSelection(side === 'before' ? boundary - 1 : boundary + 1)
+      .focus()
+      .run();
+  } else {
+    editor
+      .chain()
+      .insertContentAt(boundary, { type: 'paragraph' })
+      .setTextSelection(boundary + 1)
+      .focus()
+      .run();
+  }
+}
+
+function ArticleImageView({
+  node,
+  editor,
+  selected,
+  updateAttributes,
+  getPos,
+}: NodeViewProps) {
+  const replacementRef = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const selectImage = () => {
+    const pos = getPos();
+    if (editor.isEditable && typeof pos === 'number') {
+      editor.chain().setNodeSelection(pos).focus().run();
+    }
+  };
+  const replace = async (file: File | undefined) => {
+    if (!file || !editor.isEditable || busy) {
+      return;
+    }
+    const path = getLocalFilePath(file);
+    if (!isImageFile(file) || !path) {
+      toast.add({ type: 'error', title: '请选择本机图片' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await fileToDataUrl(file);
+      if (
+        !editor.isDestroyed &&
+        editor.isEditable &&
+        typeof getPos() === 'number'
+      ) {
+        updateAttributes({
+          src: toFileUrl(path),
+          localPath: path,
+          previewData: data,
+          width: null,
+          height: null,
+        });
+      }
+    } catch {
+      toast.add({ type: 'error', title: '图片读取失败，请重新选择' });
+    } finally {
+      setBusy(false);
+    }
+  };
   const [preview, setPreview] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const localPath = String(node.attrs.localPath || '');
@@ -115,23 +251,187 @@ function ArticleImageView({ node }: NodeViewProps) {
   }, [localPath, previewData, source]);
 
   return (
-    <NodeViewWrapper className="my-3" contentEditable={false}>
-      {preview ? (
-        <img
-          src={preview}
-          alt={String(node.attrs.alt || '')}
-          className="article-body-image mx-auto block max-h-80 max-w-full rounded-md"
-          draggable={false}
-          onError={() => {
-            setPreview(null);
-            setFailed(true);
+    <NodeViewWrapper
+      className="group relative my-3 rounded-md"
+      contentEditable={false}
+    >
+      <div className="relative mx-auto w-fit max-w-full">
+        {preview ? (
+          <img
+            src={preview}
+            alt={String(node.attrs.alt || '')}
+            className={cn(
+              'article-body-image mx-auto block h-auto w-auto max-h-[min(25rem,60vh)] max-w-full object-contain rounded-md',
+              selected && 'ring-2 ring-ring',
+            )}
+            onClick={selectImage}
+            draggable
+            data-drag-handle
+            onError={() => {
+              setPreview(null);
+              setFailed(true);
+            }}
+          />
+        ) : (
+          <span
+            className="block min-h-12 text-sm text-muted-foreground"
+            onClick={selectImage}
+          >
+            {failed ? '图片无法读取，请重新插入' : '正在加载图片…'}
+          </span>
+        )}
+        {editor.isEditable ? (
+          <div
+            role="toolbar"
+            aria-label="图片操作"
+            className="absolute bottom-3 left-1/2 z-10 flex w-max max-w-full -translate-x-1/2 flex-wrap items-center justify-center rounded-sm bg-black/65 px-1 text-white"
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 rounded-none px-2 font-normal text-white hover:bg-white/15 hover:text-white focus-visible:ring-white/60"
+              aria-label="裁剪图片"
+              disabled={!preview || busy}
+              onClick={() => setEditing(true)}
+            >
+              裁剪
+            </Button>
+            <Separator
+              orientation="vertical"
+              className="h-3 bg-white/40 data-vertical:self-center"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 rounded-none px-2 font-normal text-white hover:bg-white/15 hover:text-white focus-visible:ring-white/60"
+              aria-label="替换图片"
+              disabled={busy}
+              onClick={() => replacementRef.current?.click()}
+            >
+              替换
+            </Button>
+            <Separator
+              orientation="vertical"
+              className="h-3 bg-white/40 data-vertical:self-center"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 rounded-none px-2 font-normal text-white hover:bg-white/15 hover:text-white focus-visible:ring-white/60"
+              aria-label="删除图片"
+              disabled={busy}
+              onClick={() => {
+                const pos = getPos();
+                if (typeof pos === 'number') {
+                  editor
+                    .chain()
+                    .setNodeSelection(pos)
+                    .deleteSelection()
+                    .focus()
+                    .run();
+                }
+              }}
+            >
+              删除
+            </Button>
+            <input
+              ref={replacementRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                void replace(event.target.files?.[0]);
+                event.target.value = '';
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+      {editor.isEditable ? (
+        <div className="mx-auto flex max-w-100 items-center gap-2 px-2 py-1">
+          <Input
+            aria-label="图片描述"
+            placeholder="请输入图片描述（最多50字）"
+            className="h-8 border-transparent text-center shadow-none focus-visible:border-input focus-visible:ring-0"
+            value={String(node.attrs.caption || '')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === 'Escape') {
+                event.preventDefault();
+                const position = getPos();
+                if (typeof position === 'number') {
+                  focusImageText(editor, position, 'after');
+                }
+              }
+            }}
+            onChange={(event) =>
+              updateAttributes({
+                caption: Array.from(event.target.value).slice(0, 50).join(''),
+              })
+            }
+          />
+          <span
+            className={cn(
+              'shrink-0 text-xs tabular-nums text-muted-foreground',
+              !selected && 'opacity-0 group-focus-within:opacity-100',
+            )}
+          >
+            {Array.from(String(node.attrs.caption || '')).length}/50
+          </span>
+        </div>
+      ) : node.attrs.caption ? (
+        <p className="text-center text-sm text-muted-foreground">
+          {node.attrs.caption}
+        </p>
+      ) : null}
+      {editor.isEditable
+        ? (['before', 'after'] as const).map((side) => (
+            <button
+              key={side}
+              type="button"
+              aria-label={
+                side === 'before' ? '在图片前输入正文' : '在图片后输入正文'
+              }
+              className={cn(
+                'absolute inset-x-0 z-10 h-3 cursor-text rounded-sm opacity-0 hover:bg-primary/10 hover:opacity-100 focus-visible:bg-primary/10 focus-visible:opacity-100',
+                side === 'before' ? '-top-3' : '-bottom-3',
+              )}
+              onClick={() => {
+                const position = getPos();
+                if (typeof position === 'number') {
+                  focusImageText(editor, position, side);
+                }
+              }}
+            />
+          ))
+        : null}
+      {editing && preview ? (
+        <ArticleImageEditDialog
+          source={preview}
+          returnFocus={editor.view.dom}
+          localPath={localPath}
+          onClose={() => setEditing(false)}
+          onSaved={(path, data) => {
+            if (
+              !editor.isDestroyed &&
+              editor.isEditable &&
+              typeof getPos() === 'number'
+            ) {
+              updateAttributes({
+                src: toFileUrl(path),
+                localPath: path,
+                previewData: data,
+                width: null,
+                height: null,
+              });
+            }
+            setEditing(false);
           }}
         />
-      ) : (
-        <span className="text-sm text-muted-foreground">
-          {failed ? '图片无法读取，请重新插入' : '正在加载图片…'}
-        </span>
-      )}
+      ) : null}
     </NodeViewWrapper>
   );
 }
@@ -168,6 +468,14 @@ export function ArticleRichTextEditor({
   footerExtra?: ReactNode;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [inserting, setInserting] = useState(false);
+  const insertingRef = useRef(false);
+  const importImagesRef = useRef<(files: File[], position?: number) => void>(
+    () => {},
+  );
+  const pendingInteractionRef = useRef(false);
+  const pendingRangeRef = useRef<{ from: number; to: number } | null>(null);
+  const externalVersionRef = useRef(0);
   const insertionRangeRef = useRef<{ from: number; to: number }>({
     from: 1,
     to: 1,
@@ -188,7 +496,43 @@ export function ArticleRichTextEditor({
       extensions: ARTICLE_EDITOR_EXTENSIONS,
       content: value || '',
       editable: !disabled,
+      onTransaction: ({ transaction }) => {
+        const range = pendingRangeRef.current;
+        if (range) {
+          if (transaction.docChanged || transaction.selectionSet) {
+            pendingInteractionRef.current = true;
+          }
+          pendingRangeRef.current = {
+            from: transaction.mapping.map(range.from),
+            to: transaction.mapping.map(range.to),
+          };
+        }
+      },
       editorProps: {
+        handlePaste: (_view, event) => {
+          const files = Array.from(event.clipboardData?.files || []).filter(
+            isImageFile,
+          );
+          if (!files.length) {
+            return false;
+          }
+          importImagesRef.current(files);
+          return true;
+        },
+        handleDrop: (view, event, moved) => {
+          const files = Array.from(event.dataTransfer?.files || []).filter(
+            isImageFile,
+          );
+          if (moved || !files.length) {
+            return false;
+          }
+          const position = view.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          })?.pos;
+          importImagesRef.current(files, position);
+          return true;
+        },
         attributes: {
           ...(id ? { id } : {}),
           'data-slot': 'rich-text-control',
@@ -203,7 +547,7 @@ export function ArticleRichTextEditor({
             '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
             '[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5',
             '[&_a]:underline [&_a]:underline-offset-4',
-            '[&_img]:mx-auto [&_img]:my-3 [&_img]:block [&_img]:max-h-80 [&_img]:max-w-full [&_img]:rounded-md',
+            '[&_img]:mx-auto [&_img]:my-3 [&_img]:block [&_img]:max-w-full [&_img]:rounded-md',
           ),
         },
       },
@@ -234,6 +578,7 @@ export function ArticleRichTextEditor({
     if (!editor || value === lastExternalValueRef.current) {
       return;
     }
+    externalVersionRef.current += 1;
     const html = value || '';
     lastExternalValueRef.current = html;
     lastAcceptedHtmlRef.current = html;
@@ -263,59 +608,92 @@ export function ArticleRichTextEditor({
     }
   }, [editor, overMax, underMin]);
 
-  const onPickImages = async (files: FileList | null) => {
-    if (!files?.length || disabled || !editor) {
+  const onPickImages = async (files: File[] | FileList | null) => {
+    if (!files?.length || disabled || !editor || insertingRef.current) {
       return;
     }
-    const imageFiles = Array.from(files).filter(
-      (file) =>
-        file.type.startsWith('image/') ||
-        /\.(apng|avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name),
-    );
-    const imageSelections = imageFiles
-      .map((file) => ({ file, path: getLocalFilePath(file) }))
-      .filter((selection): selection is { file: File; path: string } =>
-        Boolean(selection.path),
-      );
-    const paths = imageSelections.map((selection) => selection.path);
-
-    if (paths.length === 0) {
-      toast.add({
-        type: 'error',
-        title: '无法插入图片',
-        description:
-          imageFiles.length > 0
-            ? '请在桌面应用中选择本机图片。'
-            : '请选择图片文件。',
-      });
+    const imageFiles = Array.from(files).filter(isImageFile);
+    if (!imageFiles.length) {
+      toast.add({ type: 'error', title: '请选择图片文件' });
       return;
     }
-
-    const insertionRange = insertionRangeRef.current;
-    let insertions;
+    const version = externalVersionRef.current;
+    pendingRangeRef.current = { ...insertionRangeRef.current };
+    pendingInteractionRef.current = false;
+    insertingRef.current = true;
+    setInserting(true);
     try {
-      insertions = await Promise.all(
-        imageSelections.map(async ({ file, path }) => ({
-          type: 'image' as const,
+      const insertions = [];
+      const paths: string[] = [];
+      for (const file of imageFiles) {
+        const previewData = await fileToDataUrl(file);
+        let path = getLocalFilePath(file);
+        if (!path && file.type === 'image/png') {
+          const save = getPugyingDesktopBridge()?.saveArticleImage;
+          if (save) {
+            path = (await save(previewData, '')) || '';
+            if (!path) {
+              continue;
+            }
+          }
+        }
+        if (!path) {
+          toast.add({ type: 'error', title: '请选择本机图片' });
+          continue;
+        }
+        paths.push(path);
+        insertions.push({
+          type: 'image',
           attrs: {
             src: toFileUrl(path),
             alt: '',
             localPath: path,
-            previewData: await fileToDataUrl(file),
+            previewData,
           },
-        })),
-      );
-    } catch {
-      toast.add({
-        type: 'error',
-        title: '图片读取失败',
-        description: '请重新选择图片。',
+        });
+      }
+      if (
+        editor.isDestroyed ||
+        !editor.isEditable ||
+        version !== externalVersionRef.current ||
+        !pendingRangeRef.current ||
+        !insertions.length
+      ) {
+        return;
+      }
+      const keepCursor = pendingInteractionRef.current;
+      editor.commands.insertContentAt(pendingRangeRef.current, insertions, {
+        updateSelection: !keepCursor,
       });
+      if (!keepCursor) {
+        const selection = editor.state.selection;
+        if (
+          selection instanceof NodeSelection &&
+          selection.node.type.name === 'image'
+        ) {
+          focusImageText(editor, selection.from, 'after');
+        } else {
+          editor.commands.focus();
+        }
+      }
+      onImagesInserted?.(paths);
+    } catch {
+      toast.add({ type: 'error', title: '图片读取失败，请重新选择' });
+    } finally {
+      pendingRangeRef.current = null;
+      insertingRef.current = false;
+      setInserting(false);
+    }
+  };
+  importImagesRef.current = (files, position) => {
+    if (!editor?.isEditable || insertingRef.current) {
       return;
     }
-
-    editor.chain().insertContentAt(insertionRange, insertions).focus().run();
-    onImagesInserted?.(paths);
+    insertionRangeRef.current =
+      position === undefined
+        ? { from: editor.state.selection.from, to: editor.state.selection.to }
+        : { from: position, to: position };
+    void onPickImages(files);
   };
 
   return (
@@ -407,7 +785,7 @@ export function ArticleRichTextEditor({
           type="button"
           variant="ghost"
           size="sm"
-          disabled={disabled || !editor}
+          disabled={disabled || !editor || inserting}
           onMouseDown={(event) => {
             event.preventDefault();
           }}
@@ -422,7 +800,7 @@ export function ArticleRichTextEditor({
           }}
         >
           <ImagePlus data-icon="inline-start" />
-          插入图片
+          {inserting ? '正在插入…' : '插入图片'}
         </Button>
         <input
           ref={fileInputRef}
@@ -493,9 +871,9 @@ function ToolbarButton({
 
 function toFileUrl(absPath: string): string {
   if (/^[a-zA-Z]:[\\/]/.test(absPath)) {
-    return `file:///${absPath.replace(/\\/g, '/')}`;
+    return `file:///${absPath.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/')}`;
   }
-  return `file://${absPath}`;
+  return `file://${absPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 function localImagePath(element: HTMLElement): string | null {
@@ -537,8 +915,8 @@ export function extractLocalImagePathsFromHtml(html: string): string[] {
   }
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const paths: string[] = [];
-  for (const img of Array.from(doc.querySelectorAll('img[data-local-path]'))) {
-    const path = img.getAttribute('data-local-path')?.trim();
+  for (const img of Array.from(doc.querySelectorAll('img'))) {
+    const path = localImagePath(img)?.trim();
     if (path) {
       paths.push(path);
     }
@@ -552,4 +930,11 @@ export function htmlToPlainText(html: string): string {
   }
   const doc = new DOMParser().parseFromString(html, 'text/html');
   return (doc.body.textContent || '').replace(/\s+\n/g, '\n').trim();
+}
+
+function isImageFile(file: File): boolean {
+  return (
+    file.type.startsWith('image/') ||
+    /\.(apng|avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(file.name)
+  );
 }

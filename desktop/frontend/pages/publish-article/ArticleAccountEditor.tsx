@@ -4,7 +4,6 @@ import { PlatformIcon } from '@/components/PlatformIcon';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import type { CoverKind } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { ArticlePlatformAccountForm } from './account-forms/ArticlePlatformAccountForm';
@@ -64,8 +63,12 @@ export function ArticleAccountEditor({
   const draft = getDraft(entry.account.id);
 
   return (
-    <div className={cn('flex min-h-0 flex-col rounded-lg border', className)}>
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+    <div
+      data-slot="article-account-editor"
+      data-account-id={entry.account.id}
+      className={cn('flex min-h-0 flex-col rounded-lg border', className)}
+    >
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar>
             {entry.account.avatarUrl ? (
@@ -150,7 +153,6 @@ export function ArticleAccountEditor({
         />
       </div>
 
-      <Separator />
       <div className="flex items-center justify-between gap-2 px-4 py-2">
         <Button
           type="button"

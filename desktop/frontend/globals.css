@@ -161,18 +161,46 @@
 }
 
 /*
- * Electron：仅 sidebar-header 可拖窗；品牌链接等交互用 no-drag。
- * 导航区不设 drag，避免与滚动/点击冲突。
+ * Electron：桌面侧栏空白区域可拖窗（包含展开与折叠状态）。
+ * 链接、按钮等交互区域排除拖动，保留导航与菜单操作。
  */
-html.desktop-chrome [data-slot='sidebar-header'] {
+html.desktop-chrome [data-slot='sidebar-container'] {
   -webkit-app-region: drag;
   app-region: drag;
 }
 
-html.desktop-chrome [data-slot='sidebar-header'] a,
-html.desktop-chrome [data-slot='sidebar-header'] button,
-html.desktop-chrome [data-slot='sidebar-header'] input,
-html.desktop-chrome [data-slot='sidebar-header'] [role='button'] {
+html.desktop-chrome [data-slot='sidebar-container'] :is(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  [role='button'],
+  [role='link'],
+  [contenteditable='true']
+) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/*
+ * 菜单与遮罩通过 Portal 浮在侧栏上方，原生拖动区域仍会抢走鼠标事件。
+ * 浮层挂载期间（含退出动画）暂停侧栏拖动，卸载后自动恢复。
+ */
+html.desktop-chrome:has(
+  [data-slot='dropdown-menu-content'],
+  [data-slot='dropdown-menu-sub-content'],
+  [data-slot='dialog-overlay'],
+  [data-slot='alert-dialog-overlay'],
+  [data-slot='sheet-overlay'],
+  [data-slot='drawer-overlay']
+) [data-slot='sidebar-container'],
+html.desktop-chrome [data-slot='dropdown-menu-content'],
+html.desktop-chrome [data-slot='dropdown-menu-sub-content'],
+html.desktop-chrome [data-slot='dialog-overlay'],
+html.desktop-chrome [data-slot='alert-dialog-overlay'],
+html.desktop-chrome [data-slot='sheet-overlay'],
+html.desktop-chrome [data-slot='drawer-overlay'] {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }

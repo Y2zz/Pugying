@@ -32,6 +32,7 @@ import {
   type ArticleOverrideDraft,
 } from './helpers';
 import type { ArticleRosterEntry } from './use-article-composer';
+import { countArticleAccountTitleCharacters, normalizeArticleTitle } from './article-title';
 
 type BulkField = 'title' | 'tags' | 'visibility' | 'schedule' | 'location' | 'partition';
 
@@ -102,7 +103,8 @@ export function ArticleBulkEditDialog({
     });
   };
 
-  const titleOver = values.title.trim().length > caps.titleMax;
+  const titleLength = countArticleAccountTitleCharacters(values.title);
+  const titleOver = titleLength > caps.titleMax;
   const tagsOver = caps.tags ? values.tags.length > caps.tags.maxCount : false;
   let scheduleError: string | null = null;
   if (caps.schedule && values.scheduleMode === 'scheduled') {
@@ -117,7 +119,7 @@ export function ArticleBulkEditDialog({
   const apply = () => {
     const patch: Partial<ArticleOverrideDraft> = {};
     if (enabled.has('title')) {
-      patch.title = values.title.trim();
+      patch.title = normalizeArticleTitle(values.title);
     }
     if (enabled.has('tags')) {
       patch.tagsText = values.tags.join(' ');
@@ -172,6 +174,10 @@ export function ArticleBulkEditDialog({
                   onChange={(e) => {
                     change('title', { title: e.target.value });
                   }}
+                  onBlur={(e) => {
+                    const title = normalizeArticleTitle(e.target.value);
+                    setValues((prev) => ({ ...prev, title }));
+                  }}
                 />
                 <InputGroupAddon align="inline-end" className="pointer-events-none">
                   <span
@@ -180,7 +186,7 @@ export function ArticleBulkEditDialog({
                       titleOver ? 'text-destructive' : 'text-muted-foreground',
                     )}
                   >
-                    {values.title.trim().length}/{caps.titleMax}
+                    {titleLength}/{caps.titleMax}
                   </span>
                 </InputGroupAddon>
               </InputGroup>

@@ -1,3 +1,4 @@
+import { prepareArticleDocument } from './article-publish-format';
 import type {
   PlatformPublishContentType,
   PlatformPublishProgressPayload,
@@ -130,6 +131,7 @@ export function startPublishJob(options: {
     return { ok: true };
   }
 
+  const { body: articleHtml, ...articlePayload } = payload;
   const runAdapter =
     contentType === 'graphic'
       ? () =>
@@ -146,7 +148,11 @@ export function startPublishJob(options: {
             import('./platforms/publish-douyin-article').then(
               ({ runDouyinArticlePublish }) =>
                 runDouyinArticlePublish({
-                  payload,
+                  payload: articlePayload,
+                  article: prepareArticleDocument(
+                    articleHtml || '',
+                    payload.mediaPaths || [],
+                  ),
                   onProgress: options.onProgress,
                   signal,
                 }),

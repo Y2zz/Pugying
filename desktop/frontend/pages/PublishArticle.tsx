@@ -1,25 +1,18 @@
 import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { AlertCircle, Save } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { toast } from '@/components/AppToaster';
 import { EditCoverDialog } from '@/components/EditCoverDialog';
-import {
-  PageHeader,
-  PageHeaderAction,
-  PageHeaderDescription,
-  PageHeaderTitle,
-} from '@/components/layouts/PageHeader';
-import { StickyPageHeader } from '@/components/layouts/StickyPageHeader';
 import { Alert, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddAccountsDialog } from './publish-video/AddAccountsDialog';
 import { ArticleBulkEditDialog } from './publish-article/ArticleBulkEditDialog';
-import { ArticleChecklistBar } from './publish-article/ArticleChecklistCard';
+import { ArticlePageHeader } from './publish-article/ArticlePageHeader';
 import { ArticleCoverCard } from './publish-article/ArticleCoverCard';
 import { ArticleDistributionPanel } from './publish-article/ArticleDistributionPanel';
 import { ArticleDocument } from './publish-article/ArticleDocument';
+import { scrollToArticleField } from './publish-article/scroll-to-article-field';
 import { useArticleComposer, type ArticleCheck } from './publish-article/use-article-composer';
 
 /**
@@ -47,6 +40,7 @@ export default function PublishArticle() {
 
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const imageWarningRef = useRef<HTMLDivElement>(null);
   const coverSectionRef = useRef<HTMLElement>(null);
   const accountsSectionRef = useRef<HTMLDivElement>(null);
 
@@ -54,36 +48,64 @@ export default function PublishArticle() {
   const accountsEmpty = !loading && composer.accounts.length === 0;
   const pending = checks.filter((c) => !c.ok).length;
 
-  const scrollTo = (el: HTMLElement | null, block: ScrollLogicalPosition = 'center') => {
-    el?.scrollIntoView({ behavior: 'smooth', block });
-  };
-
   const focusCheck = (check: ArticleCheck) => {
     switch (check.id) {
       case 'title':
-        titleRef.current?.focus();
-        scrollTo(titleRef.current);
+        titleRef.current?.focus({ preventScroll: true });
+        scrollToArticleField(titleRef.current);
         break;
       case 'body':
+        editorRef.current?.focus({ preventScroll: true });
+        scrollToArticleField(
+          editorRef.current?.closest<HTMLElement>('[data-slot="field"]') ?? editorRef.current,
+          'start',
+        );
+        break;
       case 'images':
-        editorRef.current?.focus();
-        scrollTo(editorRef.current, 'start');
+        editorRef.current?.focus({ preventScroll: true });
+        scrollToArticleField(
+          imageWarningRef.current ??
+            editorRef.current?.closest<HTMLElement>('[data-slot="field"]') ??
+            editorRef.current,
+          'start',
+        );
         break;
       case 'cover':
-        scrollTo(coverSectionRef.current);
+        scrollToArticleField(coverSectionRef.current);
         break;
       case 'accounts':
-        scrollTo(accountsSectionRef.current);
+        scrollToArticleField(accountsSectionRef.current, 'start');
         if (entries.length === 0 && !accountsEmpty) {
           setAddOpen(true);
+        } else {
+          const action =
+            accountsSectionRef.current?.querySelector<HTMLElement>('a[href="/platform-accounts"]') ??
+            accountsSectionRef.current?.querySelector<HTMLElement>('button:not(:disabled)');
+          action?.focus({ preventScroll: true });
         }
         break;
-      case 'accountConfig':
-        scrollTo(accountsSectionRef.current, 'start');
-        if (check.accountId) {
-          setFocusedAccountId(check.accountId);
+      case 'accountConfig': {
+        const accountId = check.accountId;
+        if (accountId) {
+          // 先渲染目标账号，再按实际表单位置定位（窄屏表单位于名单下方）。
+          flushSync(() => {
+            setFocusedAccountId(accountId);
+          });
         }
+        const editor = accountsSectionRef.current?.querySelector<HTMLElement>(
+          '[data-slot="article-account-editor"]',
+        );
+        const invalidField = editor?.querySelector<HTMLElement>('[data-slot="field"][data-invalid="true"]');
+        const invalid = invalidField?.querySelector<HTMLElement>(
+          '[aria-invalid="true"], input:not(:disabled), textarea:not(:disabled), button:not(:disabled)',
+        ) ?? editor?.querySelector<HTMLElement>('[aria-invalid="true"]');
+        invalid?.focus({ preventScroll: true });
+        scrollToArticleField(
+          invalidField ?? invalid?.closest<HTMLElement>('[data-slot="field"]') ?? editor ?? accountsSectionRef.current,
+          'start',
+        );
         break;
+      }
     }
   };
 
@@ -104,25 +126,18 @@ export default function PublishArticle() {
 
   return (
     <div className="flex flex-col gap-6">
-      <StickyPageHeader showDivider className="gap-4">
-        <PageHeader>
-          <PageHeaderTitle>{composer.isEditing ? '编辑文章' : '发布文章'}</PageHeaderTitle>
-          <PageHeaderDescription>{description}</PageHeaderDescription>
-          <PageHeaderAction>
-            <Button
-              type="button"
-              disabled={locked}
-              onClick={() => {
-                void onSave();
-              }}
-            >
-              <Save data-icon="inline-start" />
-              {saving ? '保存中…' : composer.isEditing ? '保存修改' : '保存草稿'}
-            </Button>
-          </PageHeaderAction>
-        </PageHeader>
-        {!loading ? <ArticleChecklistBar checks={checks} onFix={focusCheck} /> : null}
-      </StickyPageHeader>
+      <ArticlePageHeader
+        title={composer.isEditing ? '编辑文章' : '发布文章'}
+        description={description}
+        checks={checks}
+        loading={loading}
+        disabled={locked}
+        saveLabel={saving ? '保存中…' : composer.isEditing ? '保存修改' : '保存草稿'}
+        onSave={() => {
+          void onSave();
+        }}
+        onFix={focusCheck}
+      />
 
       {composer.error ? (
         <Alert variant="destructive">
@@ -139,7 +154,6 @@ export default function PublishArticle() {
             title={composer.title}
             onTitleChange={composer.setTitle}
             titleMax={composer.titleMax}
-            limitsActive={entries.length > 0}
             body={composer.body}
             onBodyChange={composer.setBody}
             bodyMin={composer.bodyLimits.min}
@@ -148,9 +162,8 @@ export default function PublishArticle() {
             disabled={locked}
             titleRef={titleRef}
             editorRef={editorRef}
+            imageWarningRef={imageWarningRef}
           />
-
-          <Separator />
 
           <ArticleCoverCard
             sectionRef={coverSectionRef}
@@ -164,8 +177,6 @@ export default function PublishArticle() {
             }}
             onUseFirstImage={composer.applyFirstImageAsCover}
           />
-
-          <Separator />
 
           <section ref={accountsSectionRef} className="flex flex-col gap-4">
             <div>

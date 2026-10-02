@@ -6,6 +6,7 @@ import type {
   PlatformId,
 } from '@/lib/api';
 import { getPugyingDesktopBridge } from '@/lib/agent-client';
+import { countArticleAccountTitleCharacters, normalizeArticleTitle } from './article-title';
 import {
   articleCoverAspects,
   getArticlePlatformFields,
@@ -152,8 +153,9 @@ export function articleDraftToOverrides(
 ): ContentTargetOverrides {
   const spec = getArticlePlatformFields(platform);
   const result: ContentTargetOverrides = {};
-  if (draft.title.trim()) {
-    result.title = draft.title.trim();
+  const title = normalizeArticleTitle(draft.title);
+  if (title) {
+    result.title = title;
   }
   const tags = parseTags(draft.tagsText);
   if (spec.tags.enabled && tags.length > 0) {
@@ -193,11 +195,12 @@ export function articleDraftHasCustomizations(draft: ArticleOverrideDraft): bool
 export function getArticleAccountDraftIssues(
   draft: ArticleOverrideDraft,
   platform: PlatformId,
+  commonTitle: string,
 ): string[] {
   const spec = getArticlePlatformFields(platform);
   const issues: string[] = [];
 
-  if (draft.title.trim().length > spec.titleMax) {
+  if (countArticleAccountTitleCharacters(draft.title.trim() || commonTitle) > spec.titleMax) {
     issues.push('标题超长');
   }
   if (spec.tags.enabled && parseTags(draft.tagsText).length > spec.tags.maxCount) {

@@ -27,4 +27,6 @@ export const DESKTOP_IPC = {
   checkLocalPathReadable: 'desktop:check-local-path-readable',
   /** 读取本机图片供编辑器预览，不将本机文件 URL 暴露给 renderer */
   readLocalImageDataUrl: 'desktop:read-local-image-data-url',
+  /** 编辑后的正文图片另存为本机文件 */
+  saveArticleImage: 'desktop:save-article-image',
 } as const;

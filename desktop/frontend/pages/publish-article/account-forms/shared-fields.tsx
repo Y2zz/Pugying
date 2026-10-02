@@ -9,7 +9,6 @@ import {
   FieldGroup,
   FieldLabel,
   FieldLegend,
-  FieldSeparator,
   FieldSet,
   FieldTitle,
 } from '@/components/ui/field';
@@ -21,6 +20,7 @@ import type { ContentVisibility, CoverKind, PlatformAccountItem, PlatformId } fr
 import { cn } from '@/lib/utils';
 import { TagInput } from '../../publish-video/TagInput';
 import { ArticleCoverThumb } from '../ArticleCoverThumb';
+import { countArticleAccountTitleCharacters, normalizeArticleTitle } from '../article-title';
 import {
   articleCoverAspects,
   isArticleCoverRequired,
@@ -75,7 +75,6 @@ export function ArticleAccountFormLayout({
         <FieldDescription>未修改的项沿用通用内容</FieldDescription>
         <FieldGroup className="gap-5">{content}</FieldGroup>
       </FieldSet>
-      <FieldSeparator />
       <FieldSet>
         <FieldLegend>发布设置</FieldLegend>
         <FieldGroup className="gap-5">{publish}</FieldGroup>
@@ -101,7 +100,7 @@ export function ArticleTitleOverrideField({
 }) {
   const id = `article-${accountId}-title`;
   // 计数按账号实际会用的标题：未单独填写时即通用标题
-  const effectiveLength = (value.trim() || commonTitle.trim()).length;
+  const effectiveLength = countArticleAccountTitleCharacters(value.trim() || commonTitle);
   const over = effectiveLength > max;
 
   return (
@@ -111,11 +110,14 @@ export function ArticleTitleOverrideField({
         <InputGroupInput
           id={id}
           value={value}
-          placeholder={commonTitle.trim() || '沿用通用标题'}
+          placeholder={normalizeArticleTitle(commonTitle) || '沿用通用标题'}
           disabled={disabled}
           aria-invalid={over || undefined}
           onChange={(e) => {
             onChange(e.target.value);
+          }}
+          onBlur={(e) => {
+            onChange(normalizeArticleTitle(e.target.value));
           }}
         />
         <InputGroupAddon align="inline-end" className="pointer-events-none">

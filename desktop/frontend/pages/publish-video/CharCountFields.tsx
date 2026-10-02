@@ -7,16 +7,17 @@ function countClassName(over: boolean): string {
 }
 
 /** 单行输入 + 框内右侧字数；超出 max 仍可输入，计数变红 */
-export const CharCountInput = forwardRef<HTMLInputElement, Omit<ComponentProps<'input'>, 'value' | 'maxLength'> & { value: string; max: number }>(
-  function CharCountInput({ value, max, className, ...props }, ref) {
-    const over = value.length > max;
+export const CharCountInput = forwardRef<HTMLInputElement, Omit<ComponentProps<'input'>, 'value' | 'maxLength'> & { value: string; max: number; countCharacters?: (value: string) => number }>(
+  function CharCountInput({ value, max, countCharacters, className, ...props }, ref) {
+    const length = countCharacters ? countCharacters(value) : value.length;
+    const over = length > max;
 
     return (
       <InputGroup className="has-[>[data-align=inline-end]]:[&>input]:pr-14">
         <InputGroupInput ref={ref} value={value} aria-invalid={over || undefined} className={className} {...props} />
         <InputGroupAddon align="inline-end" className="pointer-events-none">
           <span className={countClassName(over)} aria-hidden>
-            {value.length}/{max}
+            {length}/{max}
           </span>
         </InputGroupAddon>
       </InputGroup>

@@ -24,6 +24,7 @@ import type {
 } from './protocol';
 import {
   CHROME_HEIGHT,
+  AUTH_GUIDE_HEIGHT,
   IPC,
   type AnchorRect,
   type GuideBubbleStep,
@@ -245,11 +246,13 @@ function pushGuide(handle: AuthBrowserHandle): void {
 
 function layoutContent(handle: AuthBrowserHandle): void {
   const [width, height] = handle.window.getContentSize();
+  const top =
+    CHROME_HEIGHT + (handle.guideMode === 'bubbles' ? AUTH_GUIDE_HEIGHT : 0);
   handle.contentView.setBounds({
     x: 0,
-    y: CHROME_HEIGHT,
+    y: top,
     width,
-    height: Math.max(0, height - CHROME_HEIGHT),
+    height: Math.max(0, height - top),
   });
 }
 
@@ -257,10 +260,14 @@ function layoutGuide(handle: AuthBrowserHandle): void {
   if (!handle.guideView || handle.guideMode === null) {
     return;
   }
-  // Both modes cover the whole window (toolbar included) so the guide is
-  // fully modal; the renderer draws the scrim and positions its content.
   const [w, h] = handle.window.getContentSize();
-  handle.guideView.setBounds({ x: 0, y: 0, width: w, height: h });
+  // Only the first-use introduction is modal. The hint occupies its own row;
+  // a transparent full-window view would still intercept platform clicks.
+  handle.guideView.setBounds(
+    handle.guideMode === 'bubbles'
+      ? { x: 0, y: CHROME_HEIGHT, width: w, height: AUTH_GUIDE_HEIGHT }
+      : { x: 0, y: 0, width: w, height: h },
+  );
 }
 
 function closeMoreMenu(handle: AuthBrowserHandle): void {
@@ -364,6 +371,10 @@ function hideGuide(handle: AuthBrowserHandle): void {
   if (handle.guideView) {
     handle.guideView.setVisible(false);
   }
+  if (!handle.window.isDestroyed()) {
+    layoutContent(handle);
+    handle.contentView.webContents.focus();
+  }
 }
 
 async function showFirstRunGuide(handle: AuthBrowserHandle): Promise<void> {
@@ -377,9 +388,14 @@ async function showFirstRunGuide(handle: AuthBrowserHandle): Promise<void> {
   handle.guideMode = 'first-run';
   handle.guideIndex = 0;
   await loadGuideHash(guideView, 'guide-first');
+  if (!activeJobs.has(handle.requestId) || handle.guideMode !== 'first-run') {
+    return;
+  }
+  layoutContent(handle);
   layoutGuide(handle);
   handle.window.contentView.addChildView(guideView);
   guideView.setVisible(true);
+  guideView.webContents.focus();
   pushGuide(handle);
 }
 
@@ -397,6 +413,10 @@ async function showStepBubbles(
   handle.guideMode = 'bubbles';
   handle.guideIndex = Math.max(0, Math.min(startIndex, steps.length - 1));
   await loadGuideHash(guideView, 'guide-bubble');
+  if (!activeJobs.has(handle.requestId) || handle.guideMode !== 'bubbles') {
+    return;
+  }
+  layoutContent(handle);
   layoutGuide(handle);
   handle.window.contentView.addChildView(guideView);
   guideView.setVisible(true);
@@ -459,7 +479,7 @@ function layoutToastView(handle: AuthBrowserHandle): void {
 /**
  * Created eagerly with the window so it's loaded before the first event.
  * Kept hidden while empty: even a fully transparent view swallows clicks
- * in its bounds, and this one sits over the page's bottom-right corner.
+ * in its bounds, and this one sits over the page's top-right corner.
  */
 function ensureToastView(handle: AuthBrowserHandle): WebContentsView {
   if (handle.toastView) {
@@ -705,7 +725,7 @@ function wireIpcOnce(): void {
   );
   ipcMain.handle(IPC.guideFirstSkip, (event) =>
     withJob(event, async (handle) => {
-      await finishFirstRun(handle, true);
+      await finishFirstRun(handle, false);
     }),
   );
   ipcMain.handle(IPC.guideFirstFinish, (event) =>
@@ -1043,6 +1063,9 @@ export function startAuthBrowser(options: {
   }, POLL_MS);
 
   void loadAuthUi(window.webContents).then(async () => {
+    if (!activeJobs.has(handle.requestId)) {
+      return;
+    }
     pushState(handle);
     await maybeStartGuides(handle);
   });

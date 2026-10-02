@@ -1,14 +1,10 @@
 import { authBubbleSteps, firstRunSlides } from './guide';
 
 describe('firstRunSlides', () => {
-  it('returns the three-slide intro in order', () => {
+  it('summarizes authorization in one introduction', () => {
     const slides = firstRunSlides('抖音');
-    expect(slides).toHaveLength(3);
-    expect(slides.map((slide) => slide.id)).toEqual([
-      'welcome',
-      'login',
-      'finish',
-    ]);
+    expect(slides).toHaveLength(1);
+    expect(slides.map((slide) => slide.id)).toEqual(['welcome']);
   });
 
   it('interpolates the platform name into the welcome slide', () => {
@@ -32,15 +28,15 @@ describe('firstRunSlides', () => {
 });
 
 describe('authBubbleSteps', () => {
-  it('returns two steps anchored to content then complete', () => {
+  it('provides one login hint without a tutorial sequence', () => {
     const steps = authBubbleSteps('抖音');
-    expect(steps).toHaveLength(2);
-    expect(steps.map((step) => step.anchor)).toEqual(['content', 'complete']);
-    expect(steps.map((step) => step.id)).toEqual(['login-page', 'complete']);
+    expect(steps).toHaveLength(1);
+    expect(steps.map((step) => step.anchor)).toEqual(['content']);
+    expect(steps.map((step) => step.id)).toEqual(['login-page']);
   });
 
   it('interpolates the platform name into the login step', () => {
     const steps = authBubbleSteps('小红书');
-    expect(steps[0].body).toContain('小红书');
+    expect(steps[0].title).toContain('小红书');
   });
 });

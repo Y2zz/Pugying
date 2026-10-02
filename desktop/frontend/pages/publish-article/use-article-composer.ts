@@ -22,7 +22,6 @@ import {
   ARTICLE_SUPPORTED_PLATFORMS,
   articleCoverAspects,
   intersectArticleBodyLimits,
-  intersectArticleTitleMax,
   isArticleCoverRequired,
   isArticleSupportedPlatform,
 } from './article-platform-fields';
@@ -44,6 +43,7 @@ import {
   type CoverPair,
   type CoverSlot,
 } from './helpers';
+import { ARTICLE_TITLE_MAX, countArticleTitleCharacters, normalizeArticleTitle } from './article-title';
 
 export interface ArticleRosterEntry {
   account: PlatformAccountItem;
@@ -213,7 +213,10 @@ export function useArticleComposer(editId: string | null) {
   }, [editId, trackUrl]);
 
   const htmlMediaPaths = useMemo(() => extractLocalImagePathsFromHtml(body), [body]);
-  const mediaPaths = htmlMediaPaths.length > 0 ? htmlMediaPaths : legacyMediaPaths;
+  // 仅仍含旧图片的正文使用旧路径；删除最后一张图后同步清空素材列表。
+  const mediaPaths = htmlMediaPaths.length > 0
+    ? htmlMediaPaths
+    : /<img\b/i.test(body) ? legacyMediaPaths : [];
   const mediaPathsKey = mediaPaths.join('\n');
 
   useEffect(() => {
@@ -264,7 +267,7 @@ export function useArticleComposer(editId: string | null) {
     () => [...new Set(entries.map((e) => e.account.platform))],
     [entries],
   );
-  const titleMax = intersectArticleTitleMax(selectedPlatforms);
+  const titleMax = ARTICLE_TITLE_MAX;
   const bodyLimits = intersectArticleBodyLimits(selectedPlatforms);
 
   const coverNeeds = useMemo<CoverNeed[]>(() => {
@@ -329,16 +332,16 @@ export function useArticleComposer(editId: string | null) {
       if (account.status !== 'active') {
         continue;
       }
-      const issues = getArticleAccountDraftIssues(getDraft(account.id), account.platform);
+      const issues = getArticleAccountDraftIssues(getDraft(account.id), account.platform, title);
       if (issues.length > 0) {
         map.set(account.id, issues);
       }
     }
     return map;
-  }, [entries, getDraft]);
+  }, [entries, getDraft, title]);
 
   const bodyLength = articleBodyPlainLength(body);
-  const titleLength = title.trim().length;
+  const titleLength = countArticleTitleCharacters(title);
 
   const checks = useMemo<ArticleCheck[]>(() => {
     const list: ArticleCheck[] = [];
@@ -523,7 +526,7 @@ export function useArticleComposer(editId: string | null) {
     setSaving(true);
     setError('');
     const payload = {
-      title: title.trim(),
+      title: normalizeArticleTitle(title),
       body: body.trim(),
       mediaPaths,
       tags: [],

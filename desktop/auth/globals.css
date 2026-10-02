@@ -167,3 +167,45 @@
   transform: none !important;
   translate: none !important;
 }
+/* 授权窗 Toast 宿主位于工具栏下方，栈须从顶部向下展开。
+   在主题层覆盖定位和动画，保持 shadcn 生成组件不变。 */
+html.toasts [data-slot="toast-viewport"] {
+  top: 1rem;
+  bottom: auto;
+}
+
+html.toasts [data-slot="toast"] {
+  top: 0;
+  bottom: auto;
+  transform-origin: top;
+  --offset-y: calc(
+    var(--toast-offset-y) + var(--toast-index) * var(--gap) +
+      var(--toast-swipe-movement-y)
+  );
+  transform: translateX(var(--toast-swipe-movement-x))
+    translateY(
+      calc(
+        var(--toast-swipe-movement-y) + var(--toast-index) * var(--peek) +
+          var(--shrink) * var(--height)
+      )
+    )
+    scale(var(--scale));
+}
+
+html.toasts [data-slot="toast"]::after {
+  top: auto;
+  bottom: 100%;
+}
+
+html.toasts [data-slot="toast"][data-expanded] {
+  transform: translateX(var(--toast-swipe-movement-x))
+    translateY(var(--offset-y));
+}
+
+html.toasts [data-slot="toast"][data-starting-style],
+html.toasts
+  [data-slot="toast"][data-ending-style]:not([data-limited]):not(
+    [data-swipe-direction]
+  ) {
+  transform: translateY(-150%);
+}

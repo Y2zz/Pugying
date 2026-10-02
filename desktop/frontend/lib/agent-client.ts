@@ -158,6 +158,8 @@ export type PugyingDesktopBridge = {
   checkLocalPathReadable?: (absPath: string) => Promise<boolean>;
   /** 读取本机图片供编辑器预览；失败时返回 null */
   readLocalImageDataUrl?: (absPath: string) => Promise<string | null>;
+  /** 编辑后的正文图片另存；用户取消时返回 null */
+  saveArticleImage?: (dataUrl: string, sourcePath: string) => Promise<string | null>;
   /** Electron 32+：从 File 取本机绝对路径（选片/拖拽通用） */
   getPathForFile?: (file: File) => string;
 };

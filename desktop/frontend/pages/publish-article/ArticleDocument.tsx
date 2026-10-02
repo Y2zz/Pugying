@@ -5,6 +5,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui
 import { CharCountInput } from '../publish-video/CharCountFields';
 import { ArticleRichTextEditor } from './ArticleRichTextEditor';
 import type { PathWarning } from './use-article-composer';
+import { countArticleTitleCharacters, normalizeArticleTitle } from './article-title';
 
 /**
  * 文章撰写区：标准 Field 表单（标题 + 富文本正文），与视频页通用信息一致。
@@ -13,7 +14,6 @@ export function ArticleDocument({
   title,
   onTitleChange,
   titleMax,
-  limitsActive,
   body,
   onBodyChange,
   bodyMin,
@@ -22,12 +22,11 @@ export function ArticleDocument({
   disabled,
   titleRef,
   editorRef,
+  imageWarningRef,
 }: {
   title: string;
   onTitleChange: (value: string) => void;
   titleMax: number;
-  /** 已选账号时才按平台限制校验 */
-  limitsActive: boolean;
   body: string;
   onBodyChange: (html: string) => void;
   bodyMin: number;
@@ -36,9 +35,8 @@ export function ArticleDocument({
   disabled?: boolean;
   titleRef: RefObject<HTMLInputElement | null>;
   editorRef: RefObject<HTMLDivElement | null>;
+  imageWarningRef?: RefObject<HTMLDivElement | null>;
 }) {
-  const effectiveTitleMax = limitsActive ? titleMax : Math.max(titleMax, 200);
-
   return (
     <FieldGroup className="gap-4">
       <Field>
@@ -47,11 +45,15 @@ export function ArticleDocument({
           id="article-title"
           ref={titleRef}
           placeholder="填写文章标题"
-          max={effectiveTitleMax}
+          max={titleMax}
+          countCharacters={countArticleTitleCharacters}
           disabled={disabled}
           value={title}
           onChange={(e) => {
             onTitleChange(e.target.value.replace(/[\r\n]+/g, ' '));
+          }}
+          onBlur={(e) => {
+            onTitleChange(normalizeArticleTitle(e.target.value));
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -63,7 +65,7 @@ export function ArticleDocument({
       </Field>
 
       {pathWarning ? (
-        <Alert variant={pathWarning.tone === 'error' ? 'destructive' : 'default'}>
+        <Alert ref={imageWarningRef} variant={pathWarning.tone === 'error' ? 'destructive' : 'default'}>
           <AlertCircle />
           <AlertDescription>{pathWarning.text}</AlertDescription>
         </Alert>

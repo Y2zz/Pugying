@@ -48,6 +48,9 @@ export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 /** Auth-shell chrome: toolbar (48), window-content px */
 export const CHROME_HEIGHT = 48;
 
+/** Non-modal login hint row between the toolbar and the platform page. */
+export const AUTH_GUIDE_HEIGHT = 96;
+
 export interface ChromeState {
   url?: string;
   title?: string;

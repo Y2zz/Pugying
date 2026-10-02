@@ -4,7 +4,7 @@ import { getChromeShell } from '@auth/lib/chrome-api';
 
 /**
  * Content of the dedicated toast WebContentsView (hash `#toasts`), pinned
- * bottom-right above the platform page. The main process keeps the view
+ * top-right below the toolbar. The main process keeps the view
  * hidden while there are no toasts (it would swallow clicks otherwise) and
  * queues events until `toastReady` confirms this component is mounted.
  */
