@@ -246,3 +246,12 @@ Pugying/
 | `PUGYING_EXTERNAL_SERVER` | — | 开发时 Desktop 不嵌入 Server，只连接外部 Server |
 | `PUGYING_API_BASE_URL` | — | 配合 EXTERNAL 指定 API 基址 |
 | `PUGYING_FORCE_PLATFORM` | — | 开发态模拟窗口铬（`darwin` / `win32` / `linux`）；仅未打包生效 |
+
+## Cursor Cloud specific instructions
+
+开发工具链与 GitHub Actions 对齐：Node.js **24.21.0**、npm **12.2.0**。若 `node -v` 不是 `v24.21.0`，先执行 `export PATH="/usr/local/bin:$PATH"`（环境 PATH 前面可能还有另一份 Node）。
+
+- 依赖是两套锁文件，分别在 `server/` 与 `desktop/` 执行 `npm ci`。`better-sqlite3` 使用本机预编译或编译，镜像里已有 `build-essential` 与 `python3`。
+- 环境启动只拉起 Nest，监听 `http://127.0.0.1:3928`（Swagger `/api`，探活 `/api-json`）。数据库放在 `~/.pugying/pugying.db`，避免写进仓库。`PLATFORM_CREDENTIAL_SECRET` 缺省与 `./start.sh` 相同（`pugying-dev-secret-change-me`）。未设置 `PUGYING_LOCAL_API_TOKEN` 时接口不校验本机令牌。
+- 桌面窗口需要图形会话，不要放进开机启动。验证 UI 时另起：`cd desktop && PUGYING_EXTERNAL_SERVER=1 PUGYING_API_BASE_URL=http://127.0.0.1:3928 npm run dev`。这样 Electron 只连接已有 Server，不会再嵌一份。`npm run dev` 会清除 `ELECTRON_RUN_AS_NODE`。日志里的 D-Bus 连接失败不影响窗口。
+- 检查与 CI 相同。Server：ESLint、`npm test`、`npm run test:e2e`、`npm run build`。Desktop：`npm run typecheck`、`npm test`、`npm run build`。
