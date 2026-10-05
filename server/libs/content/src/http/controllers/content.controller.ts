@@ -44,10 +44,17 @@ export class ContentController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'pageSize', required: false, type: Number, example: 20 })
-  findAll(@Query('type') type?: string, @Query('q') q?: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+  @ApiQuery({ name: 'managementStatus', required: false, enum: ['draft', 'pending', 'publishing', 'needs_attention', 'completed'] })
+  findAll(
+    @Query('type') type?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('managementStatus') managementStatus?: string,
+  ) {
     const parsedPage = page !== undefined && page !== '' ? Number(page) : 1;
     const parsedPageSize = pageSize !== undefined && pageSize !== '' ? Number(pageSize) : 20;
-    return this.service.findAll(type, q, parsedPage, parsedPageSize);
+    return this.service.findAll(type, q, parsedPage, parsedPageSize, managementStatus);
   }
 
   @Get(':id')

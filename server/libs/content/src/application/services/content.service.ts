@@ -24,6 +24,8 @@ import {
 } from '@pugying/content/domain/repositories/content-target.repository';
 import { ContentTargetDto, CreateContentDto, TargetOverridesDto, UpdateContentDto } from '@pugying/content/application/dtos';
 
+import { CONTENT_MANAGEMENT_STATUSES, type ContentManagementStatus, type ContentStatusCounts } from '../../domain/repositories/content.repository';
+
 const COVER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 /** 封面上限 20MB（裁切后通常远小） */
@@ -60,6 +62,7 @@ export type ContentListPage = {
   total: number;
   page: number;
   pageSize: number;
+  counts: ContentStatusCounts;
 };
 
 export type CoverBinary = {
@@ -78,7 +81,7 @@ export class ContentService {
     private readonly platformAccountRepository: IPlatformAccountRepository,
   ) {}
 
-  async findAll(type?: string, q?: string, page = 1, pageSize = 20): Promise<ContentListPage> {
+  async findAll(type?: string, q?: string, page = 1, pageSize = 20, managementStatus?: string): Promise<ContentListPage> {
     if (type !== undefined && type !== '' && !isContentType(type)) {
       throw new BadRequestException(`Unsupported content type: ${type}`);
     }
@@ -88,14 +91,18 @@ export class ContentService {
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
       throw new BadRequestException('pageSize must be between 1 and 100');
     }
-    const { rows, total } = await this.repository.findPaged({
+    if (managementStatus && !CONTENT_MANAGEMENT_STATUSES.includes(managementStatus as ContentManagementStatus)) {
+      throw new BadRequestException('作品状态无效');
+    }
+    const { rows, total, counts } = await this.repository.findPaged({
+      managementStatus: managementStatus ? (managementStatus as ContentManagementStatus) : undefined,
       type: type && isContentType(type) ? type : undefined,
       q,
       page,
       pageSize,
     });
     if (rows.length === 0) {
-      return { items: [], total, page, pageSize };
+      return { items: [], total, page, pageSize, counts };
     }
     const targets = await this.targetRepository.findByContents(rows.map((row) => row.id));
     const grouped = new Map<string, ContentTarget[]>();
@@ -105,7 +112,7 @@ export class ContentService {
       grouped.set(target.contentId, list);
     }
     const items = rows.map((row) => this.toContentView(row, grouped.get(row.id) ?? []));
-    return { items, total, page, pageSize };
+    return { items, total, page, pageSize, counts };
   }
 
   async findById(id: string): Promise<ContentView> {

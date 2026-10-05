@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -6,6 +6,7 @@ import {
   FileText,
   ImageIcon,
   Pencil,
+  ExternalLink,
   RefreshCw,
   RotateCcw,
   SearchIcon,
@@ -62,9 +63,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { PLATFORM_ACCOUNT_SYNCED_EVENT } from "@/hooks/use-creator-window-sync";
+import {
+  CONTENT_STATUS_OPTIONS,
+  EMPTY_CONTENT_COUNTS,
+  PLATFORM_NAMES,
+  summarizeContent,
+  contentTargetMessage,
+  safePlatformUrl,
+} from "@/lib/content-management";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layouts/PageHeader";
 import { StickyPageHeader } from "@/components/layouts/StickyPageHeader";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { MediaPreviewImage } from "@/components/MediaPreviewImage";
 import { useUiDensity } from "@/hooks/use-ui-density";
 import { agentClient } from "@/lib/agent-client";
@@ -72,6 +84,11 @@ import {
   completeContentTarget,
   deleteContent,
   fetchContents,
+  fetchContent,
+  fetchPlatformAccounts,
+  type PlatformAccountItem,
+  type ContentManagementStatus,
+  type ContentStatusCounts,
   retryContentTarget,
   startContentTarget,
   type ContentItem,
@@ -79,10 +96,6 @@ import {
   type ContentType,
   type TargetPublishStatus,
 } from "@/lib/api";
-import {
-  describeCaughtError,
-  describePublishError,
-} from "@/lib/publish-errors";
 import type { UiDensity } from "@/lib/ui-density";
 import { cn } from "@/lib/utils";
 
@@ -179,111 +192,6 @@ function editPath(item: ContentItem): string {
   return `/publish/video?id=${item.id}`;
 }
 
-function summarizeTargets(targets: ContentTargetItem[]): {
-  label: string;
-  tone: "default" | "secondary" | "outline" | "destructive";
-  succeeded: number;
-  failed: number;
-  running: number;
-  total: number;
-  /** 卡片摘要一行，例如「分发 3 · 2 成功 1 失败」 */
-  line: string;
-} {
-  const total = targets.length;
-  if (total === 0) {
-    return {
-      label: "无分发",
-      tone: "outline",
-      succeeded: 0,
-      failed: 0,
-      running: 0,
-      total: 0,
-      line: "暂无分发",
-    };
-  }
-  const succeeded = targets.filter(
-    (t) => t.publishStatus === "succeeded",
-  ).length;
-  const failed = targets.filter(
-    (t) => t.publishStatus === "failed" || t.publishStatus === "cancelled",
-  ).length;
-  const running = targets.filter(
-    (t) => t.publishStatus === "queued" || t.publishStatus === "running",
-  ).length;
-
-  let label = "未推送";
-  let tone: "default" | "secondary" | "outline" | "destructive" = "outline";
-  if (running > 0) {
-    label = "发布中";
-    tone = "secondary";
-  } else if (succeeded > 0 && failed > 0) {
-    label = "部分成功";
-    tone = "default";
-  } else if (succeeded === total) {
-    label = "全部成功";
-    tone = "default";
-  } else if (failed > 0 && succeeded === 0) {
-    label = "发布失败";
-    tone = "destructive";
-  }
-
-  const parts = [`分发 ${total}`];
-  if (succeeded > 0) {
-    parts.push(`${succeeded} 成功`);
-  }
-  if (failed > 0) {
-    parts.push(`${failed} 失败`);
-  }
-  if (running > 0) {
-    parts.push(`${running} 进行中`);
-  }
-  if (succeeded === 0 && failed === 0 && running === 0) {
-    parts.push("未推送");
-  }
-
-  return {
-    label,
-    tone,
-    succeeded,
-    failed,
-    running,
-    total,
-    line: parts.join(" · "),
-  };
-}
-
-/**
- * 卡片一眼状态：优先分发运行态；无结果时再落定时 / 草稿。
- * 「已发布」不作为封面主状态，避免与分发成功混淆。
- */
-function glanceStatus(item: ContentItem): {
-  label: string;
-  tone: "default" | "secondary" | "outline" | "destructive";
-  scheduled: boolean;
-} {
-  const dist = summarizeTargets(item.targets);
-  if (
-    dist.total > 0 &&
-    (dist.running > 0 || dist.succeeded > 0 || dist.failed > 0)
-  ) {
-    return { label: dist.label, tone: dist.tone, scheduled: false };
-  }
-  if (item.scheduledAt && new Date(item.scheduledAt).getTime() > Date.now()) {
-    return {
-      label: `定时 ${formatScheduleTime(item.scheduledAt)}`,
-      tone: "outline",
-      scheduled: true,
-    };
-  }
-  if (item.status === "draft") {
-    return { label: "草稿", tone: "outline", scheduled: false };
-  }
-  if (dist.total === 0) {
-    return { label: "未推送", tone: "outline", scheduled: false };
-  }
-  return { label: dist.label, tone: dist.tone, scheduled: false };
-}
-
 export default function Contents() {
   const [items, setItems] = useState<ContentItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -294,115 +202,178 @@ export default function Contents() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContentItem | null>(null);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsItem, setDetailsItem] = useState<ContentItem | null>(null);
+  const [detailsError, setDetailsError] = useState("");
+  const [accounts, setAccounts] = useState<PlatformAccountItem[] | null>(null);
+  const [accountError, setAccountError] = useState(false);
+  const [managementStatus, setManagementStatus] = useState<
+    ContentManagementStatus | "all"
+  >("all");
+  const [counts, setCounts] =
+    useState<ContentStatusCounts>(EMPTY_CONTENT_COUNTS);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [error, setError] = useState("");
   const loadSeqRef = useRef(0);
-
+  const fetchingRef = useRef(false);
   const totalPages = Math.max(1, Math.ceil(total / CONTENT_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
 
-  // 服务端筛选 + 分页；显式传入 next，避免 setState 异步读到旧值
-  const reload = async (
-    nextFilter: TypeFilter = filter,
-    nextQuery: string = query,
-    nextPage: number = page,
-  ) => {
-    const seq = ++loadSeqRef.current;
-    setLoading(true);
-    setError("");
-    try {
-      const result = await fetchContents({
-        type: nextFilter === "all" ? undefined : nextFilter,
-        q: nextQuery.trim() || undefined,
-        page: nextPage,
-        pageSize: CONTENT_PAGE_SIZE,
-      });
+  const reload = useCallback(
+    async (silent = false) => {
+      const seq = ++loadSeqRef.current;
+      fetchingRef.current = true;
+      if (!silent) {
+        setLoading(true);
+      }
+      const [listResult, detailResult] = await Promise.allSettled([
+        fetchContents({
+          type: filter === "all" ? undefined : filter,
+          q: debouncedQuery.trim() || undefined,
+          managementStatus:
+            managementStatus === "all" ? undefined : managementStatus,
+          page,
+          pageSize: CONTENT_PAGE_SIZE,
+        }),
+        detailsId ? fetchContent(detailsId) : Promise.resolve(null),
+      ]);
       if (seq !== loadSeqRef.current) {
         return;
       }
-      const resolvedTotalPages = Math.max(
-        1,
-        Math.ceil(result.total / CONTENT_PAGE_SIZE),
-      );
-      const resolvedPage = Math.min(nextPage, resolvedTotalPages);
-      if (resolvedPage !== nextPage && result.total > 0) {
-        return reload(nextFilter, nextQuery, resolvedPage);
+      if (listResult.status === "fulfilled") {
+        const result = listResult.value;
+        setItems(result.items);
+        setTotal(result.total);
+        setCounts(result.counts);
+        setPage(
+          Math.min(
+            page,
+            Math.max(1, Math.ceil(result.total / CONTENT_PAGE_SIZE)),
+          ),
+        );
+        setError("");
+      } else {
+        setError("作品加载失败，请重试");
       }
-      setPage(resolvedPage);
-      setItems(result.items);
-      setTotal(result.total);
-    } catch (err) {
-      if (seq !== loadSeqRef.current) {
-        return;
+      if (detailResult.status === "fulfilled") {
+        setDetailsItem(detailResult.value);
+        setDetailsError("");
+      } else {
+        setDetailsError("分发详情更新失败，请重试");
       }
-      setError(err instanceof Error ? err.message : "加载失败");
-    } finally {
-      if (seq === loadSeqRef.current) {
-        setLoading(false);
-      }
-    }
-  };
-
-  const goToPage = (nextPage: number) => {
-    setPage(nextPage);
-    void reload(filter, query, nextPage);
-  };
-
+      fetchingRef.current = false;
+      setLoading(false);
+    },
+    [filter, debouncedQuery, managementStatus, page, detailsId],
+  );
+  const reloadRef = useRef(reload);
   useEffect(() => {
-    const initial = setTimeout(() => {
-      void reload();
-    }, 0);
+    reloadRef.current = reload;
+    void reload();
     return () => {
-      clearTimeout(initial);
+      loadSeqRef.current++;
     };
-    // 仅首屏拉一次；后续由类型切换 / 关键词防抖触发
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only
-  }, []);
+  }, [reload]);
 
-  // 关键词防抖后打服务端；跳过首屏避免与挂载请求重复
-  const queryBootRef = useRef(true);
   useEffect(() => {
-    if (queryBootRef.current) {
-      queryBootRef.current = false;
+    if (query === debouncedQuery) {
       return;
     }
     const timer = setTimeout(() => {
+      setDebouncedQuery(query);
       setPage(1);
-      void reload(filter, query, 1);
     }, 300);
     return () => {
       clearTimeout(timer);
     };
-    // filter 变化走 Select 即时 reload；此处只跟 query
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce query only
-  }, [query]);
+  }, [query, debouncedQuery]);
 
-  // 关键词或类型任一偏离默认时，允许一键重置
-  const hasSearchFilters = Boolean(query.trim()) || filter !== "all";
+  useEffect(() => {
+    let active = true;
+    let accountSeq = 0;
+    const loadAccounts = async () => {
+      const seq = ++accountSeq;
+      try {
+        const result = await fetchPlatformAccounts();
+        if (active && seq === accountSeq) {
+          setAccounts(result);
+          setAccountError(false);
+        }
+      } catch {
+        if (active && seq === accountSeq) {
+          setAccountError(true);
+        }
+      }
+    };
+    void loadAccounts();
+    window.addEventListener(PLATFORM_ACCOUNT_SYNCED_EVENT, loadAccounts);
+    window.addEventListener("focus", loadAccounts);
+    return () => {
+      active = false;
+      window.removeEventListener(PLATFORM_ACCOUNT_SYNCED_EVENT, loadAccounts);
+      window.removeEventListener("focus", loadAccounts);
+    };
+  }, []);
 
+  useEffect(() => {
+    const refresh = () => {
+      if (!document.hidden && !fetchingRef.current) {
+        void reloadRef.current(true);
+      }
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = setInterval(
+      refresh,
+      counts.publishing > 0 || busyId ? 3000 : 15000,
+    );
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [counts.publishing, busyId]);
+
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage);
+  };
+  const hasSearchFilters =
+    Boolean(query.trim()) || filter !== "all" || managementStatus !== "all";
   const resetSearchFilters = () => {
     setQuery("");
+    setDebouncedQuery("");
     setFilter("all");
+    setManagementStatus("all");
     setPage(1);
-    void reload("all", "", 1);
   };
 
   const handleRetryTarget = async (
     item: ContentItem,
     target: ContentTargetItem,
   ) => {
+    if (
+      busyId ||
+      item.targets.some(
+        (value) =>
+          value.publishStatus === "queued" || value.publishStatus === "running",
+      )
+    ) {
+      return;
+    }
     setBusyId(`${item.id}:${target.id}`);
     setError("");
     try {
       agentClient.connect();
       if (agentClient.getStatus() !== "connected") {
-        throw new Error("应用未就绪，请重启「蒲公英」后再试");
+        setError("应用未就绪，请重启后再试");
+        return;
       }
       const { dispatch } = await retryContentTarget(item.id, target.id);
       const { dispatch: started } = await startContentTarget(
         item.id,
         target.id,
       );
+      void reloadRef.current(true);
       const payload = started ?? dispatch;
       const result = await agentClient.startPublish({
         targetId: payload.targetId,
@@ -431,14 +402,19 @@ export default function Contents() {
         platformPostId: result.platformPostId,
         platformUrl: result.platformUrl,
       });
-      await reload();
+      await reloadRef.current(true);
       if (!result.ok) {
         setError(
-          describePublishError(result.errorCode ?? result.error, result.error),
+          contentTargetMessage({
+            ...target,
+            publishStatus: "failed",
+            errorCode: result.errorCode ?? result.error ?? null,
+          }),
         );
       }
-    } catch (err) {
-      setError(describeCaughtError(err, "重试失败"));
+    } catch {
+      await reloadRef.current(true);
+      setError("重新发布失败，请稍后重试");
     } finally {
       setBusyId(null);
     }
@@ -450,23 +426,43 @@ export default function Contents() {
     try {
       await deleteContent(item.id);
       setDeleteTarget(null);
-      await reload(filter, query, page);
-    } catch (err) {
-      setDeleteTarget(null);
-      setError(err instanceof Error ? err.message : "删除失败");
+      await reloadRef.current(true);
+    } catch {
+      setError("删除失败，请重试");
     } finally {
       setBusyId(null);
     }
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" aria-busy={loading}>
       <StickyPageHeader showDivider>
         <PageHeader
           title="作品管理"
-          description="回看与重试分发结果；新建请走左侧「发布」"
+          description="查看作品与分发进度，处理未完成的发布"
         />
 
+        <div className="overflow-x-auto">
+          <ToggleGroup
+            aria-label="作品状态"
+            value={[managementStatus]}
+            onValueChange={(values) => {
+              const next = values[0] as
+                ContentManagementStatus | "all" | undefined;
+              if (next) {
+                setManagementStatus(next);
+                setPage(1);
+              }
+            }}
+          >
+            {CONTENT_STATUS_OPTIONS.map((option) => (
+              <ToggleGroupItem key={option.value} value={option.value}>
+                {option.label}
+                <span className="tabular-nums">{counts[option.value]}</span>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <InputGroup className="min-w-0 max-w-xs flex-1">
@@ -502,7 +498,6 @@ export default function Contents() {
                 const next = (value as TypeFilter) ?? "all";
                 setFilter(next);
                 setPage(1);
-                void reload(next, query, 1);
               }}
               items={TYPE_FILTER_OPTIONS}
             >
@@ -537,6 +532,7 @@ export default function Contents() {
               disabled={loading}
               onClick={() => {
                 void reload();
+                window.dispatchEvent(new Event(PLATFORM_ACCOUNT_SYNCED_EVENT));
               }}
             >
               <RefreshCw data-icon="inline-start" />
@@ -549,12 +545,12 @@ export default function Contents() {
       {error ? (
         <Alert variant="destructive" className="mt-6">
           <AlertCircle />
-          <AlertTitle>加载失败</AlertTitle>
+          <AlertTitle>暂时未能完成</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div className="divide-y">
           {Array.from({ length: compact ? 8 : 6 }).map((_, i) => (
             <div
@@ -590,7 +586,7 @@ export default function Contents() {
             </div>
           ))}
         </div>
-      ) : total === 0 && !hasSearchFilters ? (
+      ) : !error && total === 0 && !hasSearchFilters ? (
         <Empty className="border border-dashed">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -603,7 +599,7 @@ export default function Contents() {
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
-      ) : total === 0 ? (
+      ) : !error && total === 0 ? (
         <Empty className="border border-dashed">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -611,7 +607,7 @@ export default function Contents() {
             </EmptyMedia>
             <EmptyTitle>未找到匹配作品</EmptyTitle>
             <EmptyDescription>
-              换个关键词试试，或点「重置」清空搜索条件查看全部作品。
+              调整筛选条件，或重置后查看全部作品。
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -628,10 +624,8 @@ export default function Contents() {
                   busyId?.startsWith(`${item.id}:`) === true
                 }
                 onShowDetails={() => {
+                  setDetailsId(item.id);
                   setDetailsItem(item);
-                }}
-                onRetryTarget={(target) => {
-                  void handleRetryTarget(item, target);
                 }}
                 onDelete={() => {
                   setDeleteTarget(item);
@@ -639,6 +633,13 @@ export default function Contents() {
               />
             ))}
           </div>
+          <p
+            role="status"
+            aria-label="分页信息"
+            className="text-sm text-muted-foreground"
+          >
+            共 {total} 条作品 · 第 {currentPage} / {totalPages} 页
+          </p>
           {totalPages > 1 ? (
             <Pagination>
               <PaginationContent>
@@ -710,16 +711,20 @@ export default function Contents() {
 
       <ContentTargetDetailsSheet
         item={detailsItem}
+        accounts={accounts}
+        onRefresh={() => {
+          void reloadRef.current(true);
+          window.dispatchEvent(new Event(PLATFORM_ACCOUNT_SYNCED_EVENT));
+        }}
+        error={detailsError}
+        accountError={accountError}
         onOpenChange={(open) => {
           if (!open) {
+            setDetailsId(null);
             setDetailsItem(null);
           }
         }}
-        busy={
-          detailsItem !== null &&
-          (busyId === detailsItem.id ||
-            busyId?.startsWith(`${detailsItem.id}:`) === true)
-        }
+        busy={busyId !== null}
         onRetryTarget={(target) => {
           if (detailsItem) {
             void handleRetryTarget(detailsItem, target);
@@ -746,7 +751,7 @@ export default function Contents() {
             <AlertDialogTitle>删除作品？</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget
-                ? `将删除「${deleteTarget.title}」。关联的分发记录将一并移除，此操作不可恢复。`
+                ? `将删除「${deleteTarget.title}」。关联的分发记录将一并移除。平台上的作品和原始文件会保留，此操作不可恢复。`
                 : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -777,40 +782,31 @@ function ContentListItem({
   density,
   busy,
   onShowDetails,
-  onRetryTarget,
   onDelete,
 }: {
   item: ContentItem;
   density: UiDensity;
   busy: boolean;
   onShowDetails: () => void;
-  onRetryTarget: (target: ContentTargetItem) => void;
   onDelete: () => void;
 }) {
   const meta = TYPE_META[item.type];
   const TypeIcon = meta.icon;
-  const published = item.status === "published";
   const compact = density === "compact";
-  const dist = summarizeTargets(item.targets);
-  const glance = glanceStatus(item);
-  const failedTargets = item.targets.filter(
-    (t) => t.publishStatus === "failed" || t.publishStatus === "cancelled",
-  );
-  const authExpiredTargets = failedTargets.filter(
-    (t) => t.errorCode === "AUTH_EXPIRED",
-  );
-  const retryableTargets = failedTargets.filter(
-    (t) => t.errorCode !== "AUTH_EXPIRED",
-  );
+  const dist = summarizeContent(item);
   const editTo = editPath(item);
-  const timeLabel = published
-    ? item.publishedAt
-      ? formatScheduleTime(item.publishedAt)
-      : "—"
-    : formatScheduleTime(item.updatedAt);
-  const timeFull = published
-    ? `发布于 ${formatTime(item.publishedAt)}`
-    : `更新于 ${formatTime(item.updatedAt)}`;
+  const active = busy || dist.running > 0;
+  const finishedAt = item.targets
+    .map((target) => target.finishedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  const time =
+    dist.status === "completed"
+      ? (finishedAt ?? item.updatedAt)
+      : item.updatedAt;
+  const timeFull = `${dist.status === "completed" ? "完成于" : "更新于"} ${formatTime(time)}`;
+  const timeLabel = formatScheduleTime(time);
   // 紧凑模式靠 items-stretch 对齐行高；勿用 h-full（父级无固定高度会塌成 0）
   const thumbClass = compact
     ? "aspect-[4/3] min-h-12 w-auto shrink-0"
@@ -830,12 +826,18 @@ function ContentListItem({
         )}
       >
         <Link
-          to={editTo}
+          to={active ? "#" : editTo}
+          onClick={(event) => {
+            if (active) {
+              event.preventDefault();
+              onShowDetails();
+            }
+          }}
           className={cn(
             "relative block shrink-0 overflow-hidden rounded-md bg-muted",
             thumbClass,
           )}
-          aria-label={`编辑 ${item.title}`}
+          aria-label={`${active ? "查看进度" : "编辑"} ${item.title}`}
         >
           {item.hasCover ? (
             <MediaPreviewImage
@@ -851,9 +853,15 @@ function ContentListItem({
             </div>
           )}
         </Link>
-        <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Link
-            to={editTo}
+            to={active ? "#" : editTo}
+            onClick={(event) => {
+              if (active) {
+                event.preventDefault();
+                onShowDetails();
+              }
+            }}
             className={cn(
               "inline-block max-w-full truncate font-heading text-base font-medium hover:underline",
               compact ? "leading-normal" : "leading-7",
@@ -870,11 +878,8 @@ function ContentListItem({
               <TypeIcon />
               {meta.label}
             </Badge>
-            <Badge
-              variant={published ? "default" : "outline"}
-              className="h-auto text-xs"
-            >
-              {published ? "已发布" : "草稿"}
+            <Badge variant={dist.tone} className="h-auto text-xs">
+              {dist.label}
             </Badge>
             {dist.total > 0 ? (
               <button
@@ -884,8 +889,6 @@ function ContentListItem({
               >
                 {dist.line}
               </button>
-            ) : glance.scheduled ? (
-              <span>{glance.label}</span>
             ) : (
               <span>暂无分发</span>
             )}
@@ -894,45 +897,33 @@ function ContentListItem({
       </div>
       <div className="flex shrink-0 flex-col items-end justify-between self-stretch">
         <div className="flex flex-wrap items-center justify-end gap-1">
-          {authExpiredTargets.length > 0 ? (
+          {dist.total > 0 ? (
             <Button
               size="sm"
-              variant="ghost"
-              nativeButton={false}
-              render={<Link to="/platform-accounts" />}
+              variant={dist.status === "needs_attention" ? "outline" : "ghost"}
+              onClick={onShowDetails}
             >
-              去重新授权
+              {dist.status === "needs_attention"
+                ? "处理问题"
+                : dist.status === "publishing"
+                  ? "查看进度"
+                  : "分发详情"}
             </Button>
-          ) : (
-            retryableTargets.map((target) => (
-              <Button
-                key={target.id}
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => {
-                  onRetryTarget(target);
-                }}
-              >
-                <RotateCcw data-icon="inline-start" />
-                {retryableTargets.length === 1 ? "重试" : target.platform}
-              </Button>
-            ))
-          )}
+          ) : null}
           <Button
             size="sm"
             variant="ghost"
-            disabled={busy}
+            disabled={active}
             nativeButton={false}
             render={<Link to={editTo} />}
           >
             <Pencil data-icon="inline-start" />
-            编辑
+            {dist.status === "draft" ? "继续编辑" : "编辑本机内容"}
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            disabled={busy}
+            disabled={active}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={onDelete}
           >
@@ -953,11 +944,19 @@ function ContentListItem({
 
 function ContentTargetDetailsSheet({
   item,
+  accounts,
+  onRefresh,
+  error,
+  accountError,
   onOpenChange,
   busy,
   onRetryTarget,
 }: {
   item: ContentItem | null;
+  accounts: PlatformAccountItem[] | null;
+  onRefresh: () => void;
+  error: string;
+  accountError: boolean;
   onOpenChange: (open: boolean) => void;
   busy: boolean;
   onRetryTarget: (target: ContentTargetItem) => void;
@@ -968,8 +967,7 @@ function ContentTargetDetailsSheet({
   }
 
   const meta = TYPE_META[item.type];
-  const published = item.status === "published";
-  const dist = summarizeTargets(item.targets);
+  const dist = summarizeContent(item);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -982,12 +980,31 @@ function ContentTargetDetailsSheet({
           <SheetDescription>
             {meta.label}
             {" · "}
-            {published ? "已发布" : "草稿"}
+            {dist.label}
             {" · "}
             {dist.line}
           </SheetDescription>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start"
+            onClick={onRefresh}
+          >
+            <RefreshCw data-icon="inline-start" />
+            刷新详情
+          </Button>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
+          <p className="text-sm text-muted-foreground">
+            发布完成不代表审核通过，请到平台查看。
+          </p>
+          {error || accountError ? (
+            <Alert>
+              <AlertDescription>
+                {error || "账号信息暂时无法加载，请刷新后重试"}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {item.targets.length === 0 ? (
             <p className="text-muted-foreground">尚未配置分发账号。</p>
           ) : (
@@ -996,6 +1013,13 @@ function ContentTargetDetailsSheet({
                 target.publishStatus === "failed" ||
                 target.publishStatus === "cancelled";
               const authExpired = target.errorCode === "AUTH_EXPIRED";
+              const account = accounts?.find(
+                (value) => value.id === target.platformAccountId,
+              );
+              const platformUrl = safePlatformUrl(target.platformUrl);
+              const mediaMissing =
+                target.errorCode === "MEDIA_MISSING" ||
+                target.errorCode === "MEDIA_UNREACHABLE";
               return (
                 <div
                   key={target.id}
@@ -1003,12 +1027,27 @@ function ContentTargetDetailsSheet({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {target.platform}
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <PlatformIcon
+                          platform={target.platform}
+                          className="size-4 shrink-0"
+                        />
+                        <span className="truncate">
+                          {PLATFORM_NAMES[target.platform]} ·{" "}
+                          {account?.displayName ||
+                            (accountError
+                              ? "账号信息暂不可用"
+                              : accounts
+                                ? "账号已移除"
+                                : "正在读取账号")}{" "}
+                        </span>
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {TARGET_STATUS_LABEL[target.publishStatus] ??
-                          target.publishStatus}
+                        {target.finishedAt
+                          ? `完成于 ${formatTime(target.finishedAt)}`
+                          : target.startedAt
+                            ? `开始于 ${formatTime(target.startedAt)}`
+                            : "尚未开始"}
                       </p>
                     </div>
                     <Badge
@@ -1023,16 +1062,12 @@ function ContentTargetDetailsSheet({
                               : "outline"
                       }
                     >
-                      {TARGET_STATUS_LABEL[target.publishStatus] ??
-                        target.publishStatus}
+                      {TARGET_STATUS_LABEL[target.publishStatus]}
                     </Badge>
                   </div>
-                  {target.errorMessage || target.errorCode ? (
-                    <p className="text-xs text-destructive">
-                      {describePublishError(
-                        target.errorCode,
-                        target.errorMessage,
-                      )}
+                  {failed ? (
+                    <p className="text-sm text-destructive">
+                      {contentTargetMessage(target)}
                     </p>
                   ) : null}
                   {failed ? (
@@ -1042,23 +1077,59 @@ function ContentTargetDetailsSheet({
                           size="sm"
                           variant="outline"
                           nativeButton={false}
-                          render={<Link to="/platform-accounts" />}
+                          render={<Link to={"/platform-accounts"} />}
                         >
                           去重新授权
+                        </Button>
+                      ) : mediaMissing ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          nativeButton={false}
+                          render={<Link to={editPath(item)} />}
+                        >
+                          重新选择素材
                         </Button>
                       ) : (
                         <Button
                           size="sm"
-                          disabled={busy}
+                          disabled={busy || dist.running > 0 || !account}
                           onClick={() => {
                             onRetryTarget(target);
                           }}
                         >
                           <RotateCcw data-icon="inline-start" />
-                          重试
+                          {target.publishStatus === "cancelled"
+                            ? "重新发布"
+                            : "重试"}
                         </Button>
                       )}
                     </div>
+                  ) : null}
+                  {target.overrides.scheduledAt || item.scheduledAt ? (
+                    <p className="text-sm text-muted-foreground">
+                      计划发布于{" "}
+                      {formatTime(
+                        target.overrides.scheduledAt || item.scheduledAt,
+                      )}
+                    </p>
+                  ) : null}
+                  {target.publishStatus === "succeeded" && platformUrl ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      nativeButton={false}
+                      render={
+                        <a
+                          href={platformUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        />
+                      }
+                    >
+                      <ExternalLink data-icon="inline-start" />
+                      查看平台作品
+                    </Button>
                   ) : null}
                 </div>
               );

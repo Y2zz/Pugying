@@ -1,12 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SoftDeleteAuditedEntity } from '@pugying/core';
-import type {
-  PlatformAccountStatus,
-  PlatformId,
-} from '@pugying/platform-account/domain/platform-catalog';
+import type { PlatformAccountStatus, PlatformId } from '@pugying/platform-account/domain/platform-catalog';
 
 export class PlatformAccount extends SoftDeleteAuditedEntity {
-
   @ApiProperty({
     enum: ['douyin', 'toutiao', 'channels', 'bilibili', 'xiaohongshu'],
     description: '平台标识',
@@ -15,6 +11,9 @@ export class PlatformAccount extends SoftDeleteAuditedEntity {
 
   @ApiProperty({ example: '我的抖音号', description: '展示名称' })
   displayName: string;
+
+  @ApiPropertyOptional({ description: '平台昵称，与本机显示名称分开保存' })
+  platformNickname: string | null;
 
   @ApiPropertyOptional({ description: '平台侧用户 ID（可空）' })
   platformUserId: string | null;

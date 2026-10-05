@@ -1,28 +1,9 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import {
-  PLATFORM_CATALOG,
-  getPlatformCatalogItem,
-  isPlatformId,
-  type PlatformCatalogItem,
-} from '@pugying/platform-account/domain/platform-catalog';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { PLATFORM_CATALOG, getPlatformCatalogItem, isPlatformId, type PlatformCatalogItem } from '@pugying/platform-account/domain/platform-catalog';
 import { PlatformAccount } from '@pugying/platform-account/domain/entities/platform-account.entity';
-import {
-  PLATFORM_ACCOUNT_REPOSITORY,
-  type IPlatformAccountRepository,
-} from '@pugying/platform-account/domain/repositories/platform-account.repository';
-import {
-  BindPlatformAccountDto,
-  ReauthPlatformAccountDto,
-} from '@pugying/platform-account/application/dtos';
-import {
-  decryptCredentialPayload,
-  encryptCredentialPayload,
-} from '@pugying/platform-account/infrastructure/credential-crypto';
+import { PLATFORM_ACCOUNT_REPOSITORY, type IPlatformAccountRepository } from '@pugying/platform-account/domain/repositories/platform-account.repository';
+import { BindPlatformAccountDto, ReauthPlatformAccountDto } from '@pugying/platform-account/application/dtos';
+import { decryptCredentialPayload, encryptCredentialPayload } from '@pugying/platform-account/infrastructure/credential-crypto';
 
 export type PlatformAccountPublic = Omit<PlatformAccount, 'credentialCipher'>;
 
@@ -79,15 +60,9 @@ export class PlatformAccountService {
     // The Agent's scraped profile is the most accurate source; an explicit
     // displayName from the caller still wins, and the platform name is the
     // last-resort placeholder the user can rename later.
-    const platformUserId =
-      dto.platformUserId?.trim() ||
-      dto.profile?.platformUserId?.trim() ||
-      null;
-    const displayName =
-      dto.displayName?.trim() ||
-      dto.profile?.nickname?.trim() ||
-      platformUserId ||
-      `${catalog.displayName}账号`;
+    const platformUserId = this.resolvePlatformUserId(dto);
+    const platformNickname = dto.profile?.nickname?.trim() || null;
+    const displayName = dto.displayName?.trim() || dto.profile?.nickname?.trim() || platformUserId || `${catalog.displayName}账号`;
     const avatarUrl = dto.profile?.avatarUrl?.trim() || null;
 
     const cipher = encryptCredentialPayload(
@@ -101,14 +76,15 @@ export class PlatformAccountService {
 
     let account: PlatformAccount | null = null;
     if (platformUserId) {
-      account = await this.repository.findByPlatformUser(
-        dto.platform,
-        platformUserId,
-      );
+      account = await this.repository.findByPlatformUser(dto.platform, platformUserId);
     }
 
     if (account) {
-      account.displayName = displayName;
+      // Re-adding an existing account refreshes authorization, not its local name.
+      if (dto.displayName?.trim()) {
+        account.displayName = dto.displayName.trim();
+      }
+      account.platformNickname = platformNickname ?? account.platformNickname;
       account.credentialCipher = cipher;
       account.status = 'active';
       account.lastAuthedAt = new Date();
@@ -119,6 +95,7 @@ export class PlatformAccountService {
       account = this.repository.create({
         platform: dto.platform,
         displayName,
+        platformNickname,
         platformUserId,
         avatarUrl,
         credentialCipher: cipher,
@@ -131,16 +108,27 @@ export class PlatformAccountService {
     return this.toPublic(saved);
   }
 
-  async reauth(
-    id: string,
-    dto: ReauthPlatformAccountDto,
-  ): Promise<PlatformAccountPublic> {
+  async reauth(id: string, dto: ReauthPlatformAccountDto): Promise<PlatformAccountPublic> {
     const account = await this.repository.findById(id);
     if (!account) {
       throw new NotFoundException(`Platform account #${id} not found`);
     }
     if (!dto.cookies?.length) {
       throw new BadRequestException('cookies are required');
+    }
+
+    const platformUserId = this.resolvePlatformUserId(dto);
+    if (!platformUserId) {
+      throw new BadRequestException('未能确认登录账号，请重新授权');
+    }
+    if (account.platformUserId && account.platformUserId !== platformUserId) {
+      throw new BadRequestException('登录账号与原账号不同，请使用原账号重新授权');
+    }
+    if (!account.platformUserId) {
+      const existing = await this.repository.findByPlatformUser(account.platform, platformUserId);
+      if (existing && existing.id !== account.id) {
+        throw new BadRequestException('该账号已添加，请在对应账号上重新授权');
+      }
     }
 
     account.credentialCipher = encryptCredentialPayload(
@@ -155,14 +143,10 @@ export class PlatformAccountService {
     account.lastAuthedAt = new Date();
     if (dto.displayName?.trim()) {
       account.displayName = dto.displayName.trim();
-    } else if (dto.profile?.nickname?.trim()) {
-      // Picks up renames made on the platform side.
-      account.displayName = dto.profile.nickname.trim();
     }
-    if (dto.platformUserId !== undefined) {
-      account.platformUserId = dto.platformUserId?.trim() || null;
-    } else if (dto.profile?.platformUserId?.trim()) {
-      account.platformUserId = dto.profile.platformUserId.trim();
+    account.platformUserId = platformUserId;
+    if (dto.profile?.nickname?.trim()) {
+      account.platformNickname = dto.profile.nickname.trim();
     }
     if (dto.profile?.avatarUrl?.trim()) {
       account.avatarUrl = dto.profile.avatarUrl.trim();
@@ -186,6 +170,15 @@ export class PlatformAccountService {
     return this.toPublic(saved);
   }
 
+  private resolvePlatformUserId(dto: BindPlatformAccountDto | ReauthPlatformAccountDto): string | null {
+    const explicitId = dto.platformUserId?.trim();
+    const profileId = dto.profile?.platformUserId?.trim();
+    if (explicitId && profileId && explicitId !== profileId) {
+      throw new BadRequestException('未能确认登录账号，请重新授权');
+    }
+    return profileId || explicitId || null;
+  }
+
   async getCredentials(id: string): Promise<PlatformAccountCredentials> {
     const account = await this.repository.findById(id);
     if (!account) {
@@ -197,25 +190,17 @@ export class PlatformAccountService {
 
     let payload: { cookies?: StoredCookie[]; finalUrl?: string | null };
     try {
-      payload = JSON.parse(
-        decryptCredentialPayload(account.credentialCipher),
-      ) as { cookies?: StoredCookie[]; finalUrl?: string | null };
+      payload = JSON.parse(decryptCredentialPayload(account.credentialCipher)) as { cookies?: StoredCookie[]; finalUrl?: string | null };
     } catch (error) {
       // 缺密钥与密文损坏/密钥轮换都会进这里；前者提示配置，后者要求重新授权
       const detail = error instanceof Error ? error.message : String(error);
       if (detail.includes('PLATFORM_CREDENTIAL_SECRET')) {
-        throw new BadRequestException(
-          'PLATFORM_CREDENTIAL_SECRET is not configured; cannot decrypt stored credentials',
-        );
+        throw new BadRequestException('PLATFORM_CREDENTIAL_SECRET is not configured; cannot decrypt stored credentials');
       }
-      throw new BadRequestException(
-        'Stored credentials are unreadable, please reauthorize',
-      );
+      throw new BadRequestException('Stored credentials are unreadable, please reauthorize');
     }
     if (!payload.cookies?.length) {
-      throw new BadRequestException(
-        'No stored cookies, please reauthorize the account',
-      );
+      throw new BadRequestException('No stored cookies, please reauthorize the account');
     }
 
     const catalog = getPlatformCatalogItem(account.platform);

@@ -93,6 +93,8 @@ export interface PlatformAccountItem {
   platform: PlatformId;
   displayName: string;
   platformUserId: string | null;
+  /** Platform nickname is refreshed independently of the local display name. */
+  platformNickname?: string | null;
   avatarUrl: string | null;
   status: "active" | "expired" | "revoked";
   lastAuthedAt: string | null;
@@ -308,7 +310,15 @@ export interface PublishStartResult {
   dispatches: PublishDispatch[];
 }
 
+export type ContentManagementStatus =
+  "draft" | "pending" | "publishing" | "needs_attention" | "completed";
+export type ContentStatusCounts = Record<
+  ContentManagementStatus | "all",
+  number
+>;
+
 export interface ContentListResult {
+  counts: ContentStatusCounts;
   items: ContentItem[];
   total: number;
   page: number;
@@ -316,12 +326,16 @@ export interface ContentListResult {
 }
 
 export async function fetchContents(params?: {
+  managementStatus?: ContentManagementStatus;
   type?: ContentType;
   q?: string;
   page?: number;
   pageSize?: number;
 }): Promise<ContentListResult> {
   const search = new URLSearchParams();
+  if (params?.managementStatus) {
+    search.set("managementStatus", params.managementStatus);
+  }
   if (params?.type) {
     search.set("type", params.type);
   }

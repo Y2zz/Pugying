@@ -17,6 +17,10 @@ export const PlatformAccountEntitySchema = new EntitySchema<PlatformAccount>({
     displayName: {
       type: String,
     },
+    platformNickname: {
+      type: String,
+      nullable: true,
+    },
     platformUserId: {
       type: String,
       nullable: true,

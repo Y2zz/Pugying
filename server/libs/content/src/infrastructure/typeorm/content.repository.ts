@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Content } from '@pugying/content/domain/entities/content.entity';
-import type {
-  ContentCoverKind,
-  ContentListFilter,
-  IContentRepository,
-} from '@pugying/content/domain/repositories/content.repository';
+import type { ContentCoverKind, ContentStatusCounts, ContentListFilter, IContentRepository } from '@pugying/content/domain/repositories/content.repository';
 import { TypeOrmTransactionContext } from '@pugying/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
@@ -24,53 +20,55 @@ export class TypeOrmContentRepository implements IContentRepository {
   ) {}
 
   private get repo(): Repository<Content> {
-    return TypeOrmTransactionContext.getManager(this.dataSource).getRepository(
-      Content,
-    );
+    return TypeOrmTransactionContext.getManager(this.dataSource).getRepository(Content);
   }
 
   create(data: Partial<Content>): Content {
     return this.repo.create(data);
   }
 
-  async findPaged(
-    filter: ContentListFilter = {},
-  ): Promise<{ rows: Content[]; total: number }> {
-    const page = filter.page ?? 1;
-    const pageSize = filter.pageSize ?? 20;
-    const skip = (page - 1) * pageSize;
-    const q = filter.q?.trim();
-
-    if (!q) {
-      const [rows, total] = await this.repo.findAndCount({
-        where: filter.type ? { type: filter.type } : undefined,
-        order: { updatedAt: 'DESC' },
-        skip,
-        take: pageSize,
-      });
-      return { rows, total };
-    }
-
-    // 有关键词时用 QueryBuilder：标题 / 正文 / tags(JSON 文本) 模糊匹配
-    const qb = this.repo
-      .createQueryBuilder('content')
-      .orderBy('content.updatedAt', 'DESC');
-
-    // QueryBuilder 不自动带软删条件，需显式排除
-    qb.andWhere('content.deletedAt IS NULL');
-
+  async findPaged(filter: ContentListFilter = {}): Promise<{ rows: Content[]; total: number; counts: ContentStatusCounts }> {
+    const qb = this.repo.createQueryBuilder('content').where('content.deletedAt IS NULL');
     if (filter.type) {
       qb.andWhere('content.type = :type', { type: filter.type });
     }
-
-    const pattern = `%${escapeLike(q)}%`;
-    qb.andWhere(
-      `(content.title LIKE :pattern ESCAPE '\\' OR IFNULL(content.body, '') LIKE :pattern ESCAPE '\\' OR content.tags LIKE :pattern ESCAPE '\\')`,
-      { pattern },
-    );
-
-    const [rows, total] = await qb.skip(skip).take(pageSize).getManyAndCount();
-    return { rows, total };
+    const q = filter.q?.trim();
+    if (q) {
+      qb.andWhere(`(content.title LIKE :pattern ESCAPE '\\' OR IFNULL(content.body, '') LIKE :pattern ESCAPE '\\' OR content.tags LIKE :pattern ESCAPE '\\')`, {
+        pattern: `%${escapeLike(q)}%`,
+      });
+    }
+    // 数量沿用类型与搜索条件，忽略状态与分页；Target 优先于历史内容状态。
+    const status = `CASE
+      WHEN EXISTS (SELECT 1 FROM content_target t WHERE t.contentId = content.id AND t.publishStatus IN ('queued', 'running')) THEN 'publishing'
+      WHEN EXISTS (SELECT 1 FROM content_target t WHERE t.contentId = content.id AND t.publishStatus IN ('failed', 'cancelled')) THEN 'needs_attention'
+      WHEN EXISTS (SELECT 1 FROM content_target t WHERE t.contentId = content.id AND t.publishStatus = 'succeeded')
+        AND NOT EXISTS (SELECT 1 FROM content_target t WHERE t.contentId = content.id AND t.publishStatus <> 'succeeded') THEN 'completed'
+      WHEN EXISTS (SELECT 1 FROM content_target t WHERE t.contentId = content.id AND t.publishStatus = 'succeeded') THEN 'pending'
+      WHEN content.status = 'draft' THEN 'draft'
+      ELSE 'pending' END`;
+    const groups = await qb
+      .clone()
+      .select(status, 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy(status)
+      .getRawMany<{ status: keyof ContentStatusCounts; count: number | string }>();
+    const counts: ContentStatusCounts = { all: 0, draft: 0, pending: 0, publishing: 0, needs_attention: 0, completed: 0 };
+    for (const group of groups) {
+      counts[group.status] = Number(group.count);
+      counts.all += Number(group.count);
+    }
+    if (filter.managementStatus) {
+      qb.andWhere(`(${status}) = :managementStatus`, { managementStatus: filter.managementStatus });
+    }
+    const total = filter.managementStatus ? counts[filter.managementStatus] : counts.all;
+    const rows = await qb
+      .orderBy('content.updatedAt', 'DESC')
+      .addOrderBy('content.id', 'DESC')
+      .skip(((filter.page ?? 1) - 1) * (filter.pageSize ?? 20))
+      .take(filter.pageSize ?? 20)
+      .getMany();
+    return { rows, total, counts };
   }
 
   async findById(id: string): Promise<Content | null> {
@@ -95,24 +93,13 @@ export class TypeOrmContentRepository implements IContentRepository {
     await this.repo.softRemove(content);
   }
 
-  async setCover(
-    id: string,
-    kind: ContentCoverKind,
-    mime: string,
-    data: Buffer,
-  ): Promise<void> {
-    const patch =
-      kind === 'portrait'
-        ? { coverMime: mime, coverData: data }
-        : { coverLandscapeMime: mime, coverLandscapeData: data };
+  async setCover(id: string, kind: ContentCoverKind, mime: string, data: Buffer): Promise<void> {
+    const patch = kind === 'portrait' ? { coverMime: mime, coverData: data } : { coverLandscapeMime: mime, coverLandscapeData: data };
     await this.repo.update({ id }, patch);
   }
 
   async clearCover(id: string, kind: ContentCoverKind): Promise<void> {
-    const patch =
-      kind === 'portrait'
-        ? { coverMime: null, coverData: null }
-        : { coverLandscapeMime: null, coverLandscapeData: null };
+    const patch = kind === 'portrait' ? { coverMime: null, coverData: null } : { coverLandscapeMime: null, coverLandscapeData: null };
     await this.repo.update({ id }, patch);
   }
 }
