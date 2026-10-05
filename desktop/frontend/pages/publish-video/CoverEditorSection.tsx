@@ -1,11 +1,11 @@
-import type { RefObject } from 'react';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
-import { cn } from '@/lib/utils';
-import { CoverHoverCard } from './CoverHoverCard';
-import type { CoverKind } from './helpers';
+import type { RefObject } from "react";
+import { Field, FieldDescription, FieldTitle } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
+import { CoverHoverCard } from "./CoverHoverCard";
+import type { CoverKind } from "./helpers";
 
 /** 竖/横封面预览共用高度（横版 4:3 定高，竖版 3:4 与之对齐） */
-const COVER_PREVIEW_HEIGHT_CLASS = 'h-28 shrink-0';
+const COVER_PREVIEW_HEIGHT_CLASS = "h-28 shrink-0";
 
 /** 通用信息内封面编辑（点击槽位打开编辑 Dialog）；图文可按需显示竖/横 */
 export function CoverEditorSection({
@@ -40,7 +40,12 @@ export function CoverEditorSection({
   const showLandscape = !portraitOnly;
 
   const slots = (
-    <div className={cn('flex flex-wrap items-start gap-4', plain ? 'mt-2' : 'mt-3')}>
+    <div
+      className={cn(
+        "flex flex-wrap items-start gap-4",
+        plain ? "mt-2" : "mt-3",
+      )}
+    >
       {showPortrait ? (
         <CoverHoverCard
           label="竖版 3:4"
@@ -51,7 +56,7 @@ export function CoverEditorSection({
           previewClassName={COVER_PREVIEW_HEIGHT_CLASS}
           disabled={disabled}
           onEdit={() => {
-            onEditCover('cover');
+            onEditCover("cover");
           }}
         />
       ) : null}
@@ -64,7 +69,7 @@ export function CoverEditorSection({
           previewClassName={COVER_PREVIEW_HEIGHT_CLASS}
           disabled={disabled}
           onEdit={() => {
-            onEditCover('cover_landscape');
+            onEditCover("cover_landscape");
           }}
         />
       ) : null}
@@ -86,10 +91,10 @@ export function CoverEditorSection({
   return (
     <div ref={coverSectionRef}>
       <Field>
-        <FieldLabel>封面</FieldLabel>
+        <FieldTitle className="font-normal">封面</FieldTitle>
         {portraitOnly ? null : (
           <FieldDescription>
-            抖音需竖版 3:4 与横版 4:3；选择视频后可自动截帧，也可点击槽位编辑
+            建议设置竖版 3:4 与横版 4:3 封面；也可使用平台默认封面
           </FieldDescription>
         )}
         {slots}

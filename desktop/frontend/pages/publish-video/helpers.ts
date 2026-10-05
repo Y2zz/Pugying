@@ -1,19 +1,53 @@
-import type { ContentTargetOverrides, ContentVisibility, PlatformAccountItem } from '@/lib/api';
+import {
+  composeDouyinGraphicDescription,
+  type DouyinAuthorDeclaration,
+} from '@shared/douyin-graphic-settings';
+import type {
+  ContentTargetOverrides,
+  ContentVisibility,
+  PlatformAccountItem,
+} from '@/lib/api';
 import { getPugyingDesktopBridge } from '@/lib/agent-client';
 
 export const TITLE_MAX = 30;
 export const BODY_MAX = 1000;
-export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 16 * 1024 * 1024 * 1024;
 /** 封面编辑本地上传图上限（源图不入库，仍限制避免撑爆内存） */
 export const MAX_COVER_UPLOAD_BYTES = 20 * 1024 * 1024;
-export const WARN_DURATION_SEC = 15 * 60;
+export const MAX_VIDEO_DURATION_SEC = 60 * 60;
+
+/** 上传页及实际视频 input 接受的格式；可否本机预览还需读取视频元数据。 */
+export const VIDEO_ACCEPT =
+  'video/*,.flv,.avi,.wmv,.ts,.mp4,.mpeg4,.mov,.m4v,.mpg,.mkv,.m4';
+export function validateVideoFile(
+  file: { name: string; type: string; size: number },
+  duration?: number,
+): string | null {
+  if (
+    !file.type.startsWith('video/') &&
+    !/\.(flv|avi|wmv|ts|mp4|mpeg4|mov|m4v|mpg|mkv|m4)$/i.test(file.name)
+  ) {
+    return '请选择视频文件';
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    return '视频超过 16GB 上限';
+  }
+  if (duration !== undefined && (!Number.isFinite(duration) || duration <= 0)) {
+    return '无法读取视频时长';
+  }
+  if (duration !== undefined && duration > MAX_VIDEO_DURATION_SEC) {
+    return '视频时长不能超过 1 小时';
+  }
+  return null;
+}
 
 export type CoverKind = 'cover' | 'cover_landscape';
 /** busy 细分：底栏按钮与取消处理依赖阶段，避免一律「处理中」 */
 export type BusyPhase = 'idle' | 'uploading' | 'saving' | 'publishing';
 
 /** 发布视频五步流程 id（用于推导当前阶段 UI，无步骤条） */
-export type PublishFlowStepId = 'select' | 'upload' | 'configure' | 'publish' | 'progress';
+export type PublishFlowStepId =
+  'select' | 'upload' | 'configure' | 'publish' | 'progress';
 
 /** 由页面状态推导当前流程步（编辑加载中视为处理步） */
 export function derivePublishFlowStep(input: {
@@ -27,7 +61,10 @@ export function derivePublishFlowStep(input: {
 
   if (busyPhase === 'publishing') {
     const hint = publishHint.trim();
-    if (hint.includes('开始推送') || (hint.includes(' · ') && !hint.includes('申请'))) {
+    if (
+      hint.includes('开始推送') ||
+      (hint.includes(' · ') && !hint.includes('申请'))
+    ) {
       return 'progress';
     }
     return 'publish';
@@ -47,7 +84,7 @@ export function derivePublishFlowStep(input: {
 export function describePublishFlowStep(step: PublishFlowStepId): string {
   switch (step) {
     case 'select':
-      return '请选择或拖入 MP4 视频';
+      return '请选择或拖入视频';
     case 'upload':
       return '可同时填写发布信息；正在处理本机视频与封面';
     case 'configure':
@@ -61,20 +98,27 @@ export function describePublishFlowStep(step: PublishFlowStepId): string {
   }
 }
 
-export const VISIBILITY_OPTIONS: { value: ContentVisibility; label: string }[] = [
-  { value: 'public', label: '公开' },
-  { value: 'friends', label: '好友可见' },
-  { value: 'private', label: '仅自己可见' },
-];
+export const VISIBILITY_OPTIONS: { value: ContentVisibility; label: string }[] =
+  [
+    { value: 'public', label: '公开' },
+    { value: 'friends', label: '好友可见' },
+    { value: 'private', label: '仅自己可见' },
+  ];
 
-export const ACCOUNT_STATUS_TEXT: Record<PlatformAccountItem['status'], string> = {
+export const ACCOUNT_STATUS_TEXT: Record<
+  PlatformAccountItem['status'],
+  string
+> = {
   active: '正常',
   expired: '已过期',
   revoked: '已失效',
 };
 
 /** 可选覆盖通用文案的字段（留空则继承通用设置；封面走独立 BLOB，不在 overrides） */
-export const OPTIONAL_OVERRIDE_LABELS: [keyof ContentTargetOverrides, string][] = [
+export const OPTIONAL_OVERRIDE_LABELS: [
+  keyof ContentTargetOverrides,
+  string,
+][] = [
   ['title', '标题'],
   ['body', '描述'],
 ];
@@ -109,6 +153,7 @@ export interface OverrideDraft {
   scheduledLocal: string;
   visibility: ContentVisibility;
   allowDownload: boolean;
+  authorDeclaration?: DouyinAuthorDeclaration;
   /** 地点（图文：小红书等） */
   location: string;
   /** 分区文案（图文：哔哩哔哩等） */
@@ -133,6 +178,7 @@ export function emptyDraft(): OverrideDraft {
     scheduledLocal: '',
     visibility: 'public',
     allowDownload: true,
+    authorDeclaration: 'none',
     location: '',
     partition: '',
   };
@@ -163,6 +209,9 @@ export function localInputToIso(value: string): string {
 export function validateSchedule(iso: string): string | null {
   const time = new Date(iso).getTime();
   const now = Date.now();
+  if (!Number.isFinite(time)) {
+    return '请选择有效的发布时间';
+  }
   if (time < now + 2 * 60 * 60 * 1000) {
     return '定时发布需至少在 2 小时之后（参考抖音规则）';
   }
@@ -178,7 +227,7 @@ export function parseTags(text: string): string[] {
       text
         .split(/[\s,，#]+/)
         .map((t) => t.trim())
-        .filter(Boolean)
+        .filter(Boolean),
     ),
   ];
 }
@@ -205,7 +254,9 @@ export function optionalOverrideCount(draft: OverrideDraft): number {
   return count;
 }
 
-export function overridesToDraft(o: ContentTargetOverrides | undefined): OverrideDraft {
+export function overridesToDraft(
+  o: ContentTargetOverrides | undefined,
+): OverrideDraft {
   return {
     title: o?.title ?? '',
     body: o?.body ?? '',
@@ -223,6 +274,7 @@ export function overridesToDraft(o: ContentTargetOverrides | undefined): Overrid
     scheduledLocal: isoToLocalInput(o?.scheduledAt),
     visibility: o?.visibility ?? 'public',
     allowDownload: o?.allowDownload ?? true,
+    authorDeclaration: o?.authorDeclaration ?? 'none',
     location: o?.location ?? '',
     partition: o?.partition ?? '',
   };
@@ -239,13 +291,14 @@ export function draftFromTargetAndContent(
     scheduledAt: string | null;
     allowDownload: boolean;
     location?: string | null;
-  }
+  },
 ): OverrideDraft {
   const draft = overridesToDraft(overrides);
   return {
     ...draft,
     tagsText: draft.tagsText || content.tags.join(' '),
-    scheduledLocal: draft.scheduledLocal || isoToLocalInput(content.scheduledAt),
+    scheduledLocal:
+      draft.scheduledLocal || isoToLocalInput(content.scheduledAt),
     visibility: overrides?.visibility ?? content.visibility,
     allowDownload: overrides?.allowDownload ?? content.allowDownload,
     location: draft.location || (content.location ?? '').trim(),
@@ -270,6 +323,7 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   }
   result.visibility = draft.visibility;
   result.allowDownload = draft.allowDownload;
+  result.authorDeclaration = draft.authorDeclaration ?? 'none';
   if (draft.location.trim()) {
     result.location = draft.location.trim();
   }
@@ -322,13 +376,13 @@ export function looksUnstableLocalPath(absPath: string): boolean {
   );
 }
 
-export const LOCAL_PATH_MISSING_VIDEO =
-  '源文件不可用，请重新选择视频';
-export const LOCAL_PATH_MISSING_IMAGE =
-  '源文件不可用，请重新选择图片';
+export const LOCAL_PATH_MISSING_VIDEO = '源文件不可用，请重新选择视频';
+export const LOCAL_PATH_MISSING_IMAGE = '源文件不可用，请重新选择图片';
 
 /** 经 preload IPC 校验本机路径是否可读；无桥接时视为未知（返回 true，避免浏览器开发态误报） */
-export async function checkLocalPathReadable(absPath: string): Promise<boolean> {
+export async function checkLocalPathReadable(
+  absPath: string,
+): Promise<boolean> {
   const trimmed = absPath.trim();
   if (!trimmed) {
     return false;
@@ -380,7 +434,10 @@ export function formatTransferRate(bps: number): string {
 }
 
 /** 根据剩余字节与当前速度估算剩余时间 */
-export function formatRemainingTime(remainingBytes: number, speedBps: number): string | null {
+export function formatRemainingTime(
+  remainingBytes: number,
+  speedBps: number,
+): string | null {
   if (!Number.isFinite(speedBps) || speedBps <= 0 || remainingBytes <= 0) {
     return null;
   }
@@ -459,7 +516,8 @@ export function deriveVideoPhonePhase(input: {
 /** 列表行一行摘要：可见性 · 定时 · 话题 */
 export function describeAccountPublishSummary(draft: OverrideDraft): string {
   const visibility =
-    VISIBILITY_OPTIONS.find((opt) => opt.value === draft.visibility)?.label ?? '公开';
+    VISIBILITY_OPTIONS.find((opt) => opt.value === draft.visibility)?.label ??
+    '公开';
   const schedule = draft.scheduledLocal.trim()
     ? formatScheduleSummary(draft.scheduledLocal)
     : '立即发布';
@@ -478,7 +536,10 @@ function formatScheduleSummary(local: string): string {
 }
 
 /** 账号发布配置问题（用于列表行警告） */
-export function getAccountDraftIssues(draft: OverrideDraft): string[] {
+export function getAccountDraftIssues(
+  draft: OverrideDraft,
+  commonBody = '',
+): string[] {
   const issues: string[] = [];
   if (draft.scheduledLocal.trim()) {
     const iso = localInputToIso(draft.scheduledLocal);
@@ -494,15 +555,21 @@ export function getAccountDraftIssues(draft: OverrideDraft): string[] {
   if (draft.title.length > TITLE_MAX) {
     issues.push('标题超长');
   }
-  if (draft.body.length > BODY_MAX) {
-    issues.push('描述超长');
+  if (
+    composeDouyinGraphicDescription(
+      draft.body.trim() || commonBody,
+      parseTags(draft.tagsText),
+    ).length > BODY_MAX
+  ) {
+    issues.push('简介与话题合计超过 1000 字');
   }
   return issues;
 }
 
 /** 统计已选活跃账号的配置问题，供底栏 checklist 与 focus 使用 */
 export function summarizeSelectedAccountIssues(
-  entries: { account: PlatformAccountItem; draft: OverrideDraft }[]
+  entries: { account: PlatformAccountItem; draft: OverrideDraft }[],
+  commonBody = '',
 ): { issueCount: number; firstIssueAccountId: string | null } {
   let issueCount = 0;
   let firstIssueAccountId: string | null = null;
@@ -510,7 +577,7 @@ export function summarizeSelectedAccountIssues(
     if (account.status !== 'active') {
       continue;
     }
-    const issues = getAccountDraftIssues(draft);
+    const issues = getAccountDraftIssues(draft, commonBody);
     if (issues.length > 0) {
       issueCount += issues.length;
       if (!firstIssueAccountId) {

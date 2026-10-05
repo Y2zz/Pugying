@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { EditCoverSavedResult } from '@/components/EditCoverDialog';
-import { toast } from '@/components/AppToaster';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { restoreArticleRecovery } from "./article-recovery-store";
+import { useArticleRecovery } from "./use-article-recovery";
+import type { EditCoverSavedResult } from "@/components/EditCoverDialog";
+import { toast } from "@/components/AppToaster";
 import {
   createContent,
   fetchContent,
@@ -13,18 +15,19 @@ import {
   type ContentItem,
   type ContentStatus,
   type CoverKind,
+  type CoverUploadKind,
   type PlatformAccountItem,
   type PlatformCatalogItem,
   type PlatformId,
-} from '@/lib/api';
-import { describeCaughtError } from '@/lib/publish-errors';
+} from "@/lib/api";
+import { describeCaughtError } from "@/lib/publish-errors";
 import {
   ARTICLE_SUPPORTED_PLATFORMS,
   articleCoverAspects,
   intersectArticleBodyLimits,
   isArticleCoverRequired,
   isArticleSupportedPlatform,
-} from './article-platform-fields';
+} from "./article-platform-fields";
 import {
   COVER_ASPECTS,
   articleBodyPlainLength,
@@ -42,15 +45,20 @@ import {
   type ArticleOverrideDraft,
   type CoverPair,
   type CoverSlot,
-} from './helpers';
-import { ARTICLE_TITLE_MAX, countArticleTitleCharacters, normalizeArticleTitle } from './article-title';
+} from "./helpers";
+import {
+  ARTICLE_TITLE_MAX,
+  countArticleTitleCharacters,
+  normalizeArticleTitle,
+} from "./article-title";
 
 export interface ArticleRosterEntry {
   account: PlatformAccountItem;
   platformLabel: string;
 }
 
-export type ArticleCheckId = 'title' | 'body' | 'images' | 'cover' | 'accounts' | 'accountConfig';
+export type ArticleCheckId =
+  "title" | "body" | "images" | "cover" | "accounts" | "accountConfig";
 
 export interface ArticleCheck {
   id: ArticleCheckId;
@@ -61,7 +69,7 @@ export interface ArticleCheck {
   accountId?: string;
 }
 
-export type CoverScope = 'common' | { accountId: string };
+export type CoverScope = "common" | { accountId: string; extraIndex?: 0 | 1 };
 
 export interface CoverNeed {
   aspect: CoverKind;
@@ -70,7 +78,7 @@ export interface CoverNeed {
   platformLabels: string[];
 }
 
-export type PathWarning = { tone: 'error' | 'warning'; text: string } | null;
+export type PathWarning = { tone: "error" | "warning"; text: string } | null;
 
 /**
  * 文章发布页的全部状态与动作：载入、账号选择、账号草稿、封面、检查项与保存。
@@ -81,25 +89,32 @@ export function useArticleComposer(editId: string | null) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [validationError, setValidationError] = useState<{ id: ArticleCheckId; text: string } | null>(
-    null,
-  );
+  const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [validationError, setValidationError] = useState<{
+    id: ArticleCheckId;
+    text: string;
+  } | null>(null);
 
   const [catalog, setCatalog] = useState<PlatformCatalogItem[]>([]);
   const [accounts, setAccounts] = useState<PlatformAccountItem[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [drafts, setDrafts] = useState<Record<string, ArticleOverrideDraft>>({});
+  const [drafts, setDrafts] = useState<Record<string, ArticleOverrideDraft>>(
+    {},
+  );
 
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   /** 旧数据正文里可能没有 data-local-path，此时退回服务端记录的 mediaPaths */
   const [legacyMediaPaths, setLegacyMediaPaths] = useState<string[]>([]);
   const [covers, setCovers] = useState<CoverPair>(emptyCoverPair);
   const [pathWarning, setPathWarning] = useState<PathWarning>(null);
 
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
-  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
+  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(
+    null,
+  );
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState("");
   const ownedContentId = editId ?? createdContentId;
 
   const [coverEditor, setCoverEditor] = useState<{
@@ -107,12 +122,12 @@ export function useArticleComposer(editId: string | null) {
     aspect: CoverKind;
     scope: CoverScope;
     initialSource: string | null;
-  }>({ open: false, aspect: 'portrait', scope: 'common', initialSource: null });
+  }>({ open: false, aspect: "portrait", scope: "common", initialSource: null });
 
   // 会话内创建的 blob: URL 统一登记，卸载时释放；替换时不立即 revoke，避免仍在预览的图片失效
   const blobUrlsRef = useRef(new Set<string>());
   const trackUrl = useCallback((url: string) => {
-    if (url.startsWith('blob:')) {
+    if (url.startsWith("blob:")) {
       blobUrlsRef.current.add(url);
     }
     return url;
@@ -131,6 +146,8 @@ export function useArticleComposer(editId: string | null) {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setLoadFailed(false);
+      setError("");
       try {
         const [platforms, accountList] = await Promise.all([
           fetchPlatformCatalog(),
@@ -139,12 +156,14 @@ export function useArticleComposer(editId: string | null) {
         if (cancelled) {
           return;
         }
-        const articleAccounts = accountList.filter((a) => isArticleSupportedPlatform(a.platform));
+        const articleAccounts = accountList.filter((a) =>
+          isArticleSupportedPlatform(a.platform),
+        );
         setCatalog(platforms.filter((p) => isArticleSupportedPlatform(p.id)));
         setAccounts(articleAccounts);
 
         if (!editId) {
-          const active = articleAccounts.filter((a) => a.status === 'active');
+          const active = articleAccounts.filter((a) => a.status === "active");
           if (active.length === 1) {
             setSelected({ [active[0].id]: true });
           }
@@ -156,19 +175,23 @@ export function useArticleComposer(editId: string | null) {
           return;
         }
         setTitle(item.title);
-        setBody(item.body ?? '');
+        setBody(item.body ?? "");
         setLegacyMediaPaths(item.mediaPaths ?? []);
         setContentStatus(item.status);
+        setBaseUpdatedAt(item.updatedAt);
 
         const nextCovers = emptyCoverPair();
         for (const aspect of COVER_ASPECTS) {
-          const has = aspect === 'portrait' ? item.hasCover : item.hasCoverLandscape;
+          const has =
+            aspect === "portrait" ? item.hasCover : item.hasCoverLandscape;
           if (!has) {
             continue;
           }
           nextCovers[aspect].saved = true;
           try {
-            nextCovers[aspect].previewUrl = trackUrl(await fetchCoverObjectUrl(item.id, aspect));
+            nextCovers[aspect].previewUrl = trackUrl(
+              await fetchCoverObjectUrl(item.id, aspect),
+            );
           } catch {
             /* 预览失败不影响「已有封面」状态 */
           }
@@ -183,10 +206,43 @@ export function useArticleComposer(editId: string | null) {
           nextSelected[target.platformAccountId] = true;
           const draft = draftFromTarget(target.overrides, item);
           for (const aspect of COVER_ASPECTS) {
-            const has = aspect === 'portrait' ? target.hasCover : target.hasCoverLandscape;
+            const has =
+              aspect === "portrait"
+                ? target.hasCover
+                : target.hasCoverLandscape;
             if (has) {
-              draft.covers[aspect] = await loadTargetCover(item.id, aspect, target.id, trackUrl);
+              draft.covers[aspect] = await loadTargetCover(
+                item.id,
+                aspect,
+                target.id,
+                trackUrl,
+              );
             }
+          }
+          for (const index of [0, 1] as const) {
+            const has =
+              index === 0
+                ? target.hasCoverLandscape2
+                : target.hasCoverLandscape3;
+            if (has) {
+              draft.extraCovers![index] = await loadTargetCover(
+                item.id,
+                index === 0 ? "landscape2" : "landscape3",
+                target.id,
+                trackUrl,
+              );
+            }
+          }
+          if (
+            target.platform === "bilibili" &&
+            draft.articleSettings?.customCover === undefined
+          ) {
+            draft.articleSettings = {
+              ...draft.articleSettings,
+              customCover: Boolean(
+                target.hasCoverLandscape || item.hasCoverLandscape,
+              ),
+            };
           }
           nextDrafts[target.platformAccountId] = draft;
         }
@@ -198,7 +254,8 @@ export function useArticleComposer(editId: string | null) {
         setDrafts(nextDrafts);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载失败');
+          setLoadFailed(true);
+          setError("文章加载失败，请重新打开");
         }
       } finally {
         if (!cancelled) {
@@ -212,16 +269,22 @@ export function useArticleComposer(editId: string | null) {
     };
   }, [editId, trackUrl]);
 
-  const htmlMediaPaths = useMemo(() => extractLocalImagePathsFromHtml(body), [body]);
+  const htmlMediaPaths = useMemo(
+    () => extractLocalImagePathsFromHtml(body),
+    [body],
+  );
   // 仅仍含旧图片的正文使用旧路径；删除最后一张图后同步清空素材列表。
-  const mediaPaths = htmlMediaPaths.length > 0
-    ? htmlMediaPaths
-    : /<img\b/i.test(body) ? legacyMediaPaths : [];
-  const mediaPathsKey = mediaPaths.join('\n');
+  const mediaPaths =
+    htmlMediaPaths.length > 0
+      ? htmlMediaPaths
+      : /<img\b/i.test(body)
+        ? legacyMediaPaths
+        : [];
+  const mediaPathsKey = mediaPaths.join("\n");
 
   useEffect(() => {
     let cancelled = false;
-    const paths = mediaPathsKey ? mediaPathsKey.split('\n') : [];
+    const paths = mediaPathsKey ? mediaPathsKey.split("\n") : [];
     const check = async () => {
       if (paths.length === 0) {
         setPathWarning(null);
@@ -232,11 +295,14 @@ export function useArticleComposer(editId: string | null) {
         return;
       }
       if (!readable) {
-        setPathWarning({ tone: 'error', text: '有图片找不到了，请删除后重新插入' });
+        setPathWarning({
+          tone: "error",
+          text: "有图片找不到了，请删除后重新插入",
+        });
       } else if (paths.some((p) => looksUnstableLocalPath(p))) {
         setPathWarning({
-          tone: 'warning',
-          text: '部分图片在外置盘或网盘目录里，移动后将无法发布',
+          tone: "warning",
+          text: "部分图片在外置盘或网盘目录里，移动后将无法发布",
         });
       } else {
         setPathWarning(null);
@@ -249,11 +315,17 @@ export function useArticleComposer(editId: string | null) {
   }, [mediaPathsKey]);
 
   const entries = useMemo<ArticleRosterEntry[]>(() => {
-    const order = catalog.length > 0 ? catalog.map((c) => c.id) : [...ARTICLE_SUPPORTED_PLATFORMS];
-    const label = (id: PlatformId) => catalog.find((c) => c.id === id)?.displayName ?? id;
+    const order =
+      catalog.length > 0
+        ? catalog.map((c) => c.id)
+        : [...ARTICLE_SUPPORTED_PLATFORMS];
+    const label = (id: PlatformId) =>
+      catalog.find((c) => c.id === id)?.displayName ?? id;
     return order.flatMap((platform) =>
       accounts
-        .filter((account) => account.platform === platform && selected[account.id])
+        .filter(
+          (account) => account.platform === platform && selected[account.id],
+        )
         .map((account) => ({ account, platformLabel: label(platform) })),
     );
   }, [accounts, catalog, selected]);
@@ -272,31 +344,59 @@ export function useArticleComposer(editId: string | null) {
 
   const coverNeeds = useMemo<CoverNeed[]>(() => {
     if (selectedPlatforms.length === 0) {
-      return COVER_ASPECTS.map((aspect) => ({ aspect, required: false, platformLabels: [] }));
+      return COVER_ASPECTS.map((aspect) => ({
+        aspect,
+        required: false,
+        platformLabels: [],
+      }));
     }
     return COVER_ASPECTS.flatMap((aspect) => {
-      const using = selectedPlatforms.filter((p) => articleCoverAspects(p).includes(aspect));
+      const using = [
+        ...new Set(
+          entries
+            .filter(({ account }) => {
+              const settings = drafts[account.id]?.articleSettings;
+              return (
+                !(
+                  account.platform === "toutiao" &&
+                  settings?.coverMode === "none"
+                ) &&
+                !(
+                  account.platform === "bilibili" &&
+                  settings?.customCover !== true
+                ) &&
+                articleCoverAspects(account.platform).includes(aspect)
+              );
+            })
+            .map(({ account }) => account.platform),
+        ),
+      ];
       if (using.length === 0) {
         return [];
       }
       return [
         {
           aspect,
-          required: using.some((p) => isArticleCoverRequired(p, aspect)),
+          required: using.some(
+            (p) => p === "bilibili" || isArticleCoverRequired(p, aspect),
+          ),
           platformLabels: using.map(platformLabel),
         },
       ];
     });
-  }, [selectedPlatforms, platformLabel]);
+  }, [selectedPlatforms, entries, drafts, platformLabel]);
 
   const getDraft = useCallback(
     (accountId: string) => drafts[accountId] ?? emptyArticleDraft(),
     [drafts],
   );
 
-  const setDraft = useCallback((accountId: string, draft: ArticleOverrideDraft) => {
-    setDrafts((prev) => ({ ...prev, [accountId]: draft }));
-  }, []);
+  const setDraft = useCallback(
+    (accountId: string, draft: ArticleOverrideDraft) => {
+      setDrafts((prev) => ({ ...prev, [accountId]: draft }));
+    },
+    [],
+  );
 
   const applyPatch = useCallback(
     (accountIds: string[], patch: Partial<ArticleOverrideDraft>) => {
@@ -322,17 +422,21 @@ export function useArticleComposer(editId: string | null) {
   }, []);
 
   const activeEntries = useMemo(
-    () => entries.filter((e) => e.account.status === 'active'),
+    () => entries.filter((e) => e.account.status === "active"),
     [entries],
   );
 
   const accountIssues = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const { account } of entries) {
-      if (account.status !== 'active') {
+      if (account.status !== "active") {
         continue;
       }
-      const issues = getArticleAccountDraftIssues(getDraft(account.id), account.platform, title);
+      const issues = getArticleAccountDraftIssues(
+        getDraft(account.id),
+        account.platform,
+        title,
+      );
       if (issues.length > 0) {
         map.set(account.id, issues);
       }
@@ -346,72 +450,85 @@ export function useArticleComposer(editId: string | null) {
   const checks = useMemo<ArticleCheck[]>(() => {
     const list: ArticleCheck[] = [];
     list.push({
-      id: 'title',
-      label: '标题',
+      id: "title",
+      label: "标题",
       ok: titleLength > 0 && titleLength <= titleMax,
       detail:
         titleLength === 0
-          ? '未填写'
+          ? "未填写"
           : titleLength > titleMax
             ? `超出 ${titleLength - titleMax} 字`
             : `${titleLength} 字`,
     });
     list.push({
-      id: 'body',
-      label: '正文',
+      id: "body",
+      label: "正文",
       ok: bodyLength >= bodyLimits.min && bodyLength <= bodyLimits.max,
       detail:
         bodyLength === 0
-          ? '未填写'
+          ? "未填写"
           : bodyLength < bodyLimits.min
             ? `还差 ${bodyLimits.min - bodyLength} 字`
             : bodyLength > bodyLimits.max
-              ? `超出 ${(bodyLength - bodyLimits.max).toLocaleString('zh-CN')} 字`
-              : `${bodyLength.toLocaleString('zh-CN')} 字`,
+              ? `超出 ${(bodyLength - bodyLimits.max).toLocaleString("zh-CN")} 字`
+              : `${bodyLength.toLocaleString("zh-CN")} 字`,
     });
     list.push({
-      id: 'images',
-      label: '配图',
-      ok: pathWarning?.tone !== 'error',
+      id: "images",
+      label: "配图",
+      ok: pathWarning?.tone !== "error",
       detail:
         mediaPaths.length === 0
-          ? '可选，插入本机图片'
-          : pathWarning?.tone === 'error'
-            ? '有图片不可用'
+          ? "可选，插入本机图片"
+          : pathWarning?.tone === "error"
+            ? "有图片不可用"
             : `${mediaPaths.length} 张`,
     });
     const missing = new Set<CoverKind>();
     for (const { account } of activeEntries) {
-      for (const aspect of missingRequiredCovers(getDraft(account.id), covers, account.platform)) {
+      for (const aspect of missingRequiredCovers(
+        getDraft(account.id),
+        covers,
+        account.platform,
+      )) {
         missing.add(aspect);
       }
     }
     // 未选账号时无从判断比例要求，只要设过任一通用封面即视为完成
-    const anyCommonCover = COVER_ASPECTS.some((aspect) => coverSlotReady(covers[aspect]));
-    const coverOk = activeEntries.length === 0 ? anyCommonCover : missing.size === 0;
+    const anyCommonCover = COVER_ASPECTS.some((aspect) =>
+      coverSlotReady(covers[aspect]),
+    );
+    const coverOk =
+      activeEntries.length === 0 ? anyCommonCover : missing.size === 0;
     list.push({
-      id: 'cover',
-      label: '封面',
+      id: "cover",
+      label: "封面",
       ok: coverOk,
       detail: coverOk
-        ? '已设置'
+        ? "已设置"
         : missing.size > 0
-          ? `缺少${[...missing].map((a) => (a === 'portrait' ? '竖版' : '横版')).join('、')}封面`
-          : '未设置',
+          ? `缺少${[...missing].map((a) => (a === "portrait" ? "竖版" : "横版")).join("、")}封面`
+          : "未设置",
     });
     list.push({
-      id: 'accounts',
-      label: '分发账号',
+      id: "accounts",
+      label: "分发账号",
       ok: activeEntries.length > 0,
-      detail: activeEntries.length > 0 ? `${activeEntries.length} 个账号` : '尚未选择',
+      detail:
+        activeEntries.length > 0
+          ? `${activeEntries.length} 个账号`
+          : "尚未选择",
     });
     if (activeEntries.length > 0) {
       const firstIssue = [...accountIssues.keys()][0];
       list.push({
-        id: 'accountConfig',
-        label: '账号设置',
+        id: "accountConfig",
+        label: "账号设置",
         ok: accountIssues.size === 0,
-        detail: accountIssues.size === 0 ? '无问题' : `${accountIssues.size} 个账号需调整`,
+        detail:
+          accountIssues.size === 0
+            ? "无问题"
+            : `${accountIssues.size} 个账号需调整`,
         accountId: firstIssue,
       });
     }
@@ -432,27 +549,78 @@ export function useArticleComposer(editId: string | null) {
   /** 仅硬性错误阻止保存草稿；缺图、缺封面等可先存再补 */
   const blockingCheck = useMemo<ArticleCheck | null>(() => {
     if (titleLength === 0 || titleLength > titleMax) {
-      return checks.find((c) => c.id === 'title') ?? null;
+      return checks.find((c) => c.id === "title") ?? null;
     }
     if (bodyLength > bodyLimits.max) {
-      return checks.find((c) => c.id === 'body') ?? null;
+      return checks.find((c) => c.id === "body") ?? null;
     }
     if (accountIssues.size > 0) {
-      return checks.find((c) => c.id === 'accountConfig') ?? null;
+      return checks.find((c) => c.id === "accountConfig") ?? null;
     }
     return null;
-  }, [titleLength, titleMax, bodyLength, bodyLimits.max, accountIssues, checks]);
+  }, [
+    titleLength,
+    titleMax,
+    bodyLength,
+    bodyLimits.max,
+    accountIssues,
+    checks,
+  ]);
+
+  const recoveryData = useMemo(
+    () => ({
+      title,
+      body,
+      selected,
+      drafts,
+      covers,
+      legacyMediaPaths,
+      createdContentId,
+    }),
+    [title, body, selected, drafts, covers, legacyMediaPaths, createdContentId],
+  );
+  const recovery = useArticleRecovery({
+    key: editId || "new",
+    askBeforeRestore: !editId,
+    enabled: !loading && !loadFailed,
+    baseUpdatedAt,
+    data: recoveryData,
+    onRestore: (snapshot) => {
+      const restored = restoreArticleRecovery(snapshot, recoveryData, trackUrl);
+      setTitle(restored.title);
+      setBody(restored.body);
+      setSelected(restored.selected);
+      setDrafts(restored.drafts);
+      setCovers(restored.covers);
+      setLegacyMediaPaths(restored.legacyMediaPaths);
+      setCreatedContentId(restored.createdContentId);
+    },
+  });
 
   const openCoverEditor = useCallback(
-    (aspect: CoverKind, scope: CoverScope = 'common', sourceOverride?: string) => {
+    (
+      aspect: CoverKind,
+      scope: CoverScope = "common",
+      sourceOverride?: string,
+    ) => {
       let initialSource: string | null = sourceOverride ?? null;
       if (!initialSource) {
         const common = covers[aspect];
-        if (scope === 'common') {
+        if (scope === "common") {
           initialSource = common.sourceUrl || common.previewUrl || null;
         } else {
-          const own = getDraft(scope.accountId).covers[aspect];
-          initialSource = own.sourceUrl || own.previewUrl || common.previewUrl || null;
+          const draft = getDraft(scope.accountId);
+          const own =
+            scope.extraIndex === undefined
+              ? draft.covers[aspect]
+              : draft.extraCovers?.[scope.extraIndex];
+          initialSource =
+            own?.sourceUrl ||
+            own?.previewUrl ||
+            (scope.extraIndex === undefined
+              ? common.sourceUrl || common.previewUrl
+              : null) ||
+            null;
         }
       }
       setCoverEditor({ open: true, aspect, scope, initialSource });
@@ -473,14 +641,27 @@ export function useArticleComposer(editId: string | null) {
         saved: false,
       };
       const { aspect, scope } = coverEditor;
-      if (scope === 'common') {
+      if (scope === "common") {
         setCovers((prev) => ({ ...prev, [aspect]: slot }));
       } else {
         setDrafts((prev) => {
           const draft = prev[scope.accountId] ?? emptyArticleDraft();
+          if (scope.extraIndex !== undefined) {
+            const extraCovers = [
+              ...(draft.extraCovers ?? [
+                emptyArticleDraft().covers.landscape,
+                emptyArticleDraft().covers.landscape,
+              ]),
+            ];
+            extraCovers[scope.extraIndex] = slot;
+            return { ...prev, [scope.accountId]: { ...draft, extraCovers } };
+          }
           return {
             ...prev,
-            [scope.accountId]: { ...draft, covers: { ...draft.covers, [aspect]: slot } },
+            [scope.accountId]: {
+              ...draft,
+              covers: { ...draft.covers, [aspect]: slot },
+            },
           };
         });
       }
@@ -500,7 +681,11 @@ export function useArticleComposer(editId: string | null) {
       coverNeeds.find((n) => !coverSlotReady(covers[n.aspect])) ??
       coverNeeds[0];
     if (target) {
-      openCoverEditor(target.aspect, 'common', localPathToFileUrl(firstImagePath));
+      openCoverEditor(
+        target.aspect,
+        "common",
+        localPathToFileUrl(firstImagePath),
+      );
     }
   }, [firstImagePath, coverNeeds, covers, openCoverEditor]);
 
@@ -513,47 +698,63 @@ export function useArticleComposer(editId: string | null) {
 
   /** 保存草稿；被硬性问题拦下时返回对应检查项，由页面负责聚焦 */
   const save = useCallback(async (): Promise<ArticleCheck | null> => {
+    if (loading || loadFailed || !recovery.ready) {
+      setError("文章未完整加载，请重新打开后再保存");
+      return null;
+    }
     if (blockingCheck) {
       setValidationError({
         id: blockingCheck.id,
         text:
-          blockingCheck.id === 'accountConfig'
-            ? '有账号设置需要调整'
+          blockingCheck.id === "accountConfig"
+            ? "有账号设置需要调整"
             : `${blockingCheck.label}${blockingCheck.detail}`,
       });
       return blockingCheck;
     }
     setSaving(true);
-    setError('');
+    setError("");
     const payload = {
       title: normalizeArticleTitle(title),
       body: body.trim(),
       mediaPaths,
       tags: [],
-      visibility: 'public' as const,
+      visibility: "public" as const,
       allowDownload: true,
       targets: entries.map(({ account }) => ({
         platformAccountId: account.id,
-        overrides: articleDraftToOverrides(getDraft(account.id), account.platform),
+        overrides: articleDraftToOverrides(
+          getDraft(account.id),
+          account.platform,
+        ),
       })),
-      ...(contentStatus === 'published' ? {} : { status: 'draft' as ContentStatus }),
+      ...(contentStatus === "published"
+        ? {}
+        : { status: "draft" as ContentStatus }),
     };
     try {
       let saved: ContentItem;
       if (ownedContentId) {
         saved = await updateContent(ownedContentId, payload);
       } else {
-        saved = await createContent({ type: 'article', ...payload });
+        saved = await createContent({ type: "article", ...payload });
         setCreatedContentId(saved.id);
       }
       for (const aspect of COVER_ASPECTS) {
         const blob = covers[aspect].blob;
         if (blob) {
-          saved = await uploadContentCover(saved.id, aspect, blob, `cover-${aspect}.jpg`);
+          saved = await uploadContentCover(
+            saved.id,
+            aspect,
+            blob,
+            `cover-${aspect}.jpg`,
+          );
         }
       }
       setCovers((prev) => ({
-        portrait: prev.portrait.blob ? { ...prev.portrait, blob: null, saved: true } : prev.portrait,
+        portrait: prev.portrait.blob
+          ? { ...prev.portrait, blob: null, saved: true }
+          : prev.portrait,
         landscape: prev.landscape.blob
           ? { ...prev.landscape, blob: null, saved: true }
           : prev.landscape,
@@ -567,25 +768,56 @@ export function useArticleComposer(editId: string | null) {
         const aspects = isArticleSupportedPlatform(target.platform)
           ? articleCoverAspects(target.platform)
           : [];
-        for (const aspect of aspects) {
+        const useCover =
+          target.platform === "toutiao"
+            ? draft.articleSettings?.coverMode !== "none"
+            : target.platform !== "bilibili" ||
+              draft.articleSettings?.customCover === true;
+        for (const aspect of useCover ? aspects : []) {
           const blob = draft.covers[aspect].blob;
           if (blob) {
-            await uploadContentCover(saved.id, aspect, blob, `cover-${aspect}.jpg`, target.id);
+            await uploadContentCover(
+              saved.id,
+              aspect,
+              blob,
+              `cover-${aspect}.jpg`,
+              target.id,
+            );
+          }
+        }
+        if (
+          target.platform === "toutiao" &&
+          draft.articleSettings?.coverMode === "triple"
+        ) {
+          for (const index of [0, 1] as const) {
+            const blob = draft.extraCovers?.[index]?.blob;
+            if (blob) {
+              await uploadContentCover(
+                saved.id,
+                index === 0 ? "landscape2" : "landscape3",
+                blob,
+                `cover-${index + 2}.jpg`,
+                target.id,
+              );
+            }
           }
         }
       }
       setContentStatus(saved.status);
-      toast.add({ type: 'success', title: '已保存' });
-      void navigate('/contents');
+      await recovery.discard();
+      toast.add({ type: "success", title: "已保存" });
+      void navigate("/contents");
       return null;
     } catch (err) {
-      setError(describeCaughtError(err, '保存失败'));
+      setError(describeCaughtError(err, "保存失败"));
       return null;
     } finally {
       setSaving(false);
     }
   }, [
     blockingCheck,
+    loading,
+    loadFailed,
     title,
     body,
     mediaPaths,
@@ -596,11 +828,21 @@ export function useArticleComposer(editId: string | null) {
     covers,
     drafts,
     navigate,
+    recovery.ready,
+    recovery.discard,
   ]);
 
   return {
-    loading,
+    loading: loading || (!loadFailed && !recovery.ready),
     saving,
+    autoSaveStatus: recovery.status,
+    autoSaveFailed: recovery.failed,
+    retryAutoSave: recovery.retry,
+    pendingRecovery: recovery.pendingRecovery,
+    resolvingRecovery: recovery.resolvingRecovery,
+    recoveryError: recovery.recoveryError,
+    continueRecovery: recovery.continueRecovery,
+    startNew: recovery.startNew,
     error: validationError?.text || error,
     catalog,
     accounts,
@@ -641,15 +883,17 @@ export type ArticleComposer = ReturnType<typeof useArticleComposer>;
 
 async function loadTargetCover(
   contentId: string,
-  aspect: CoverKind,
+  aspect: CoverUploadKind,
   targetId: string,
   trackUrl: (url: string) => string,
 ): Promise<CoverSlot> {
   try {
-    const previewUrl = trackUrl(await fetchCoverObjectUrl(contentId, aspect, targetId));
+    const previewUrl = trackUrl(
+      await fetchCoverObjectUrl(contentId, aspect, targetId),
+    );
     const blob = await (await fetch(previewUrl)).blob();
-    return { blob, previewUrl, sourceUrl: '', saved: false };
+    return { blob, previewUrl, sourceUrl: "", saved: false };
   } catch {
-    return { blob: null, previewUrl: '', sourceUrl: '', saved: false };
+    throw new Error("账号封面加载失败，请重新打开文章");
   }
 }

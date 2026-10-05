@@ -336,13 +336,13 @@ export function useGraphicComposer(editId: string | null) {
       if (account.status !== 'active') {
         continue;
       }
-      const issues = getGraphicAccountDraftIssues(getDraft(account.id), account.platform);
+      const issues = getGraphicAccountDraftIssues(getDraft(account.id), account.platform, body);
       if (issues.length > 0) {
         map.set(account.id, issues);
       }
     }
     return map;
-  }, [entries, getDraft]);
+  }, [entries, getDraft, body]);
 
   const bodyLength = graphicBodyPlainLength(body);
   const titleLength = title.trim().length;

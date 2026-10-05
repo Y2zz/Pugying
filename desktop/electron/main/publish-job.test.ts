@@ -43,6 +43,18 @@ describe('publish-job stub', () => {
     expect(started).toEqual({ error: 'invalid_payload' });
   });
 
+  it('accepts a video without custom covers', async () => {
+    const result = await new Promise<{ ok: boolean }>((resolve) => {
+      const started = startPublishJob({
+        payload: basePayload({ coverPath: '', coverLandscapePath: '' }),
+        onProgress: () => undefined,
+        onResult: resolve,
+      });
+      expect(started).toEqual({ ok: true });
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('accepts graphic payload without landscape cover', async () => {
     const result = await new Promise<{ ok: boolean }>((resolve) => {
       const started = startPublishJob({

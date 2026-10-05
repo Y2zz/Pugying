@@ -1,3 +1,4 @@
+import { ArticlePlatformSettingsFields } from './ArticlePlatformSettingsFields';
 import { getArticlePlatformFields } from '../article-platform-fields';
 import {
   ArticleAccountFormLayout,
@@ -12,7 +13,7 @@ import {
 
 const spec = getArticlePlatformFields('douyin');
 
-/** 抖音发文章：标题 / 横版封面可覆盖；话题、谁可以看、定时 */
+/** 抖音发文章：标题 / 竖版双列封面可覆盖；话题、谁可以看、定时 */
 export function DouyinArticleAccountForm({
   account,
   draft,
@@ -38,6 +39,15 @@ export function DouyinArticleAccountForm({
               patch({ title });
             }}
           />
+          <ArticlePlatformSettingsFields
+            accountId={account.id}
+            platform="douyin"
+            value={draft.articleSettings}
+            disabled={disabled}
+            onChange={(articleSettings) => {
+              patch({ articleSettings });
+            }}
+          />
           <ArticleCoverOverrideField
             platform="douyin"
             draft={draft}
@@ -59,6 +69,7 @@ export function DouyinArticleAccountForm({
             }}
           />
           <ArticleVisibilityField
+            control="radio"
             accountId={account.id}
             value={draft.visibility}
             options={spec.visibility ?? ['public']}
@@ -68,6 +79,7 @@ export function DouyinArticleAccountForm({
             }}
           />
           <ArticleScheduleField
+            control="radio"
             accountId={account.id}
             scheduledLocal={draft.scheduledLocal}
             minHours={spec.schedule!.minHours}

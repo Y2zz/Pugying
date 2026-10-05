@@ -1,20 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Clapperboard } from 'lucide-react';
-import {
-  PageHeader,
-  PageHeaderDescription,
-  PageHeaderTitle,
-} from '@/components/layouts/PageHeader';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { AlertCircle, Send } from "lucide-react";
+import { PublishingPageHeader } from "@/components/publishing/PublishingPageHeader";
+import { PublishingChecklistBar } from "@/components/publishing/PublishingChecklistBar";
+import { Button } from "@/components/ui/button";
+import { scrollToArticleField } from "./publish-article/scroll-to-article-field";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   EditCoverDialog,
   type EditCoverAspect,
   type EditCoverSavedResult,
-} from '@/components/EditCoverDialog';
-import { toast } from '@/components/AppToaster';
-import { useAgent } from '@/hooks/use-agent';
-import { agentClient } from '@/lib/agent-client';
+} from "@/components/EditCoverDialog";
+import { toast } from "@/components/AppToaster";
+import { useAgent } from "@/hooks/use-agent";
+import { agentClient } from "@/lib/agent-client";
 import {
   createContent,
   completeContentTarget,
@@ -32,18 +32,23 @@ import {
   type ContentTargetInput,
   type PlatformAccountItem,
   type PlatformCatalogItem,
-} from '@/lib/api';
-import { describeCaughtError, describePublishError, describePublishPhase } from '@/lib/publish-errors';
-import { cn } from '@/lib/utils';
-import { extractCoverPairFromVideoFile } from '@/lib/video-cover';
+} from "@/lib/api";
 import {
-  PublishVideoActionBar,
+  describeCaughtError,
+  describePublishError,
+  describePublishPhase,
+} from "@/lib/publish-errors";
+import {
+  extractCoverPairFromVideoFile,
+  readVideoDuration,
+} from "@/lib/video-cover";
+import {
   PublishVideoFormPanel,
   type PrecheckItem,
-} from './publish-video/PublishVideoFormPanel';
-import { PublishVideoPreviewPanel } from './publish-video/PublishVideoPreviewPanel';
+} from "./publish-video/PublishVideoFormPanel";
+import { PublishVideoPreviewPanel } from "./publish-video/PublishVideoPreviewPanel";
 import {
-  MAX_VIDEO_BYTES,
+  validateVideoFile,
   createUploadSpeedTracker,
   derivePublishFlowStep,
   describePublishFlowStep,
@@ -56,61 +61,85 @@ import {
   checkLocalPathReadable,
   summarizeSelectedAccountIssues,
   validateSchedule,
+  TITLE_MAX,
+  BODY_MAX,
+  getAccountDraftIssues,
   type BusyPhase,
   type CoverKind,
   type OverrideDraft,
   type VideoUploadMetrics,
   type VideoUploadPhase,
-} from './publish-video/helpers';
+} from "./publish-video/helpers";
 import {
   PublishVideoProgressPanel,
   parseActivePublishAccountLabel,
-} from './publish-video/PublishVideoProgressPanel';
+} from "./publish-video/PublishVideoProgressPanel";
 
 export default function PublishVideo() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const editId = params.get('id');
-  const { connected, publishBusy, canPublish, status: agentStatus } = useAgent();
+  const editId = params.get("id");
+  const {
+    connected,
+    publishBusy,
+    canPublish,
+    status: agentStatus,
+  } = useAgent();
 
-  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
-  const [uploadMetrics, setUploadMetrics] = useState<VideoUploadMetrics | null>(null);
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(
+    null,
+  );
+  const [uploadMetrics, setUploadMetrics] = useState<VideoUploadMetrics | null>(
+    null,
+  );
   const uploadSpeedTrackerRef = useRef(createUploadSpeedTracker());
-  const [publishHint, setPublishHint] = useState('');
+  const [publishHint, setPublishHint] = useState("");
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-  /** 递增以在窄屏下从底栏/checklist 聚焦账号时打开 Sheet */
-  const [accountFocusNonce, setAccountFocusNonce] = useState(0);
 
   // 基础字段：媒体只存本机绝对路径，封面 BLOB 会话内先落 Blob
-  const [title, setTitle] = useState('');
-  const [mediaPath, setMediaPath] = useState('');
-  const [videoFileName, setVideoFileName] = useState('');
+  const [title, setTitle] = useState("");
+  const [validationAttempted, setValidationAttempted] = useState(false);
+  const [mediaPath, setMediaPath] = useState("");
+  const [videoFileName, setVideoFileName] = useState("");
   const [videoFileSize, setVideoFileSize] = useState<number | null>(null);
-  const [pathWarning, setPathWarning] = useState('');
+  const [pathWarning, setPathWarning] = useState("");
   const [coverBlob, setCoverBlob] = useState<Blob | null>(null);
-  const [coverLandscapeBlob, setCoverLandscapeBlob] = useState<Blob | null>(null);
+  const [coverLandscapeBlob, setCoverLandscapeBlob] = useState<Blob | null>(
+    null,
+  );
   const [hasCover, setHasCover] = useState(false);
   const [hasCoverLandscape, setHasCoverLandscape] = useState(false);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
-  const [coverLandscapePreviewUrl, setCoverLandscapePreviewUrl] = useState<string | null>(null);
+  const [coverLandscapePreviewUrl, setCoverLandscapePreviewUrl] = useState<
+    string | null
+  >(null);
   /** 会话内源图（供再次打开编辑；不随内容字段入库） */
   const [coverSourceUrl, setCoverSourceUrl] = useState<string | null>(null);
-  const [coverLandscapeSourceUrl, setCoverLandscapeSourceUrl] = useState<string | null>(null);
-  const [coverSourceFrameTime, setCoverSourceFrameTime] = useState<number | null>(null);
+  const [coverLandscapeSourceUrl, setCoverLandscapeSourceUrl] = useState<
+    string | null
+  >(null);
+  const [coverSourceFrameTime, setCoverSourceFrameTime] = useState<
+    number | null
+  >(null);
   const [coverLandscapeSourceFrameTime, setCoverLandscapeSourceFrameTime] =
     useState<number | null>(null);
-  const [body, setBody] = useState('');
-  const [location, setLocation] = useState('');
+  const [body, setBody] = useState("");
+  const [location, setLocation] = useState("");
   const [editCoverOpen, setEditCoverOpen] = useState(false);
-  const [editCoverAspect, setEditCoverAspect] = useState<EditCoverAspect>('portrait');
-  const [editCoverVideoUrl, setEditCoverVideoUrl] = useState<string | null>(null);
-  const [editCoverInitialSource, setEditCoverInitialSource] = useState<string | null>(null);
+  const [editCoverAspect, setEditCoverAspect] =
+    useState<EditCoverAspect>("portrait");
+  const [editCoverVideoUrl, setEditCoverVideoUrl] = useState<string | null>(
+    null,
+  );
+  const [editCoverInitialSource, setEditCoverInitialSource] = useState<
+    string | null
+  >(null);
   const [editCoverInitialFrameTime, setEditCoverInitialFrameTime] = useState<
     number | null
   >(null);
   const [editCoverScope, setEditCoverScope] = useState<
-    'common' | { accountId: string }
-  >('common');
+    "common" | { accountId: string }
+  >("common");
   // 分发目标（P0 仅抖音）
   const [accounts, setAccounts] = useState<PlatformAccountItem[]>([]);
   const [catalog, setCatalog] = useState<PlatformCatalogItem[]>([]);
@@ -118,9 +147,9 @@ export default function PublishVideo() {
   const [drafts, setDrafts] = useState<Record<string, OverrideDraft>>({});
 
   const [busy, setBusy] = useState(false);
-  const [busyPhase, setBusyPhase] = useState<BusyPhase>('idle');
+  const [busyPhase, setBusyPhase] = useState<BusyPhase>("idle");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -130,17 +159,19 @@ export default function PublishVideo() {
   const uploadAbortRef = useRef<AbortController | null>(null);
   // 新建保存后的内容 id（可先于 URL ?id=）；有 editId 时优先用 URL，避免与 effect 同步打架
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
-  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
+  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(
+    null,
+  );
   const ownedContentId = editId ?? createdContentId;
 
   const revokePreview = (url: string | null | undefined) => {
-    if (url?.startsWith('blob:')) {
+    if (url?.startsWith("blob:")) {
       URL.revokeObjectURL(url);
     }
   };
 
   const revokeVideoPreview = (url: string | null | undefined) => {
-    if (url?.startsWith('blob:')) {
+    if (url?.startsWith("blob:")) {
       URL.revokeObjectURL(url);
     }
   };
@@ -225,7 +256,7 @@ export default function PublishVideo() {
 
   const endBusy = () => {
     setBusy(false);
-    setBusyPhase('idle');
+    setBusyPhase("idle");
     setUploadMetrics(null);
     uploadSpeedTrackerRef.current.reset();
     uploadAbortRef.current = null;
@@ -246,8 +277,10 @@ export default function PublishVideo() {
         if (cancelled) {
           return;
         }
-        setCatalog(platforms.filter((p) => p.id === 'douyin'));
-        const douyinAccounts = accountList.filter((a) => a.platform === 'douyin');
+        setCatalog(platforms.filter((p) => p.id === "douyin"));
+        const douyinAccounts = accountList.filter(
+          (a) => a.platform === "douyin",
+        );
         setAccounts(douyinAccounts);
 
         if (editId) {
@@ -256,12 +289,14 @@ export default function PublishVideo() {
             return;
           }
           setTitle(item.title);
-          setBody(item.body ?? '');
+          setBody(item.body ?? "");
           setHasCover(item.hasCover);
           setHasCoverLandscape(item.hasCoverLandscape);
-          const media = item.mediaPaths[0] ?? '';
+          const media = item.mediaPaths[0] ?? "";
           setMediaPath(media);
-          setVideoFileName(media ? media.split(/[/\\]/).pop() || '本机视频' : '');
+          setVideoFileName(
+            media ? media.split(/[/\\]/).pop() || "本机视频" : "",
+          );
           setVideoFileSize(null);
           if (media) {
             setVideoPreviewUrl((prev) => {
@@ -276,20 +311,20 @@ export default function PublishVideo() {
               setPathWarning(LOCAL_PATH_MISSING_VIDEO);
             } else if (looksUnstableLocalPath(media)) {
               setPathWarning(
-                '当前视频路径位于外置盘或网盘同步目录，文件变动后可能导致发布失败，建议复制到本机固定目录后再选。',
+                "当前视频路径位于外置盘或网盘同步目录，文件变动后可能导致发布失败，建议复制到本机固定目录后再选。",
               );
             } else {
               setPathWarning(
-                '发布依赖本机视频路径；请勿移动或删除该文件，否则推送会失败。',
+                "发布依赖本机视频路径；请勿移动或删除该文件，否则推送会失败。",
               );
             }
           } else {
             setVideoPreviewUrl(null);
-            setPathWarning('');
+            setPathWarning("");
           }
           if (item.hasCover) {
             try {
-              const url = await fetchCoverObjectUrl(item.id, 'portrait');
+              const url = await fetchCoverObjectUrl(item.id, "portrait");
               if (!cancelled) {
                 setCoverPreviewUrl((prev) => {
                   revokePreview(prev);
@@ -304,7 +339,7 @@ export default function PublishVideo() {
           }
           if (item.hasCoverLandscape) {
             try {
-              const url = await fetchCoverObjectUrl(item.id, 'landscape');
+              const url = await fetchCoverObjectUrl(item.id, "landscape");
               if (!cancelled) {
                 setCoverLandscapePreviewUrl((prev) => {
                   revokePreview(prev);
@@ -317,7 +352,7 @@ export default function PublishVideo() {
               /* ignore */
             }
           }
-          setLocation(item.location ?? '');
+          setLocation(item.location ?? "");
           const nextSelected: Record<string, boolean> = {};
           const nextDrafts: Record<string, OverrideDraft> = {};
           const contentPublishDefaults = {
@@ -327,7 +362,7 @@ export default function PublishVideo() {
             allowDownload: item.allowDownload,
           };
           for (const target of item.targets) {
-            if (target.platform !== 'douyin') {
+            if (target.platform !== "douyin") {
               continue;
             }
             nextSelected[target.platformAccountId] = true;
@@ -341,7 +376,7 @@ export default function PublishVideo() {
               try {
                 draft.coverPreviewUrl = await fetchCoverObjectUrl(
                   item.id,
-                  'portrait',
+                  "portrait",
                   target.id,
                 );
               } catch {
@@ -352,7 +387,7 @@ export default function PublishVideo() {
               try {
                 draft.coverLandscapePreviewUrl = await fetchCoverObjectUrl(
                   item.id,
-                  'landscape',
+                  "landscape",
                   target.id,
                 );
               } catch {
@@ -372,14 +407,14 @@ export default function PublishVideo() {
           setDrafts(nextDrafts);
           setContentStatus(item.status);
         } else {
-          const active = douyinAccounts.filter((a) => a.status === 'active');
+          const active = douyinAccounts.filter((a) => a.status === "active");
           if (active.length === 1) {
             setSelected({ [active[0].id]: true });
           }
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载失败');
+          setError(err instanceof Error ? err.message : "加载失败");
         }
       } finally {
         if (!cancelled) {
@@ -406,7 +441,8 @@ export default function PublishVideo() {
       list.push(account);
       byPlatform.set(account.platform, list);
     }
-    const order = catalog.length > 0 ? catalog.map((c) => c.id) : [...byPlatform.keys()];
+    const order =
+      catalog.length > 0 ? catalog.map((c) => c.id) : [...byPlatform.keys()];
     return order
       .filter((id) => byPlatform.has(id))
       .map((id) => ({
@@ -427,7 +463,8 @@ export default function PublishVideo() {
     [grouped, selected],
   );
 
-  const getDraft = (accountId: string): OverrideDraft => drafts[accountId] ?? emptyDraft();
+  const getDraft = (accountId: string): OverrideDraft =>
+    drafts[accountId] ?? emptyDraft();
 
   const buildTargets = (): ContentTargetInput[] =>
     selectedAccounts.map(({ account }) => ({
@@ -438,48 +475,71 @@ export default function PublishVideo() {
   /** 校验失败时滚到第一个阻塞项；封面/账号 checklist 携带 Tab 与账号 id */
   const focusPrecheck = (item: PrecheckItem) => {
     const scroll = (el: HTMLElement | null) => {
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      scrollToArticleField(el);
     };
     switch (item.focusKind) {
-      case 'video':
+      case "video":
         window.setTimeout(() => {
           scroll(videoSectionRef.current);
         }, 50);
         break;
-      case 'cover':
+      case "cover":
         window.setTimeout(() => {
           scroll(coverSectionRef.current);
         }, 50);
         break;
-      case 'title':
+      case "body":
         window.setTimeout(() => {
-          scroll(titleInputRef.current);
-          titleInputRef.current?.focus();
+          const input = document.getElementById("video-body");
+          scroll(input);
+          input?.focus({ preventScroll: true });
         }, 50);
         break;
-      case 'accounts':
-      case 'accountConfig':
+      case "title":
+        window.setTimeout(() => {
+          scroll(titleInputRef.current);
+          titleInputRef.current?.focus({ preventScroll: true });
+        }, 50);
+        break;
+      case "accounts":
+      case "accountConfig":
         {
           const accountId =
             item.focusAccountId ??
-            selectedAccounts.find(({ account }) => account.status === 'active')?.account
-              .id ??
+            selectedAccounts.find(({ account }) => account.status === "active")
+              ?.account.id ??
             selectedAccounts[0]?.account.id;
           if (accountId) {
-            setExpandedAccountId(accountId);
-            setAccountFocusNonce((n) => {
-              return n + 1;
+            flushSync(() => {
+              setExpandedAccountId(accountId);
             });
           }
         }
         window.setTimeout(() => {
-          scroll(accountsSectionRef.current);
+          const editor = accountsSectionRef.current?.querySelector<HTMLElement>(
+            '[data-slot="video-account-editor"]',
+          );
+          const field =
+            item.focusKind === "accountConfig"
+              ? editor?.querySelector<HTMLElement>(
+                  '[data-slot="field"][data-invalid="true"]',
+                )
+              : null;
+          const input = field?.querySelector<HTMLElement>(
+            '[aria-invalid="true"], input:not(:disabled), textarea:not(:disabled), button:not(:disabled)',
+          );
+          input?.focus({ preventScroll: true });
+          scroll(
+            field ??
+              (item.focusKind === "accountConfig" ? editor : null) ??
+              accountsSectionRef.current,
+          );
         }, 50);
         break;
-      case 'agent':
+      case "agent":
         document
           .querySelector<HTMLElement>('[data-slot="sidebar-inset"]')
-          ?.scrollTo({ top: 0, behavior: 'smooth' });
+          ?.scrollTo({ top: 0, behavior: "smooth" });
         break;
       default:
         break;
@@ -487,14 +547,14 @@ export default function PublishVideo() {
   };
 
   const focusBlock = (
-    kind: NonNullable<PrecheckItem['focusKind']>,
+    kind: NonNullable<PrecheckItem["focusKind"]>,
     meta?: { accountId?: string },
   ) => {
     focusPrecheck({
       id: kind,
-      label: '',
+      label: "",
       ok: false,
-      fix: '',
+      fix: "",
       focusKind: kind,
       focusAccountId: meta?.accountId,
     });
@@ -511,9 +571,9 @@ export default function PublishVideo() {
     if (coverBlob) {
       next = await uploadContentCover(
         saved.id,
-        'portrait',
+        "portrait",
         coverBlob,
-        'cover.jpg',
+        "cover.jpg",
       );
       setCoverBlob(null);
       setHasCover(true);
@@ -521,9 +581,9 @@ export default function PublishVideo() {
     if (coverLandscapeBlob) {
       next = await uploadContentCover(
         saved.id,
-        'landscape',
+        "landscape",
         coverLandscapeBlob,
-        'cover-landscape.jpg',
+        "cover-landscape.jpg",
       );
       setCoverLandscapeBlob(null);
       setHasCoverLandscape(true);
@@ -531,14 +591,16 @@ export default function PublishVideo() {
 
     const updatedDrafts: Record<string, OverrideDraft> = { ...drafts };
     for (const target of next.targets) {
-      const draft = updatedDrafts[target.platformAccountId] ?? getDraft(target.platformAccountId);
+      const draft =
+        updatedDrafts[target.platformAccountId] ??
+        getDraft(target.platformAccountId);
       let changed = false;
       if (draft.coverBlob) {
         next = await uploadContentCover(
           saved.id,
-          'portrait',
+          "portrait",
           draft.coverBlob,
-          'cover.jpg',
+          "cover.jpg",
           target.id,
         );
         updatedDrafts[target.platformAccountId] = {
@@ -552,9 +614,9 @@ export default function PublishVideo() {
       if (afterPortrait.coverLandscapeBlob) {
         next = await uploadContentCover(
           saved.id,
-          'landscape',
+          "landscape",
           afterPortrait.coverLandscapeBlob,
-          'cover-landscape.jpg',
+          "cover-landscape.jpg",
           target.id,
         );
         updatedDrafts[target.platformAccountId] = {
@@ -573,61 +635,67 @@ export default function PublishVideo() {
   };
 
   const submit = async (status: ContentStatus) => {
+    setValidationAttempted(true);
     if (!title.trim()) {
-      setError('请填写标题');
-      focusBlock('title');
+      setError("请填写标题");
+      focusBlock("title");
+      return;
+    }
+    if (title.length > TITLE_MAX || body.length > BODY_MAX) {
+      setError(
+        title.length > TITLE_MAX ? "标题最多 30 字" : "作品简介最多 1000 字",
+      );
+      focusBlock(title.length > TITLE_MAX ? "title" : "body");
       return;
     }
     if (!mediaPath.trim()) {
-      setError('请先选择本机 MP4 视频（需通过对话框选取以获取文件路径）');
-      focusBlock('video');
+      setError("请先选择本机视频");
+      focusBlock("video");
       return;
     }
-    if (status === 'published' && !coverReady) {
-      setError('发布前请准备竖版封面（3:4）');
-      focusBlock('cover');
-      return;
-    }
-    if (status === 'published' && !coverLandscapeReady) {
-      setError('发布抖音前请准备横版封面（4:3）');
-      focusBlock('cover');
-      return;
-    }
-    if (status === 'published' && selectedAccounts.length === 0) {
-      setError('请至少选择一个抖音账号');
-      focusBlock('accounts');
+    if (status === "published" && selectedAccounts.length === 0) {
+      setError("请至少选择一个抖音账号");
+      focusBlock("accounts");
       return;
     }
     for (const { account } of selectedAccounts) {
+      const issues = getAccountDraftIssues(getDraft(account.id), body);
+      if (issues.length > 0) {
+        setError(`「${account.displayName}」${issues.join("、")}`);
+        focusBlock("accountConfig", { accountId: account.id });
+        return;
+      }
       const iso = draftToOverrides(getDraft(account.id)).scheduledAt;
       if (iso) {
         const scheduleError = validateSchedule(iso);
         if (scheduleError) {
           setError(`「${account.displayName}」${scheduleError}`);
           setExpandedAccountId(account.id);
-          focusBlock('accountConfig', { accountId: account.id });
+          focusBlock("accountConfig", { accountId: account.id });
           return;
         }
       }
     }
 
-    if (status === 'published') {
+    if (status === "published") {
       agentClient.connect();
-      if (agentClient.getStatus() !== 'connected') {
-        setError('应用未就绪，请重启「蒲公英」后再发布。');
-        focusBlock('agent');
+      if (agentClient.getStatus() !== "connected") {
+        setError("应用未就绪，请重启「蒲公英」后再发布。");
+        focusBlock("agent");
         return;
       }
-      if (!agentClient.getHello()?.capabilities.includes('platform.publish.start')) {
-        setError('当前版本无发布能力，请升级蒲公英');
-        focusBlock('agent');
+      if (
+        !agentClient.getHello()?.capabilities.includes("platform.publish.start")
+      ) {
+        setError("当前版本无发布能力，请升级蒲公英");
+        focusBlock("agent");
         return;
       }
     }
 
-    beginBusy(status === 'published' ? 'publishing' : 'saving');
-    setError('');
-    setPublishHint(status === 'published' ? '' : '正在保存草稿…');
+    beginBusy(status === "published" ? "publishing" : "saving");
+    setError("");
+    setPublishHint(status === "published" ? "" : "正在保存草稿…");
     const payload = {
       title: title.trim(),
       body: body.trim(),
@@ -635,11 +703,13 @@ export default function PublishVideo() {
       // 发布选项已迁至各账号 overrides；content 级字段保留 API 默认值
       tags: [],
       location: location.trim(),
-      visibility: 'public' as const,
+      visibility: "public" as const,
       allowDownload: true,
       targets: buildTargets(),
       // 已发布作品保存时不得退回草稿
-      ...(contentStatus === 'published' ? {} : { status: 'draft' as ContentStatus }),
+      ...(contentStatus === "published"
+        ? {}
+        : { status: "draft" as ContentStatus }),
     };
     let contentId = ownedContentId;
     try {
@@ -647,51 +717,61 @@ export default function PublishVideo() {
       if (contentId) {
         saved = await updateContent(contentId, payload);
       } else {
-        saved = await createContent({ type: 'video', ...payload });
+        saved = await createContent({ type: "video", ...payload });
         contentId = saved.id;
         setCreatedContentId(saved.id);
       }
-      setPublishHint('正在上传封面…');
+      setPublishHint("正在上传封面…");
       saved = await uploadPendingCovers(saved);
       setContentStatus(saved.status);
 
-      if (status !== 'published' || !contentId) {
-        setPublishHint('草稿已保存');
-        void navigate('/contents');
+      if (status !== "published" || !contentId) {
+        setPublishHint("草稿已保存");
+        void navigate("/contents");
         return;
       }
 
-      setPublishHint('正在提交发布任务…');
+      setPublishHint("正在提交发布任务…");
       const started = await publishContent(contentId);
       const accountLabel = (accountId: string) =>
         accounts.find((a) => a.id === accountId)?.displayName ??
         `账号 ${accountId.slice(0, 8)}`;
       const labelForTarget = (targetId: string) => {
         const hit = started.dispatches.find((d) => d.targetId === targetId);
-        return hit ? accountLabel(hit.accountId) : '抖音';
+        return hit ? accountLabel(hit.accountId) : "抖音";
       };
       const unsub = agentClient.subscribePublishProgress((event) => {
         setPublishHint(
-          `${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ''}`,
+          `${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ""}`,
         );
       });
 
       try {
-        const outcomes: Array<{ ok: boolean; code?: string; message?: string }> = [];
+        const outcomes: Array<{
+          ok: boolean;
+          code?: string;
+          message?: string;
+        }> = [];
         for (const dispatch of started.dispatches) {
           setPublishHint(`开始推送「${accountLabel(dispatch.accountId)}」…`);
-          const { dispatch: live } = await startContentTarget(contentId, dispatch.targetId);
+          const { dispatch: live } = await startContentTarget(
+            contentId,
+            dispatch.targetId,
+          );
           const result = await agentClient.startPublish({
             targetId: live.targetId,
             platform: live.platform,
             accountId: live.accountId,
-            contentType: live.contentType ?? 'video',
+            contentType: live.contentType ?? "video",
             mediaPath: live.mediaPath,
             mediaPaths: live.mediaPaths,
             coverPath: live.coverPath,
             coverLandscapePath: live.coverLandscapePath,
             title: live.title,
             body: live.body,
+            tags: live.tags,
+            authorDeclaration: live.authorDeclaration,
+            articleSettings: live.articleSettings,
             visibility: live.visibility,
             scheduledAt: live.scheduledAt,
             allowDownload: live.allowDownload,
@@ -713,7 +793,7 @@ export default function PublishVideo() {
 
         const failed = outcomes.filter((o) => !o.ok);
         if (failed.length === 0) {
-          void navigate('/contents');
+          void navigate("/contents");
           return;
         }
         const first = failed[0];
@@ -726,27 +806,27 @@ export default function PublishVideo() {
           void navigate(`/publish/video?id=${contentId}`, { replace: true });
         }
         endBusy();
-        setPublishHint('');
+        setPublishHint("");
         return;
       } finally {
         unsub();
       }
     } catch (err) {
-      setError(describeCaughtError(err, '保存失败'));
+      setError(describeCaughtError(err, "保存失败"));
       if (!editId && contentId) {
         void navigate(`/publish/video?id=${contentId}`, { replace: true });
       }
       endBusy();
-      setPublishHint('');
+      setPublishHint("");
     }
   };
 
   const ingestVideoFile = async (file: File) => {
-    setError('');
+    setError("");
     const localPath = getLocalFilePath(file);
     if (!localPath) {
       setError(
-        '无法获取本机文件路径。请确认在桌面应用内选择或拖入本地视频文件。',
+        "无法获取本机文件路径。请确认在桌面应用内选择或拖入本地视频文件。",
       );
       return;
     }
@@ -755,16 +835,16 @@ export default function PublishVideo() {
     const replacing = Boolean(mediaPath.trim());
     setVideoFileName(file.name);
     setVideoFileSize(file.size);
-    beginBusy('uploading');
-    resetUploadMetrics('video', file.size);
-    setMediaPath('');
+    beginBusy("uploading");
+    resetUploadMetrics("video", file.size);
+    setMediaPath("");
     setVideoPreviewUrl((prev) => {
       revokeVideoPreview(prev);
       return null;
     });
     try {
       if (abort.signal.aborted) {
-        throw new DOMException('上传已取消', 'AbortError');
+        throw new DOMException("上传已取消", "AbortError");
       }
 
       setMediaPath(localPath);
@@ -780,17 +860,17 @@ export default function PublishVideo() {
         setPathWarning(LOCAL_PATH_MISSING_VIDEO);
       } else if (looksUnstableLocalPath(localPath)) {
         toast.add({
-          type: 'warning',
-          title: '路径可能不稳定',
+          type: "warning",
+          title: "路径可能不稳定",
           description:
-            '外置盘、iCloud、OneDrive 或百度网盘中的文件变动后可能导致发布失败，建议复制到本机固定目录。',
+            "外置盘、iCloud、OneDrive 或百度网盘中的文件变动后可能导致发布失败，建议复制到本机固定目录。",
         });
         setPathWarning(
-          '当前视频路径位于外置盘或网盘同步目录，文件变动后可能导致发布失败，建议复制到本机固定目录后再选。',
+          "当前视频路径位于外置盘或网盘同步目录，文件变动后可能导致发布失败，建议复制到本机固定目录后再选。",
         );
       } else {
         setPathWarning(
-          '发布将直接读取该本机路径；请勿移动或删除文件，否则推送会失败。',
+          "发布将直接读取该本机路径；请勿移动或删除文件，否则推送会失败。",
         );
       }
       // 视频已切换后再清旧封面，取消处理时可保留更换前的封面
@@ -800,22 +880,23 @@ export default function PublishVideo() {
           return prev
             ? {
                 ...prev,
-                phase: 'cover' as const,
+                phase: "cover" as const,
                 ratio: null,
                 loadedBytes: 0,
                 speedBps: 0,
               }
             : {
-                phase: 'cover',
+                phase: "cover",
                 loadedBytes: 0,
                 totalBytes: file.size,
                 ratio: null,
                 speedBps: 0,
               };
         });
-        const { portrait, landscape } = await extractCoverPairFromVideoFile(file);
+        const { portrait, landscape } =
+          await extractCoverPairFromVideoFile(file);
         if (abort.signal.aborted) {
-          throw new DOMException('上传已取消', 'AbortError');
+          throw new DOMException("上传已取消", "AbortError");
         }
 
         const portraitPreview = URL.createObjectURL(portrait);
@@ -833,33 +914,36 @@ export default function PublishVideo() {
         setHasCover(false);
         setHasCoverLandscape(false);
       } catch (coverErr) {
-        if (coverErr instanceof DOMException && coverErr.name === 'AbortError') {
+        if (
+          coverErr instanceof DOMException &&
+          coverErr.name === "AbortError"
+        ) {
           throw coverErr;
         }
         setError(
           coverErr instanceof Error
             ? `自动提取封面失败：${coverErr.message}`
-            : '自动提取封面失败，请本地选图并裁剪',
+            : "自动提取封面失败，请本地选图并裁剪",
         );
       }
     } catch (err) {
       const cancelled =
-        (err instanceof DOMException && err.name === 'AbortError') ||
-        (err instanceof Error && err.message === '上传已取消');
+        (err instanceof DOMException && err.name === "AbortError") ||
+        (err instanceof Error && err.message === "上传已取消");
       if (cancelled) {
-        setError('');
+        setError("");
         if (!replacing) {
-          setMediaPath('');
-          setVideoFileName('');
+          setMediaPath("");
+          setVideoFileName("");
           setVideoFileSize(null);
-          setPathWarning('');
+          setPathWarning("");
           setVideoPreviewUrl((prev) => {
             revokeVideoPreview(prev);
             return null;
           });
         }
       } else {
-        setError(describeCaughtError(err, '视频处理失败'));
+        setError(describeCaughtError(err, "视频处理失败"));
       }
     } finally {
       endBusy();
@@ -870,12 +954,22 @@ export default function PublishVideo() {
     if (!file) {
       return;
     }
-    if (!file.type.includes('mp4') && !file.name.toLowerCase().endsWith('.mp4')) {
-      setError('仅支持 MP4（H.264+AAC）视频');
+    const fileError = validateVideoFile(file);
+    if (fileError) {
+      setError(fileError);
       return;
     }
-    if (file.size > MAX_VIDEO_BYTES) {
-      setError('视频超过 1GB 上限');
+    try {
+      const durationError = validateVideoFile(
+        file,
+        await readVideoDuration(file),
+      );
+      if (durationError) {
+        setError(durationError);
+        return;
+      }
+    } catch {
+      setError("本机无法读取该视频，请转换为 MP4 后重试");
       return;
     }
     await ingestVideoFile(file);
@@ -893,31 +987,35 @@ export default function PublishVideo() {
 
   const openEditCover = async (
     kind: CoverKind,
-    scope: 'common' | { accountId: string } = 'common',
+    scope: "common" | { accountId: string } = "common",
   ) => {
-    const aspect: EditCoverAspect = kind === 'cover' ? 'portrait' : 'landscape';
+    const aspect: EditCoverAspect = kind === "cover" ? "portrait" : "landscape";
     try {
       // 仅会话内「源图」优先；否则有视频时由 Dialog 截 0.1s；再否则用已有裁切图兜底
       let sourceCandidate: string | null = null;
       let sourceFrameTime: number | null = null;
       let croppedFallback: string | null = null;
-      if (scope === 'common') {
+      if (scope === "common") {
         sourceCandidate =
-          kind === 'cover' ? coverSourceUrl : coverLandscapeSourceUrl;
+          kind === "cover" ? coverSourceUrl : coverLandscapeSourceUrl;
         sourceFrameTime =
-          kind === 'cover' ? coverSourceFrameTime : coverLandscapeSourceFrameTime;
+          kind === "cover"
+            ? coverSourceFrameTime
+            : coverLandscapeSourceFrameTime;
         croppedFallback =
-          kind === 'cover' ? coverPreviewUrl : coverLandscapePreviewUrl;
+          kind === "cover" ? coverPreviewUrl : coverLandscapePreviewUrl;
       } else {
         const draft = getDraft(scope.accountId);
         sourceCandidate =
-          kind === 'cover' ? draft.coverSourceUrl : draft.coverLandscapeSourceUrl;
+          kind === "cover"
+            ? draft.coverSourceUrl
+            : draft.coverLandscapeSourceUrl;
         sourceFrameTime =
-          kind === 'cover'
+          kind === "cover"
             ? draft.coverSourceFrameTime
             : draft.coverLandscapeSourceFrameTime;
         croppedFallback =
-          kind === 'cover'
+          kind === "cover"
             ? draft.coverPreviewUrl || coverPreviewUrl
             : draft.coverLandscapePreviewUrl || coverLandscapePreviewUrl;
       }
@@ -939,18 +1037,18 @@ export default function PublishVideo() {
       setEditCoverVideoUrl(videoForEditor);
       setEditCoverScope(scope);
       setEditCoverOpen(true);
-      setError('');
+      setError("");
     } catch (err) {
       toast.add({
-        type: 'error',
-        title: '打开封面编辑失败',
-        description: err instanceof Error ? err.message : '未知错误',
+        type: "error",
+        title: "打开封面编辑失败",
+        description: err instanceof Error ? err.message : "未知错误",
       });
     }
   };
 
   const onEditCoverSaved = (result: EditCoverSavedResult) => {
-    const isPortrait = editCoverAspect === 'portrait';
+    const isPortrait = editCoverAspect === "portrait";
     const previewUrl = URL.createObjectURL(result.croppedFile);
     // 源图多为会话 blob；替换时勿 revoke 正在沿用的同一 URL
     const replaceSessionUrl = (
@@ -962,7 +1060,7 @@ export default function PublishVideo() {
       }
       return next;
     };
-    if (editCoverScope === 'common') {
+    if (editCoverScope === "common") {
       if (isPortrait) {
         setCoverSourceUrl((prev) => replaceSessionUrl(prev, result.sourceUrl));
         setCoverSourceFrameTime(result.sourceFrameTime);
@@ -1028,13 +1126,13 @@ export default function PublishVideo() {
       }
     }
     toast.add({
-      type: 'success',
-      title: isPortrait ? '竖版封面已保存' : '横版封面已保存',
+      type: "success",
+      title: isPortrait ? "竖版封面已保存" : "横版封面已保存",
     });
   };
 
   const activeDouyinSelected = selectedAccounts.filter(
-    ({ account }) => account.status === 'active',
+    ({ account }) => account.status === "active",
   ).length;
 
   const accountIssueSummary = useMemo(() => {
@@ -1043,41 +1141,35 @@ export default function PublishVideo() {
         account,
         draft: getDraft(account.id),
       })),
+      body,
     );
-  }, [selectedAccounts, drafts]);
+  }, [selectedAccounts, drafts, body]);
 
   const checklistItems: PrecheckItem[] = [
     {
-      id: 'video',
-      label: '视频',
+      id: "video",
+      label: "视频",
       ok: Boolean(mediaPath.trim()),
-      fix: '请先通过对话框选择本机 MP4 视频',
-      focusKind: 'video',
+      fix: "请先通过对话框选择本机视频",
+      focusKind: "video",
     },
     {
-      id: 'cover',
-      label: '竖封面',
-      ok: coverReady,
-      fix: '请选择视频以自动截帧，或选本地图裁剪竖版封面',
-      focusKind: 'cover',
+      id: "title",
+      label: "标题",
+      ok: Boolean(title.trim()) && title.length <= TITLE_MAX,
+      fix: title.length > TITLE_MAX ? "标题最多 30 字" : "请填写标题",
+      focusKind: "title",
     },
     {
-      id: 'coverLandscape',
-      label: '横封面',
-      ok: coverLandscapeReady,
-      fix: '抖音需横版封面；选择视频可自动截帧，或选本地图裁剪',
-      focusKind: 'cover',
+      id: "body",
+      label: "作品简介",
+      ok: body.length <= BODY_MAX,
+      fix: "作品简介最多 1000 字",
+      focusKind: "body",
     },
     {
-      id: 'title',
-      label: '标题',
-      ok: Boolean(title.trim()),
-      fix: '请填写标题',
-      focusKind: 'title',
-    },
-    {
-      id: 'accounts',
-      label: '账号',
+      id: "accounts",
+      label: "账号",
       ok: activeDouyinSelected > 0,
       fix:
         accounts.length === 0 ? (
@@ -1088,59 +1180,59 @@ export default function PublishVideo() {
             </Link>
           </span>
         ) : (
-          '请勾选至少一个正常状态的抖音账号'
+          "请勾选至少一个正常状态的抖音账号"
         ),
       env: accounts.length === 0,
-      focusKind: 'accounts',
+      focusKind: "accounts",
     },
     {
-      id: 'accountConfig',
+      id: "accountConfig",
       label:
         accountIssueSummary.issueCount > 0
           ? `账号配置 · ${accountIssueSummary.issueCount}`
-          : '账号配置',
+          : "账号配置",
       ok: activeDouyinSelected > 0 && accountIssueSummary.issueCount === 0,
       fix:
         accountIssueSummary.issueCount > 0
-          ? '请修正账号发布配置（定时、字数等）'
-          : '已选账号的发布选项均已就绪',
-      focusKind: 'accountConfig',
+          ? "请修正账号发布配置（定时、字数等）"
+          : "已选账号的发布选项均已就绪",
+      focusKind: "accountConfig",
       focusAccountId: accountIssueSummary.firstIssueAccountId ?? undefined,
     },
     {
-      id: 'agent',
-      label: '发布能力',
+      id: "agent",
+      label: "发布能力",
       ok: connected && canPublish,
       fix:
-        agentStatus === 'connecting' ? (
-          '应用正在就绪…'
+        agentStatus === "connecting" ? (
+          "应用正在就绪…"
         ) : publishBusy ? (
-          '正有其它发布任务进行中，请稍候'
+          "正有其它发布任务进行中，请稍候"
         ) : connected ? (
-          '当前版本无发布能力，请升级'
+          "当前版本无发布能力，请升级"
         ) : (
           <span>应用未就绪，请重启后再试</span>
         ),
       env: true,
-      focusKind: 'agent',
+      focusKind: "agent",
     },
   ];
 
   const publishBlocked = checklistItems.some((item) => !item.ok);
-  const readyCount = checklistItems.filter((item) => item.ok).length;
 
   const hasVideo = Boolean(mediaPath.trim());
   const coversReady = coverReady && coverLandscapeReady;
   const coverHint =
-    busyPhase === 'uploading'
-      ? '视频处理中，封面将自动截帧；可先填写标题与账号'
+    busyPhase === "uploading"
+      ? "视频处理中，封面将自动截帧；可先填写标题与账号"
       : !coversReady
-        ? '竖/横封面未就绪：可重新选择视频自动截帧，或点击槽位编辑封面'
-        : '封面已就绪；点击槽位可取帧、上传或调整构图';
+        ? "可设置自定义封面；未设置时使用平台默认封面"
+        : "封面已就绪；点击槽位可取帧、上传或调整构图";
 
   const hasSelectedVideo = Boolean(videoFileName.trim()) || hasVideo;
-  const formLocked = loading || busyPhase === 'saving' || busyPhase === 'publishing';
-  const coverLocked = formLocked || busyPhase === 'uploading';
+  const formLocked =
+    loading || busyPhase === "saving" || busyPhase === "publishing";
+  const coverLocked = formLocked || busyPhase === "uploading";
 
   const flowStep = derivePublishFlowStep({
     hasVideo,
@@ -1149,23 +1241,25 @@ export default function PublishVideo() {
     busyPhase,
     publishHint,
   });
-  const showPublishPanel = flowStep === 'publish' || flowStep === 'progress';
+  const showPublishPanel = flowStep === "publish" || flowStep === "progress";
   const showFormPanel = hasSelectedVideo && !showPublishPanel;
-  const showPhoneColumn = flowStep !== 'select';
-  const showSplitLayout = showFormPanel || showPublishPanel;
+  const showAssetBar = flowStep !== "select";
   const publishProgressAccounts = selectedAccounts
-    .filter(({ account }) => account.status === 'active')
-    .map(({ account }) => ({ id: account.id, displayName: account.displayName }));
+    .filter(({ account }) => account.status === "active")
+    .map(({ account }) => ({
+      id: account.id,
+      displayName: account.displayName,
+    }));
   const activePublishAccountLabel = parseActivePublishAccountLabel(publishHint);
 
   const primaryBusyLabel =
-    busyPhase === 'uploading'
-      ? '处理中…'
-      : busyPhase === 'saving'
-        ? '保存中…'
-        : busyPhase === 'publishing'
-          ? '发布中…'
-          : '处理中…';
+    busyPhase === "uploading"
+      ? "处理中…"
+      : busyPhase === "saving"
+        ? "保存中…"
+        : busyPhase === "publishing"
+          ? "发布中…"
+          : "处理中…";
 
   const onDropVideo = (event: React.DragEvent) => {
     event.preventDefault();
@@ -1179,13 +1273,37 @@ export default function PublishVideo() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader>
-        <PageHeaderTitle className="flex items-center gap-2">
-          <Clapperboard className="size-5" />
-          {editId ? '编辑视频' : '发布视频'}
-        </PageHeaderTitle>
-        <PageHeaderDescription>{describePublishFlowStep(flowStep)}</PageHeaderDescription>
-      </PageHeader>
+      <PublishingPageHeader
+        title={editId ? "编辑视频" : "发布视频"}
+        description={describePublishFlowStep(flowStep)}
+        checks={checklistItems}
+        loading={loading || !showFormPanel}
+        disabled={formLocked || !showFormPanel}
+        saveLabel={
+          busyPhase === "saving" ? "保存中…" : editId ? "保存修改" : "保存草稿"
+        }
+        saveVariant="outline"
+        onSave={() => {
+          void submit("draft");
+        }}
+        onFix={focusPrecheck}
+        renderChecks={(onFix) => (
+          <PublishingChecklistBar checks={checklistItems} onFix={onFix} />
+        )}
+        actions={
+          showFormPanel ? (
+            <Button
+              disabled={formLocked || publishBlocked}
+              onClick={() => {
+                void submit("published");
+              }}
+            >
+              <Send data-icon="inline-start" />
+              {formLocked ? primaryBusyLabel : "发布"}
+            </Button>
+          ) : undefined
+        }
+      />
 
       {error ? (
         <Alert variant="destructive">
@@ -1198,27 +1316,22 @@ export default function PublishVideo() {
       {pathWarning && !error ? (
         <Alert
           variant={
-            pathWarning === LOCAL_PATH_MISSING_VIDEO ? 'destructive' : 'default'
+            pathWarning === LOCAL_PATH_MISSING_VIDEO ? "destructive" : "default"
           }
         >
           <AlertCircle />
           <AlertTitle>
             {pathWarning === LOCAL_PATH_MISSING_VIDEO
-              ? '源文件不可用'
-              : '本机路径依赖'}
+              ? "源文件不可用"
+              : "本机路径依赖"}
           </AlertTitle>
           <AlertDescription>{pathWarning}</AlertDescription>
         </Alert>
       ) : null}
 
-      <div
-        className={cn(
-          'grid gap-6 lg:items-start',
-          showSplitLayout ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : 'w-full',
-        )}
-      >
+      <div className="flex min-w-0 flex-col gap-8">
         {showFormPanel ? (
-          <div className="order-2 min-w-0 lg:order-1">
+          <div className="contents">
             <PublishVideoFormPanel
               catalog={catalog}
               accounts={accounts}
@@ -1227,8 +1340,6 @@ export default function PublishVideo() {
               setSelected={setSelected}
               expandedAccountId={expandedAccountId}
               setExpandedAccountId={setExpandedAccountId}
-              accountFocusNonce={accountFocusNonce}
-              drafts={drafts}
               setDraftForAccount={(accountId, draft) => {
                 setDrafts((prev) => ({
                   ...prev,
@@ -1250,12 +1361,13 @@ export default function PublishVideo() {
               coverLandscapePreviewUrl={coverLandscapePreviewUrl}
               coverHint={coverHint}
               onEditCover={(kind) => {
-                void openEditCover(kind, 'common');
+                void openEditCover(kind, "common");
               }}
               onEditAccountCover={(accountId, kind) => {
                 void openEditCover(kind, { accountId });
               }}
               titleInputRef={titleInputRef}
+              validationAttempted={validationAttempted}
               disabled={formLocked}
               coverDisabled={coverLocked}
             />
@@ -1263,7 +1375,7 @@ export default function PublishVideo() {
         ) : null}
 
         {showPublishPanel ? (
-          <div className="order-2 min-w-0 lg:order-1">
+          <div className="order-2 min-w-0">
             <PublishVideoProgressPanel
               flowStep={flowStep}
               publishHint={publishHint}
@@ -1273,18 +1385,18 @@ export default function PublishVideo() {
           </div>
         ) : null}
 
-        <div className={cn('order-1', showSplitLayout && 'lg:order-2')}>
+        <div className="order-1 min-w-0">
           <PublishVideoPreviewPanel
             videoSectionRef={videoSectionRef}
             videoInputRef={videoInputRef}
-            showPhoneColumn={showPhoneColumn}
+            showAssetBar={showAssetBar}
             hasVideo={hasVideo}
             videoFileName={videoFileName}
             videoFileSize={videoFileSize}
             videoPreviewUrl={videoPreviewUrl}
             dragOver={dragOver}
             disabled={loading || busy || showPublishPanel}
-            uploading={busyPhase === 'uploading'}
+            uploading={busyPhase === "uploading"}
             uploadMetrics={uploadMetrics}
             onPickClick={() => {
               videoInputRef.current?.click();
@@ -1309,25 +1421,6 @@ export default function PublishVideo() {
         </div>
       </div>
 
-      {showFormPanel ? (
-        <PublishVideoActionBar
-          prechecks={checklistItems}
-          readyCount={readyCount}
-          totalCount={checklistItems.length}
-          busy={formLocked}
-          busyLabel={primaryBusyLabel}
-          publishBlocked={publishBlocked}
-          publishHint={publishHint}
-          onFocusItem={focusPrecheck}
-          onSaveDraft={() => {
-            void submit('draft');
-          }}
-          onPublish={() => {
-            void submit('published');
-          }}
-        />
-      ) : null}
-
       <EditCoverDialog
         open={editCoverOpen}
         aspect={editCoverAspect}
@@ -1338,7 +1431,7 @@ export default function PublishVideo() {
           setEditCoverOpen(open);
           if (!open) {
             setEditCoverInitialSource((prev) => {
-              if (prev?.startsWith('blob:')) {
+              if (prev?.startsWith("blob:")) {
                 if (
                   prev !== coverPreviewUrl &&
                   prev !== coverLandscapePreviewUrl &&

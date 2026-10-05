@@ -36,7 +36,7 @@ export const GRAPHIC_PLATFORM_FIELDS: {
 } = {
   douyin: {
     platformId: 'douyin',
-    titleMax: 30,
+    titleMax: 20,
     titleRequired: true,
     bodyPlainMin: 1,
     bodyPlainMax: 1000,

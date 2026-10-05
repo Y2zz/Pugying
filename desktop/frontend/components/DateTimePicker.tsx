@@ -1,82 +1,171 @@
-import { forwardRef, useMemo, useState } from 'react';
-import { CalendarIcon, Clock, X } from 'lucide-react';
-import { zhCN } from 'react-day-picker/locale';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+import {
+  forwardRef,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ComponentProps,
+} from "react";
+import { CalendarIcon } from "lucide-react";
+import { zhCN } from "react-day-picker/locale";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Field, FieldLabel } from "@/components/ui/field";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  clampDateTime,
+  formatLocalDateTime,
+  getDateTimeWindow,
+  getDayTimeRange,
+  isDateTimeAllowed,
+  padTimePart,
+  parseLocalDateTime,
+  type DateTimeLimits,
+} from "@/lib/date-time";
+import { cn } from "@/lib/utils";
 
-export interface DateTimePickerProps {
+export interface DateTimePickerProps
+  extends
+    DateTimeLimits,
+    Pick<ComponentProps<"button">, "aria-invalid" | "aria-describedby"> {
   /** 本地时间字符串；保留该格式以兼容现有表单校验与提交转换。 */
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
-  min?: string;
   id?: string;
   className?: string;
 }
 
-const LOCAL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+const HOURS = Array.from({ length: 24 }, (_, hour) => ({
+  value: padTimePart(hour),
+  label: `${padTimePart(hour)} 时`,
+}));
+const MINUTES = Array.from({ length: 60 }, (_, minute) => ({
+  value: padTimePart(minute),
+  label: `${padTimePart(minute)} 分`,
+}));
 
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
-}
-
-function parseLocalDateTime(value: string): Date | undefined {
-  const match = LOCAL_DATE_TIME_PATTERN.exec(value);
-  if (!match) {
-    return undefined;
-  }
-
-  const [, year, month, day, hour, minute] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-  if (
-    date.getFullYear() !== Number(year) ||
-    date.getMonth() !== Number(month) - 1 ||
-    date.getDate() !== Number(day) ||
-    date.getHours() !== Number(hour) ||
-    date.getMinutes() !== Number(minute)
-  ) {
-    return undefined;
-  }
-  return date;
-}
-
-function formatValue(date: Date, time: string): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${time}`;
-}
-
-function sameLocalDay(left: Date, right: Date): boolean {
-  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
-}
-
-/** Calendar 负责日期、原生 time 输入负责时间，但对外始终维持既有本地字符串契约。 */
-export const DateTimePicker = forwardRef<HTMLButtonElement, DateTimePickerProps>(function DateTimePicker(
-  { value, onChange, disabled = false, min, id, className },
-  ref
+/** 日历和时分选项都遵守同一时间窗口；保留本地字符串的提交契约。 */
+export const DateTimePicker = forwardRef<
+  HTMLButtonElement,
+  DateTimePickerProps
+>(function DateTimePicker(
+  {
+    value,
+    onChange,
+    disabled = false,
+    min,
+    max,
+    minHours,
+    maxDays,
+    id,
+    className,
+    "aria-invalid": invalid,
+    "aria-describedby": describedBy,
+  },
+  ref,
 ) {
+  const generatedId = useId();
+  const timeId = `${id ?? generatedId}-time`;
   const [open, setOpen] = useState(false);
-  const selected = useMemo(() => parseLocalDateTime(value), [value]);
-  const minimum = useMemo(() => parseLocalDateTime(min ?? ''), [min]);
-  const time = selected ? `${pad(selected.getHours())}:${pad(selected.getMinutes())}` : '';
-  const minimumDay = minimum ? new Date(minimum.getFullYear(), minimum.getMonth(), minimum.getDate()) : undefined;
-  const minimumTime = selected && minimum && sameLocalDay(selected, minimum) ? `${pad(minimum.getHours())}:${pad(minimum.getMinutes())}` : undefined;
+  const [draftValue, setDraftValue] = useState(value);
+  const [now, setNow] = useState(Date.now);
+  const saved = useMemo(() => parseLocalDateTime(value), [value]);
+  const selected = useMemo(() => parseLocalDateTime(draftValue), [draftValue]);
+  const window = useMemo(
+    () => getDateTimeWindow({ min, max, minHours, maxDays }, now),
+    [min, max, minHours, maxDays, now],
+  );
+  const range = selected ? getDayTimeRange(selected, window) : undefined;
+  const hour = selected ? padTimePart(selected.getHours()) : null;
+  const minute = selected ? padTimePart(selected.getMinutes()) : null;
+  const hourAvailable = (candidate: number) =>
+    Boolean(
+      range && candidate * 60 <= range.max && candidate * 60 + 59 >= range.min,
+    );
+  const minuteAvailable = (candidate: number) =>
+    Boolean(
+      range &&
+      selected &&
+      selected.getHours() * 60 + candidate >= range.min &&
+      selected.getHours() * 60 + candidate <= range.max,
+    );
+  const allowed = selected && isDateTimeAllowed(selected, window);
 
-  const displayValue = selected ? `${selected.getFullYear()}年${pad(selected.getMonth() + 1)}月${pad(selected.getDate())}日 ${time}` : '选择日期时间';
+  // 弹窗打开时跟随时钟更新，停留较久也不能选到已过期的边界分钟。
+  useEffect(() => {
+    if (!open || (minHours === undefined && maxDays === undefined)) {
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      timer = setTimeout(
+        () => {
+          setNow(Date.now());
+          schedule();
+        },
+        60_000 - (Date.now() % 60_000) + 1,
+      );
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, [open, minHours, maxDays]);
+
+  const selectDate = (date: Date) => {
+    const currentNow = Date.now();
+    setNow(currentNow);
+    const currentWindow = getDateTimeWindow(
+      { min, max, minHours, maxDays },
+      currentNow,
+    );
+    const next = clampDateTime(date, currentWindow);
+    if (next && isDateTimeAllowed(next, currentWindow)) {
+      setDraftValue(formatLocalDateTime(next));
+    }
+  };
+  const defaultMonth = selected ? clampDateTime(selected, window) : window.min;
+  const displayValue = saved
+    ? `${saved.getFullYear()}年${padTimePart(saved.getMonth() + 1)}月${padTimePart(saved.getDate())}日 ${padTimePart(saved.getHours())}:${padTimePart(saved.getMinutes())}`
+    : "选择日期时间";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setNow(Date.now());
+        if (next) {
+          setDraftValue(value);
+        }
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger
         render={
           <Button
             ref={ref}
             id={id}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
             type="button"
             variant="outline"
             disabled={disabled}
-            className={cn('w-full justify-start font-normal', !selected && 'text-muted-foreground', className)}
+            className={cn(
+              "w-full justify-start font-normal",
+              !saved && "text-muted-foreground",
+              className,
+            )}
           />
         }
       >
@@ -88,54 +177,167 @@ export const DateTimePicker = forwardRef<HTMLButtonElement, DateTimePickerProps>
           mode="single"
           locale={zhCN}
           selected={selected}
-          defaultMonth={selected ?? minimum}
-          disabled={disabled ? true : minimumDay ? { before: minimumDay } : undefined}
+          defaultMonth={defaultMonth}
+          startMonth={window.min}
+          endMonth={window.max}
+          disabled={disabled ? true : (date) => !getDayTimeRange(date, window)}
           onSelect={(date) => {
-            if (date) {
-              onChange(formatValue(date, time || '00:00'));
+            if (date && getDayTimeRange(date, window)) {
+              const candidate = new Date(date);
+              candidate.setHours(
+                selected?.getHours() ?? new Date(now).getHours(),
+                selected?.getMinutes() ?? new Date(now).getMinutes(),
+              );
+              selectDate(candidate);
             }
           }}
         />
-        <div className="flex items-end gap-2 px-3 pb-3">
-          <Field className="flex-1">
-            <FieldLabel htmlFor={id ? `${id}-time` : undefined}>时间</FieldLabel>
-            <Input
-              id={id ? `${id}-time` : undefined}
-              type="time"
-              value={time}
-              min={minimumTime}
-              disabled={disabled || !selected}
-              onChange={(event) => {
-                if (!event.target.value) {
-                  onChange('');
-                } else if (selected) {
-                  onChange(formatValue(selected, event.target.value));
+        <div className="px-3 pb-3">
+          <Field
+            className="flex-1"
+            data-disabled={disabled || !selected || undefined}
+          >
+            <FieldLabel htmlFor={`${timeId}-hour`} className="font-normal">
+              时间
+            </FieldLabel>
+            <div className="flex gap-2">
+              <Select
+                value={hour}
+                disabled={disabled || !selected || !range}
+                items={[{ value: null, label: "时" }, ...HOURS]}
+                onValueChange={(next) => {
+                  if (
+                    selected &&
+                    next !== null &&
+                    hourAvailable(Number(next))
+                  ) {
+                    const nextRange = getDayTimeRange(
+                      selected,
+                      getDateTimeWindow(
+                        { min, max, minHours, maxDays },
+                        Date.now(),
+                      ),
+                    );
+                    if (!nextRange) {
+                      return;
+                    }
+                    const minutes = Math.min(
+                      nextRange.max,
+                      Math.max(
+                        nextRange.min,
+                        Number(next) * 60 + selected.getMinutes(),
+                      ),
+                    );
+                    const candidate = parseLocalDateTime(
+                      `${formatLocalDateTime(selected).slice(0, 11)}${padTimePart(Math.floor(minutes / 60))}:${padTimePart(minutes % 60)}`,
+                    );
+                    if (candidate) {
+                      selectDate(candidate);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger
+                  id={`${timeId}-hour`}
+                  aria-label="小时"
+                  className="flex-1"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {HOURS.map((item) => (
+                      <SelectItem
+                        key={item.value}
+                        value={item.value}
+                        disabled={!hourAvailable(Number(item.value))}
+                      >
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Select
+                value={minute}
+                disabled={
+                  disabled || !selected || !hourAvailable(selected.getHours())
                 }
-              }}
-            />
+                items={[{ value: null, label: "分" }, ...MINUTES]}
+                onValueChange={(next) => {
+                  if (
+                    selected &&
+                    next !== null &&
+                    minuteAvailable(Number(next))
+                  ) {
+                    const candidate = parseLocalDateTime(
+                      `${formatLocalDateTime(selected).slice(0, 14)}${next}`,
+                    );
+                    if (candidate) {
+                      selectDate(candidate);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger aria-label="分钟" className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {MINUTES.map((item) => (
+                      <SelectItem
+                        key={item.value}
+                        value={item.value}
+                        disabled={!minuteAvailable(Number(item.value))}
+                      >
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </Field>
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t p-3">
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            disabled={disabled || !value}
+            size="sm"
+            disabled={disabled || (!value && !draftValue)}
             aria-label="清空日期时间"
             onClick={() => {
-              onChange('');
-            }}
-          >
-            <X />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            disabled={disabled || !selected}
-            aria-label="完成日期时间选择"
-            onClick={() => {
+              setDraftValue("");
+              onChange("");
               setOpen(false);
             }}
           >
-            <Clock />
+            清空
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !allowed}
+            aria-label="确定日期时间"
+            onClick={() => {
+              const currentNow = Date.now();
+              setNow(currentNow);
+              if (
+                selected &&
+                isDateTimeAllowed(
+                  selected,
+                  getDateTimeWindow(
+                    { min, max, minHours, maxDays },
+                    currentNow,
+                  ),
+                )
+              ) {
+                onChange(formatLocalDateTime(selected));
+                setOpen(false);
+              }
+            }}
+          >
+            确定
           </Button>
         </div>
       </PopoverContent>

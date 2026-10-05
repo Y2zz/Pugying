@@ -93,6 +93,8 @@ export interface ContentTargetOverrides {
   scheduledAt?: string;
   visibility?: ContentVisibility;
   allowDownload?: boolean;
+  articleSettings?: import('./article-settings').ArticleAccountSettings;
+  authorDeclaration?: import('./author-declaration').AuthorDeclaration;
   /** 地点（如小红书图文） */
   location?: string;
   /** 分区等无稳定枚举的扩展文案（如哔哩哔哩） */

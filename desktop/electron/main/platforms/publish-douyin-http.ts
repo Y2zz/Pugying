@@ -78,8 +78,8 @@ export async function runDouyinHttpPublish(options: {
     const videoPath = payload.mediaPath?.trim() ?? '';
     const coverPath = payload.coverPath?.trim() ?? '';
     const coverLandscapePath = payload.coverLandscapePath?.trim() ?? '';
-    if (!videoPath || !coverPath || !coverLandscapePath) {
-      return fail(base, 'invalid_payload', '短视频发布缺少视频或双封面路径');
+    if (!videoPath) {
+      return fail(base, 'invalid_payload', '请先选择视频文件');
     }
     const media: DouyinHttpMediaFiles = {
       videoPath,
@@ -88,8 +88,10 @@ export async function runDouyinHttpPublish(options: {
     };
     await Promise.all([
       assertReadable(media.videoPath),
-      assertReadable(media.coverPath),
-      assertReadable(media.coverLandscapePath),
+      ...(media.coverPath ? [assertReadable(media.coverPath)] : []),
+      ...(media.coverLandscapePath
+        ? [assertReadable(media.coverLandscapePath)]
+        : []),
     ]);
 
     if (signal.cancelled) {

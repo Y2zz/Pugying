@@ -1,21 +1,21 @@
-export type AgentConnectionStatus = 'connected' | 'disconnected' | 'connecting';
+export type AgentConnectionStatus = "connected" | "disconnected" | "connecting";
 
 export type AgentMessageType =
-  | 'agent.hello'
-  | 'agent.ping'
-  | 'agent.pong'
-  | 'platform.auth.start'
-  | 'platform.auth.progress'
-  | 'platform.auth.result'
-  | 'platform.auth.cancel'
-  | 'platform.open.start'
-  | 'platform.open.result'
-  | 'platform.open.closed'
-  | 'platform.publish.start'
-  | 'platform.publish.progress'
-  | 'platform.publish.result'
-  | 'platform.publish.cancel'
-  | 'error';
+  | "agent.hello"
+  | "agent.ping"
+  | "agent.pong"
+  | "platform.auth.start"
+  | "platform.auth.progress"
+  | "platform.auth.result"
+  | "platform.auth.cancel"
+  | "platform.open.start"
+  | "platform.open.result"
+  | "platform.open.closed"
+  | "platform.publish.start"
+  | "platform.publish.progress"
+  | "platform.publish.result"
+  | "platform.publish.cancel"
+  | "error";
 
 export interface AgentEnvelope<T = unknown> {
   type: AgentMessageType;
@@ -56,14 +56,12 @@ export interface PlatformAuthResult {
   platform?: string;
   cookies?: AgentCookie[];
   finalUrl?: string;
-  source?: 'auto' | 'manual';
+  source?: "auto" | "manual";
   profile?: AgentProfile;
 }
 
 export type PlatformAuthProgressPhase =
-  | 'window_opened'
-  | 'awaiting_login'
-  | 'finishing';
+  "window_opened" | "awaiting_login" | "finishing";
 
 export interface PlatformAuthProgress {
   requestId: string;
@@ -76,7 +74,7 @@ export interface PlatformOpenResult {
   accountId: string;
   ok: boolean;
   /** 'opened' = new window, 'focused' = existing window brought to front */
-  status?: 'opened' | 'focused';
+  status?: "opened" | "focused";
   error?: string;
   platform?: string;
 }
@@ -92,19 +90,19 @@ export interface CreatorWindowClosedEvent {
 }
 
 export type PlatformPublishProgressPhase =
-  | 'accepted'
-  | 'fetching_media'
-  | 'opening_creator'
-  | 'uploading'
-  | 'submitting'
-  | 'done';
+  | "accepted"
+  | "fetching_media"
+  | "opening_creator"
+  | "uploading"
+  | "submitting"
+  | "done";
 
 export interface PlatformPublishStartInput {
   targetId: string;
   platform: string;
   accountId: string;
   /** 缺省 video；图文传 article */
-  contentType?: 'video' | 'article' | 'graphic';
+  contentType?: "video" | "article" | "graphic";
   /** 视频本机路径；图文可省略 */
   mediaPath?: string;
   /** 图文多图本机路径 */
@@ -112,8 +110,12 @@ export interface PlatformPublishStartInput {
   coverPath: string;
   /** 横封面；图文可不传 */
   coverLandscapePath?: string;
+  articleCoverPaths?: string[];
   title: string;
   body?: string;
+  tags?: string[];
+  articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
+  authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
   visibility?: string;
   scheduledAt?: string;
   allowDownload?: boolean;
@@ -144,11 +146,18 @@ export type PugyingDesktopBridge = {
   available: true;
   postMessage: (message: unknown) => void;
   onMessage: (callback: (message: unknown) => void) => () => void;
+  getToutiaoRewardPrivilege?: (
+    accountId: string,
+  ) => Promise<
+    import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
+  >;
   getApiBaseUrl?: () => Promise<string>;
   getLocalApiToken?: () => Promise<string>;
-  getWindowChrome?: () => Promise<import('@shared/window-chrome').DesktopWindowChromeInfo>;
+  getWindowChrome?: () => Promise<
+    import("@shared/window-chrome").DesktopWindowChromeInfo
+  >;
   setTitleBarOverlay?: (
-    theme: import('@shared/window-chrome').TitleBarOverlayTheme,
+    theme: import("@shared/window-chrome").TitleBarOverlayTheme,
   ) => Promise<boolean>;
   showAppWindow?: () => Promise<void>;
   quitApp?: () => Promise<void>;
@@ -159,7 +168,10 @@ export type PugyingDesktopBridge = {
   /** 读取本机图片供编辑器预览；失败时返回 null */
   readLocalImageDataUrl?: (absPath: string) => Promise<string | null>;
   /** 编辑后的正文图片另存；用户取消时返回 null */
-  saveArticleImage?: (dataUrl: string, sourcePath: string) => Promise<string | null>;
+  saveArticleImage?: (
+    dataUrl: string,
+    sourcePath: string,
+  ) => Promise<string | null>;
   /** Electron 32+：从 File 取本机绝对路径（选片/拖拽通用） */
   getPathForFile?: (file: File) => string;
 };
@@ -173,7 +185,7 @@ type EnvelopeListener = (message: AgentEnvelope) => void;
 function parse(raw: string): AgentEnvelope | null {
   try {
     const data = JSON.parse(raw) as AgentEnvelope;
-    if (!data || typeof data.type !== 'string') {
+    if (!data || typeof data.type !== "string") {
       return null;
     }
     return data;
@@ -183,17 +195,21 @@ function parse(raw: string): AgentEnvelope | null {
 }
 
 function createId(prefix: string): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function coerceEnvelope(raw: unknown): AgentEnvelope | null {
-  if (typeof raw === 'string') {
+  if (typeof raw === "string") {
     return parse(raw);
   }
-  if (raw && typeof raw === 'object' && typeof (raw as AgentEnvelope).type === 'string') {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    typeof (raw as AgentEnvelope).type === "string"
+  ) {
     return raw as AgentEnvelope;
   }
   return null;
@@ -202,7 +218,7 @@ function coerceEnvelope(raw: unknown): AgentEnvelope | null {
 /** 桌面一体：主窗 preload 注入；纯浏览器为 undefined */
 export function getPugyingDesktopBridge(): PugyingDesktopBridge | null {
   const root =
-    typeof globalThis !== 'undefined'
+    typeof globalThis !== "undefined"
       ? (globalThis as typeof globalThis & {
           window?: Window & { pugyingDesktop?: PugyingDesktopBridge };
           pugyingDesktop?: PugyingDesktopBridge;
@@ -214,13 +230,14 @@ export function getPugyingDesktopBridge(): PugyingDesktopBridge | null {
   const bridge =
     root.pugyingDesktop ??
     root.window?.pugyingDesktop ??
-    (typeof window !== 'undefined'
-      ? (window as Window & { pugyingDesktop?: PugyingDesktopBridge }).pugyingDesktop
+    (typeof window !== "undefined"
+      ? (window as Window & { pugyingDesktop?: PugyingDesktopBridge })
+          .pugyingDesktop
       : undefined);
   if (
     bridge?.available === true &&
-    typeof bridge.postMessage === 'function' &&
-    typeof bridge.onMessage === 'function'
+    typeof bridge.postMessage === "function" &&
+    typeof bridge.onMessage === "function"
   ) {
     return bridge;
   }
@@ -228,14 +245,15 @@ export function getPugyingDesktopBridge(): PugyingDesktopBridge | null {
 }
 
 class AgentClient {
-  private transport: 'none' | 'ipc' = 'none';
+  private transport: "none" | "ipc" = "none";
   private desktopUnsub: (() => void) | null = null;
-  private status: AgentConnectionStatus = 'disconnected';
+  private status: AgentConnectionStatus = "disconnected";
   private hello: AgentHelloPayload | null = null;
   private readonly statusListeners = new Set<StatusListener>();
   private readonly helloListeners = new Set<HelloListener>();
   private readonly creatorClosedListeners = new Set<CreatorClosedListener>();
-  private readonly publishProgressListeners = new Set<PublishProgressListener>();
+  private readonly publishProgressListeners =
+    new Set<PublishProgressListener>();
   private readonly envelopeListeners = new Set<EnvelopeListener>();
   private pingSeq = 0;
 
@@ -295,7 +313,7 @@ class AgentClient {
       return;
     }
     this.setHello(null);
-    this.setStatus('disconnected');
+    this.setStatus("disconnected");
   }
 
   disconnect(): void {
@@ -303,9 +321,9 @@ class AgentClient {
       this.desktopUnsub();
       this.desktopUnsub = null;
     }
-    this.transport = 'none';
+    this.transport = "none";
     this.setHello(null);
-    this.setStatus('disconnected');
+    this.setStatus("disconnected");
   }
 
   ping(): Promise<boolean> {
@@ -317,7 +335,7 @@ class AgentClient {
 
       const id = `ping-${++this.pingSeq}`;
       const cleanup = this.onEnvelope((message) => {
-        if (message.type === 'agent.pong' && message.id === id) {
+        if (message.type === "agent.pong" && message.id === id) {
           cleanup();
           clearTimeout(timer);
           resolve(true);
@@ -328,7 +346,7 @@ class AgentClient {
         resolve(false);
       }, 3000);
 
-      this.sendEnvelope({ type: 'agent.ping', id });
+      this.sendEnvelope({ type: "agent.ping", id });
     });
   }
 
@@ -341,23 +359,23 @@ class AgentClient {
   }): Promise<PlatformAuthResult> {
     return new Promise((resolve, reject) => {
       if (!this.isTransportOpen()) {
-        reject(new Error('应用未就绪'));
+        reject(new Error("应用未就绪"));
         return;
       }
 
-      const requestId = input.requestId ?? createId('auth');
-      const messageId = createId('msg');
+      const requestId = input.requestId ?? createId("auth");
+      const messageId = createId("msg");
       const timeoutMs = input.timeoutMs ?? 10 * 60 * 1000;
 
       const cleanup = this.onEnvelope((message) => {
-        if (message.type === 'platform.auth.progress') {
+        if (message.type === "platform.auth.progress") {
           const progress = message.payload as PlatformAuthProgress | undefined;
           if (progress?.requestId === requestId) {
             input.onProgress?.(progress);
           }
           return;
         }
-        if (message.type !== 'platform.auth.result') {
+        if (message.type !== "platform.auth.result") {
           return;
         }
         const payload = message.payload as PlatformAuthResult | undefined;
@@ -372,11 +390,11 @@ class AgentClient {
       const timer = setTimeout(() => {
         cleanup();
         void this.cancelPlatformAuth(requestId);
-        reject(new Error('授权超时'));
+        reject(new Error("授权超时"));
       }, timeoutMs);
 
       this.sendEnvelope({
-        type: 'platform.auth.start',
+        type: "platform.auth.start",
         id: messageId,
         payload: {
           requestId,
@@ -394,7 +412,7 @@ class AgentClient {
         return;
       }
       this.sendEnvelope({
-        type: 'platform.auth.cancel',
+        type: "platform.auth.cancel",
         payload: { requestId },
       });
       resolve();
@@ -416,16 +434,16 @@ class AgentClient {
   }): Promise<PlatformOpenResult> {
     return new Promise((resolve, reject) => {
       if (!this.isTransportOpen()) {
-        reject(new Error('应用未就绪'));
+        reject(new Error("应用未就绪"));
         return;
       }
 
-      const requestId = createId('open');
-      const messageId = createId('msg');
+      const requestId = createId("open");
+      const messageId = createId("msg");
       const timeoutMs = input.timeoutMs ?? 30 * 1000;
 
       const cleanup = this.onEnvelope((message) => {
-        if (message.type !== 'platform.open.result') {
+        if (message.type !== "platform.open.result") {
           return;
         }
         const payload = message.payload as PlatformOpenResult | undefined;
@@ -439,11 +457,11 @@ class AgentClient {
 
       const timer = setTimeout(() => {
         cleanup();
-        reject(new Error('打开创作者中心超时'));
+        reject(new Error("打开创作者中心超时"));
       }, timeoutMs);
 
       this.sendEnvelope({
-        type: 'platform.open.start',
+        type: "platform.open.start",
         id: messageId,
         payload: {
           requestId,
@@ -467,16 +485,16 @@ class AgentClient {
   ): Promise<PlatformPublishResult> {
     return new Promise((resolve, reject) => {
       if (!this.isTransportOpen()) {
-        reject(new Error('应用未就绪'));
+        reject(new Error("应用未就绪"));
         return;
       }
 
-      const requestId = createId('pub');
-      const messageId = createId('msg');
+      const requestId = createId("pub");
+      const messageId = createId("msg");
       const timeoutMs = options?.timeoutMs ?? 15 * 60 * 1000;
 
       const cleanup = this.onEnvelope((message) => {
-        if (message.type !== 'platform.publish.result') {
+        if (message.type !== "platform.publish.result") {
           return;
         }
         const payload = message.payload as PlatformPublishResult | undefined;
@@ -491,11 +509,11 @@ class AgentClient {
       const timer = setTimeout(() => {
         cleanup();
         void this.cancelPublish(requestId);
-        reject(new Error('发布超时'));
+        reject(new Error("发布超时"));
       }, timeoutMs);
 
       this.sendEnvelope({
-        type: 'platform.publish.start',
+        type: "platform.publish.start",
         id: messageId,
         payload: {
           requestId,
@@ -507,8 +525,12 @@ class AgentClient {
           mediaPaths: input.mediaPaths,
           coverPath: input.coverPath,
           coverLandscapePath: input.coverLandscapePath,
+          articleCoverPaths: input.articleCoverPaths,
           title: input.title,
           body: input.body,
+          tags: input.tags,
+          authorDeclaration: input.authorDeclaration,
+          articleSettings: input.articleSettings,
           visibility: input.visibility,
           scheduledAt: input.scheduledAt,
           allowDownload: input.allowDownload,
@@ -525,7 +547,7 @@ class AgentClient {
         return;
       }
       this.sendEnvelope({
-        type: 'platform.publish.cancel',
+        type: "platform.publish.cancel",
         payload: { requestId },
       });
       resolve();
@@ -533,11 +555,11 @@ class AgentClient {
   }
 
   private connectIpc(desktop: PugyingDesktopBridge): void {
-    if (this.transport === 'ipc' && this.desktopUnsub) {
+    if (this.transport === "ipc" && this.desktopUnsub) {
       return;
     }
-    this.setStatus('connecting');
-    this.transport = 'ipc';
+    this.setStatus("connecting");
+    this.transport = "ipc";
     this.desktopUnsub = desktop.onMessage((raw) => {
       const message = coerceEnvelope(raw);
       if (!message) {
@@ -546,15 +568,15 @@ class AgentClient {
       this.handleIncoming(message);
     });
     // hello 可能在订阅前被主进程推过；首 ping 触发 IPC 侧补发 hello
-    this.setStatus('connected');
-    this.sendEnvelope({ type: 'agent.ping', id: 'ipc-hello-sync' });
+    this.setStatus("connected");
+    this.sendEnvelope({ type: "agent.ping", id: "ipc-hello-sync" });
   }
 
   private handleIncoming(message: AgentEnvelope): void {
-    if (message.type === 'agent.hello') {
+    if (message.type === "agent.hello") {
       this.setHello((message.payload as AgentHelloPayload) ?? null);
     }
-    if (message.type === 'platform.open.closed') {
+    if (message.type === "platform.open.closed") {
       const payload = message.payload as CreatorWindowClosedEvent | undefined;
       if (payload?.accountId) {
         for (const listener of this.creatorClosedListeners) {
@@ -562,7 +584,7 @@ class AgentClient {
         }
       }
     }
-    if (message.type === 'platform.publish.progress') {
+    if (message.type === "platform.publish.progress") {
       const payload = message.payload as PlatformPublishProgress | undefined;
       if (payload?.requestId) {
         for (const listener of this.publishProgressListeners) {
@@ -583,14 +605,14 @@ class AgentClient {
   }
 
   private isTransportOpen(): boolean {
-    if (this.transport === 'ipc') {
-      return this.desktopUnsub !== null && this.status === 'connected';
+    if (this.transport === "ipc") {
+      return this.desktopUnsub !== null && this.status === "connected";
     }
     return false;
   }
 
   private sendEnvelope(message: AgentEnvelope): void {
-    if (this.transport === 'ipc') {
+    if (this.transport === "ipc") {
       getPugyingDesktopBridge()?.postMessage(message);
       return;
     }

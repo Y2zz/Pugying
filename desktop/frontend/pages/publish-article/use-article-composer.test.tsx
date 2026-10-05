@@ -168,7 +168,7 @@ it("saves normalized common and account titles, preserving separators and emoji"
       targets: [
         {
           platformAccountId: account.id,
-          overrides: { title: "独立 标题✨👩‍💻" },
+          overrides: expect.objectContaining({ title: "独立 标题✨👩‍💻" }),
         },
       ],
     }),

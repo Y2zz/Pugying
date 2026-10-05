@@ -33,6 +33,23 @@ export async function extractCoverFromVideoFile(
   }
 }
 
+/** 选择视频时先读取时长，避免超出平台限制后仍进入发布流程。 */
+export async function readVideoDuration(file: File): Promise<number> {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = await loadVideo(url);
+    const duration = video.duration;
+    video.removeAttribute('src');
+    video.load();
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error('无法读取视频时长');
+    }
+    return duration;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /**
  * 一次加载视频，同时导出竖版（3:4）与横版（4:3）封面。
  */
@@ -218,20 +235,18 @@ export type FilmThumbProgress = {
  * 可传入已有 `video`（如 scrub 实例）以避免双开解码；未传则按 videoUrl 自建并在结束时释放。
  * 每格按封面比例裁切；采样时刻与选框 time↔x 映射一致；输出 blob URL。
  */
-export async function generateFilmstripThumbnails(
-  options: {
-    videoUrl?: string;
-    /** 复用已有 video 时不在此 dispose（由调用方管理生命周期） */
-    video?: HTMLVideoElement;
-    trackWidthPx: number;
-    thumbHeightPx: number;
-    coverRatio: number;
-    /** 与悬浮选框同宽，保证取时映射一致 */
-    selW: number;
-    signal?: AbortSignal;
-    onThumb?: (thumb: FilmThumbProgress) => void;
-  },
-): Promise<{
+export async function generateFilmstripThumbnails(options: {
+  videoUrl?: string;
+  /** 复用已有 video 时不在此 dispose（由调用方管理生命周期） */
+  video?: HTMLVideoElement;
+  trackWidthPx: number;
+  thumbHeightPx: number;
+  coverRatio: number;
+  /** 与悬浮选框同宽，保证取时映射一致 */
+  selW: number;
+  signal?: AbortSignal;
+  onThumb?: (thumb: FilmThumbProgress) => void;
+}): Promise<{
   duration: number;
   widths: number[];
   count: number;
@@ -253,10 +268,7 @@ export async function generateFilmstripThumbnails(
 
   const ownsVideo = !sharedVideo;
   const video =
-    sharedVideo ??
-    (videoUrl?.trim()
-      ? await loadVideo(videoUrl.trim())
-      : null);
+    sharedVideo ?? (videoUrl?.trim() ? await loadVideo(videoUrl.trim()) : null);
   if (!video) {
     throw new Error('缺少视频源');
   }
@@ -511,8 +523,7 @@ function loadVideo(url: string): Promise<HTMLVideoElement> {
       }
       // 等到可解码且 duration 可用，避免胶片轨 duration=0 导致选框不出现
       const hasSize = video.videoWidth > 0 && video.videoHeight > 0;
-      const hasDuration =
-        Number.isFinite(video.duration) && video.duration > 0;
+      const hasDuration = Number.isFinite(video.duration) && video.duration > 0;
       if (
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         hasSize &&

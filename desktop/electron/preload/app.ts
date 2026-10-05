@@ -10,6 +10,8 @@ import type {
 
 const pugyingDesktop = {
   available: true as const,
+  getToutiaoRewardPrivilege: (accountId: string): Promise<import('@shared/toutiao-article-privileges').ToutiaoRewardPrivilege | null> =>
+    ipcRenderer.invoke(DESKTOP_IPC.getToutiaoRewardPrivilege, accountId),
   postMessage: (message: unknown) => {
     ipcRenderer.send(DESKTOP_IPC.message, message);
   },

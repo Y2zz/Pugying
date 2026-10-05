@@ -1,5 +1,6 @@
 import {
   centeredImageCrop,
+  fitCropImage,
   moveImageCrop,
   resizeImageCrop,
 } from './article-image-crop';
@@ -44,4 +45,44 @@ it('keeps the opposite corner fixed when resizing a free crop', () => {
   expect(reverse.w).toBeGreaterThan(0);
   expect(reverse.h).toBeGreaterThan(0);
   expect(reverse.x + reverse.w).toBeCloseTo(0.75);
+});
+
+it('shrinks a locked crop with horizontal or vertical movement while retaining the opposite corner', () => {
+  const crop = { x: 0.1, y: 0.1, w: 0.6, h: 0.6 };
+  const horizontal = resizeImageCrop(crop, 'se', { x: 0.5, y: 0.7 }, 1);
+  const vertical = resizeImageCrop(crop, 'se', { x: 0.7, y: 0.5 }, 1);
+  for (const next of [horizontal, vertical]) {
+    expect(next.w).toBeLessThan(crop.w);
+    expect(next.h).toBeLessThan(crop.h);
+    expect(next.w / next.h).toBeCloseTo(1);
+    expect(next.x).toBe(crop.x);
+    expect(next.y).toBe(crop.y);
+  }
+});
+
+it.each([
+  [1200, 800, 480, 320],
+  [800, 1200, 480, 320],
+  [8000, 100, 360, 240],
+  [100, 8000, 360, 240],
+])(
+  'fits a %s by %s image inside the viewport without changing its ratio',
+  (width, height, viewportWidth, viewportHeight) => {
+    const result = fitCropImage(
+      { width, height },
+      { width: viewportWidth, height: viewportHeight },
+    );
+    expect(result.width / result.height).toBeCloseTo(width / height);
+    expect(result.width).toBeLessThanOrEqual(viewportWidth);
+    expect(result.height).toBeLessThanOrEqual(viewportHeight);
+  },
+);
+
+it('waits for image and viewport dimensions before sizing the crop surface', () => {
+  expect(
+    fitCropImage({ width: 0, height: 0 }, { width: 400, height: 300 }),
+  ).toEqual({ width: 0, height: 0 });
+  expect(
+    fitCropImage({ width: 800, height: 600 }, { width: 0, height: 0 }),
+  ).toEqual({ width: 0, height: 0 });
 });

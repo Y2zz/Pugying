@@ -1,3 +1,4 @@
+import { ArticleAccountSettingsDto } from './article-account-settings.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
@@ -11,10 +12,17 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CONTENT_VISIBILITIES } from '../../domain/content-types';
+import { AUTHOR_DECLARATIONS, type AuthorDeclaration } from '../../domain/author-declaration';
 import { Type } from 'class-transformer';
 
 /** 针对单个账号的差异字段；封面差异走独立 BLOB 接口，不在此 DTO */
 export class TargetOverridesDto {
+  @ApiPropertyOptional({ type: ArticleAccountSettingsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ArticleAccountSettingsDto)
+  articleSettings?: ArticleAccountSettingsDto;
+
   @ApiPropertyOptional({ description: '标题（差异）' })
   @IsOptional()
   @IsString()
@@ -47,6 +55,11 @@ export class TargetOverridesDto {
   @IsOptional()
   @IsBoolean()
   allowDownload?: boolean;
+
+  @ApiPropertyOptional({ description: '自主声明（抖音图文）', enum: AUTHOR_DECLARATIONS })
+  @IsOptional()
+  @IsIn([...AUTHOR_DECLARATIONS])
+  authorDeclaration?: AuthorDeclaration;
 
   @ApiPropertyOptional({ description: '地点（按账号，如小红书）' })
   @IsOptional()

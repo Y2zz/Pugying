@@ -278,6 +278,8 @@ export function ArticleBulkEditDialog({
                 {values.scheduleMode === 'scheduled' ? (
                   <DateTimePicker
                     id="bulk-schedule"
+                    minHours={caps.schedule.minHours}
+                    maxDays={caps.schedule.maxDays}
                     value={values.scheduledLocal}
                     onChange={(scheduledLocal) => {
                       change('schedule', { scheduledLocal });
@@ -378,7 +380,7 @@ function BulkRow({
         }}
       />
       <FieldContent className="gap-2">
-        <FieldLabel htmlFor={checkboxId}>{label}</FieldLabel>
+        <FieldLabel htmlFor={checkboxId} className="font-normal">{label}</FieldLabel>
         {children}
         {error ? (
           <FieldError>{error}</FieldError>

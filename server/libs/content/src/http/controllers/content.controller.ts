@@ -5,6 +5,8 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  ParseIntPipe,
+  BadRequestException,
   Patch,
   Post,
   Put,
@@ -14,19 +16,9 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBody,
-  ApiConsumes,
-  ApiOperation,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import {
-  CreateContentDto,
-  ReportPublishResultDto,
-  UpdateContentDto,
-} from '@pugying/content/application/dtos';
+import { CreateContentDto, ReportPublishResultDto, UpdateContentDto } from '@pugying/content/application/dtos';
 import { ContentPublishService } from '@pugying/content/application/services/content-publish.service';
 import { ContentService } from '@pugying/content/application/services/content.service';
 
@@ -52,15 +44,9 @@ export class ContentController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'pageSize', required: false, type: Number, example: 20 })
-  findAll(
-    @Query('type') type?: string,
-    @Query('q') q?: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ) {
+  findAll(@Query('type') type?: string, @Query('q') q?: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
     const parsedPage = page !== undefined && page !== '' ? Number(page) : 1;
-    const parsedPageSize =
-      pageSize !== undefined && pageSize !== '' ? Number(pageSize) : 20;
+    const parsedPageSize = pageSize !== undefined && pageSize !== '' ? Number(pageSize) : 20;
     return this.service.findAll(type, q, parsedPage, parsedPageSize);
   }
 
@@ -72,22 +58,14 @@ export class ContentController {
 
   @Get(':id/cover')
   @ApiOperation({ summary: '竖版封面二进制' })
-  async getCover(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
-  ) {
+  async getCover(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
     return this.streamCover(res, () => this.service.getCoverBinary(id, 'portrait'));
   }
 
   @Get(':id/cover-landscape')
   @ApiOperation({ summary: '横版封面二进制' })
-  async getCoverLandscape(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
-  ) {
-    return this.streamCover(res, () =>
-      this.service.getCoverBinary(id, 'landscape'),
-    );
+  async getCoverLandscape(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+    return this.streamCover(res, () => this.service.getCoverBinary(id, 'landscape'));
   }
 
   @Put(':id/cover')
@@ -104,10 +82,7 @@ export class ContentController {
       limits: { fileSize: 20 * 1024 * 1024 },
     }),
   )
-  putCover(
-    @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: { buffer?: Buffer; mimetype?: string } | undefined,
-  ) {
+  putCover(@Param('id', ParseUUIDPipe) id: string, @UploadedFile() file: { buffer?: Buffer; mimetype?: string } | undefined) {
     return this.service.putCover(id, 'portrait', file);
   }
 
@@ -125,10 +100,7 @@ export class ContentController {
       limits: { fileSize: 20 * 1024 * 1024 },
     }),
   )
-  putCoverLandscape(
-    @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: { buffer?: Buffer; mimetype?: string } | undefined,
-  ) {
+  putCoverLandscape(@Param('id', ParseUUIDPipe) id: string, @UploadedFile() file: { buffer?: Buffer; mimetype?: string } | undefined) {
     return this.service.putCover(id, 'landscape', file);
   }
 
@@ -148,28 +120,16 @@ export class ContentController {
   @ApiOperation({
     summary: '账号差异竖封面；无差异返回 404，前端回落内容级',
   })
-  async getTargetCover(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-    @Res() res: Response,
-  ) {
-    return this.streamCover(res, () =>
-      this.service.getTargetCoverBinary(id, targetId, 'portrait'),
-    );
+  async getTargetCover(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string, @Res() res: Response) {
+    return this.streamCover(res, () => this.service.getTargetCoverBinary(id, targetId, 'portrait'));
   }
 
   @Get(':id/targets/:targetId/cover-landscape')
   @ApiOperation({
     summary: '账号差异横封面；无差异返回 404，前端回落内容级',
   })
-  async getTargetCoverLandscape(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-    @Res() res: Response,
-  ) {
-    return this.streamCover(res, () =>
-      this.service.getTargetCoverBinary(id, targetId, 'landscape'),
-    );
+  async getTargetCoverLandscape(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string, @Res() res: Response) {
+    return this.streamCover(res, () => this.service.getTargetCoverBinary(id, targetId, 'landscape'));
   }
 
   @Put(':id/targets/:targetId/cover')
@@ -206,20 +166,53 @@ export class ContentController {
 
   @Delete(':id/targets/:targetId/cover')
   @ApiOperation({ summary: '清除账号差异竖封面（回落内容级）' })
-  deleteTargetCover(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-  ) {
+  deleteTargetCover(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string) {
     return this.service.deleteTargetCover(id, targetId, 'portrait');
   }
 
   @Delete(':id/targets/:targetId/cover-landscape')
   @ApiOperation({ summary: '清除账号差异横封面（回落内容级）' })
-  deleteTargetCoverLandscape(
+  deleteTargetCoverLandscape(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string) {
+    return this.service.deleteTargetCover(id, targetId, 'landscape');
+  }
+
+  @Get(':id/targets/:targetId/cover-gallery/:index')
+  async getTargetGalleryCover(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('targetId', ParseUUIDPipe) targetId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @Res() res: Response,
   ) {
-    return this.service.deleteTargetCover(id, targetId, 'landscape');
+    const kind = this.galleryKind(index);
+    return this.streamCover(res, () => this.service.getTargetCoverBinary(id, targetId, kind));
+  }
+
+  @Put(':id/targets/:targetId/cover-gallery/:index')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  putTargetGalleryCover(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @UploadedFile() file: { buffer?: Buffer; mimetype?: string } | undefined,
+  ) {
+    return this.service.putTargetCover(id, targetId, this.galleryKind(index), file);
+  }
+
+  @Delete(':id/targets/:targetId/cover-gallery/:index')
+  deleteTargetGalleryCover(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+    @Param('index', ParseIntPipe) index: number,
+  ) {
+    return this.service.deleteTargetCover(id, targetId, this.galleryKind(index));
+  }
+
+  private galleryKind(index: number): 'landscape2' | 'landscape3' {
+    if (index !== 2 && index !== 3) {
+      throw new BadRequestException('封面序号无效');
+    }
+    return index === 2 ? 'landscape2' : 'landscape3';
   }
 
   @Post()
@@ -230,10 +223,7 @@ export class ContentController {
 
   @Patch(':id')
   @ApiOperation({ summary: '更新内容 / 变更状态' })
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateContentDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateContentDto) {
     return this.service.update(id, dto);
   }
 
@@ -253,45 +243,29 @@ export class ContentController {
 
   @Post(':id/targets/:targetId/start')
   @ApiOperation({ summary: '开始执行单个 Target（queued → running）并刷新下发载荷' })
-  startTarget(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-  ) {
+  startTarget(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string) {
     return this.publishService.startTarget(id, targetId);
   }
 
   @Post(':id/targets/:targetId/complete')
   @ApiOperation({ summary: '回写单个 Target 发布结果' })
-  completeTarget(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-    @Body() dto: ReportPublishResultDto,
-  ) {
+  completeTarget(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string, @Body() dto: ReportPublishResultDto) {
     return this.publishService.completeTarget(id, targetId, dto);
   }
 
   @Post(':id/targets/:targetId/cancel')
   @ApiOperation({ summary: '取消单个 Target（queued / running）' })
-  cancelTarget(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-  ) {
+  cancelTarget(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string) {
     return this.publishService.cancelTarget(id, targetId);
   }
 
   @Post(':id/targets/:targetId/retry')
   @ApiOperation({ summary: '重试失败/已取消 Target，返回下发载荷' })
-  retryTarget(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('targetId', ParseUUIDPipe) targetId: string,
-  ) {
+  retryTarget(@Param('id', ParseUUIDPipe) id: string, @Param('targetId', ParseUUIDPipe) targetId: string) {
     return this.publishService.retryTarget(id, targetId);
   }
 
-  private async streamCover(
-    res: Response,
-    loader: () => Promise<{ mime: string; data: Buffer }>,
-  ): Promise<void> {
+  private async streamCover(res: Response, loader: () => Promise<{ mime: string; data: Buffer }>): Promise<void> {
     const cover = await loader();
     res.setHeader('Content-Type', cover.mime);
     res.setHeader('Content-Length', String(cover.data.length));

@@ -272,6 +272,8 @@ export function GraphicBulkEditDialog({
                 {values.scheduleMode === 'scheduled' ? (
                   <DateTimePicker
                     id="bulk-schedule"
+                    minHours={caps.schedule.minHours}
+                    maxDays={caps.schedule.maxDays}
                     value={values.scheduledLocal}
                     onChange={(scheduledLocal) => {
                       change('schedule', { scheduledLocal });

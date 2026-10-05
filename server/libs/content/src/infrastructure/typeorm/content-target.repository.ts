@@ -1,15 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
-import type { ContentCoverKind } from '@pugying/content/domain/repositories/content.repository';
+import { TARGET_COVER_COLUMNS, type ContentTargetCoverKind } from '@pugying/content/domain/repositories/content-target.repository';
 import type { IContentTargetRepository } from '@pugying/content/domain/repositories/content-target.repository';
 import { TypeOrmTransactionContext } from '@pugying/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
 @Injectable()
-export class TypeOrmContentTargetRepository
-  implements IContentTargetRepository
-{
+export class TypeOrmContentTargetRepository implements IContentTargetRepository {
   constructor(
     @InjectRepository(ContentTarget)
     private readonly repository: Repository<ContentTarget>,
@@ -18,9 +16,7 @@ export class TypeOrmContentTargetRepository
   ) {}
 
   private get repo(): Repository<ContentTarget> {
-    return TypeOrmTransactionContext.getManager(this.dataSource).getRepository(
-      ContentTarget,
-    );
+    return TypeOrmTransactionContext.getManager(this.dataSource).getRepository(ContentTarget);
   }
 
   create(data: Partial<ContentTarget>): ContentTarget {
@@ -36,6 +32,8 @@ export class TypeOrmContentTargetRepository
       .createQueryBuilder('target')
       .addSelect('target.coverData')
       .addSelect('target.coverLandscapeData')
+      .addSelect('target.coverLandscape2Data')
+      .addSelect('target.coverLandscape3Data')
       .where('target.id = :id', { id })
       .getOne();
   }
@@ -72,24 +70,15 @@ export class TypeOrmContentTargetRepository
     }
   }
 
-  async setCover(
-    id: string,
-    kind: ContentCoverKind,
-    mime: string,
-    data: Buffer,
-  ): Promise<void> {
-    const patch =
-      kind === 'portrait'
-        ? { coverMime: mime, coverData: data }
-        : { coverLandscapeMime: mime, coverLandscapeData: data };
+  async setCover(id: string, kind: ContentTargetCoverKind, mime: string, data: Buffer): Promise<void> {
+    const [mimeColumn, dataColumn] = TARGET_COVER_COLUMNS[kind];
+    const patch = { [mimeColumn]: mime, [dataColumn]: data };
     await this.repo.update({ id }, patch);
   }
 
-  async clearCover(id: string, kind: ContentCoverKind): Promise<void> {
-    const patch =
-      kind === 'portrait'
-        ? { coverMime: null, coverData: null }
-        : { coverLandscapeMime: null, coverLandscapeData: null };
+  async clearCover(id: string, kind: ContentTargetCoverKind): Promise<void> {
+    const [mimeColumn, dataColumn] = TARGET_COVER_COLUMNS[kind];
+    const patch = { [mimeColumn]: null, [dataColumn]: null };
     await this.repo.update({ id }, patch);
   }
 }
@@ -102,6 +91,11 @@ function omitUndefinedBlobs(target: ContentTarget): ContentTarget {
   }
   if (payload.coverLandscapeData === undefined) {
     delete payload.coverLandscapeData;
+  }
+  for (const column of ['coverLandscape2Data', 'coverLandscape3Data'] as const) {
+    if (payload[column] === undefined) {
+      delete payload[column];
+    }
   }
   return payload as ContentTarget;
 }

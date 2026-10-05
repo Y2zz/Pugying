@@ -1,9 +1,5 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
-import { mkdtemp, writeFile, rm } from 'fs/promises';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { mkdtemp, writeFile, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { encryptCredentialPayload } from '@pugying/platform-account/infrastructure/credential-crypto';
@@ -17,7 +13,10 @@ const TARGET_ID = '22222222-2222-4222-8222-222222222222';
 const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
 
 const JPEG_STUB = Buffer.from([
-  0xff, 0xd8, 0xff, 0xd9, // 最小 JPEG 标记
+  0xff,
+  0xd8,
+  0xff,
+  0xd9, // 最小 JPEG 标记
 ]);
 
 let videoPath = '';
@@ -114,9 +113,7 @@ describe('ContentPublishService', () => {
     };
     targets = {
       findById: jest.fn(),
-      findByIdWithCovers: jest.fn(async (id: string) =>
-        createTarget({ id, publishStatus: 'queued' }),
-      ),
+      findByIdWithCovers: jest.fn(async (id: string) => createTarget({ id, publishStatus: 'queued' })),
       findByContent: jest.fn(),
       save: jest.fn(async (t: ContentTarget) => t),
       saveMany: jest.fn(async (rows: ContentTarget[]) => rows),
@@ -125,11 +122,7 @@ describe('ContentPublishService', () => {
       findById: jest.fn().mockResolvedValue(createAccount()),
       save: jest.fn(async (a: PlatformAccount) => a),
     };
-    service = new ContentPublishService(
-      contents as never,
-      targets as never,
-      accounts as never,
-    );
+    service = new ContentPublishService(contents as never, targets as never, accounts as never);
   });
 
   describe('publish', () => {
@@ -137,9 +130,7 @@ describe('ContentPublishService', () => {
       const content = createVideo();
       const target = createTarget();
       contents.findByIdWithCovers.mockResolvedValue(content);
-      targets.findByContent
-        .mockResolvedValueOnce([target])
-        .mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
       targets.findByIdWithCovers.mockResolvedValue(target);
 
       const result = await service.publish(CONTENT_ID);
@@ -162,6 +153,140 @@ describe('ContentPublishService', () => {
       expect(content.status).toBe('published');
     });
 
+    it('dispatches video without custom covers and retains the account declaration', async () => {
+      const content = createVideo({ coverMime: null, coverData: null, coverLandscapeMime: null, coverLandscapeData: null });
+      const target = createTarget({ overrides: { authorDeclaration: 'ai_generated' } });
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches[0]).toMatchObject({ contentType: 'video', coverPath: '', coverLandscapePath: '', authorDeclaration: 'ai_generated' });
+    });
+
+    it('dispatches a Bilibili article without custom cover and retains account settings', async () => {
+      const content = createVideo({
+        type: 'article',
+        body: '<p>正文</p>',
+        mediaPaths: [],
+        coverMime: null,
+        coverData: null,
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
+      });
+      const target = createTarget({ platform: 'bilibili', overrides: { visibility: 'private', articleSettings: { comments: 'selected', original: false } } });
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'bilibili' }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      // 实际发布仍由平台接入白名单控制；这里只验证已保存账号设置的载荷准备。
+      const dispatch = await (service as unknown as { buildDispatch(content: Content, target: ContentTarget): Promise<unknown> }).buildDispatch(
+        content,
+        target,
+      );
+      expect(dispatch).toMatchObject({
+        contentType: 'article',
+        coverPath: '',
+        coverLandscapePath: '',
+        visibility: 'private',
+        articleSettings: { comments: 'selected', original: false },
+      });
+    });
+
+    it.each(['single', 'triple', 'none'] as const)('prepares Toutiao %s covers in order', async (coverMode) => {
+      const content = createVideo({ type: 'article', body: '<p>正文</p>', mediaPaths: [] });
+      const target = createTarget({
+        platform: 'toutiao',
+        overrides: { articleSettings: { coverMode } },
+        coverLandscape2Mime: 'image/png',
+        coverLandscape2Data: Buffer.from('second'),
+        coverLandscape3Mime: 'image/jpeg',
+        coverLandscape3Data: Buffer.from('third'),
+      });
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const dispatch = await (
+        service as unknown as { buildDispatch(content: Content, target: ContentTarget): Promise<import('./content-publish.service').PublishDispatch> }
+      ).buildDispatch(content, target);
+      expect(dispatch.articleCoverPaths).toHaveLength(coverMode === 'triple' ? 3 : coverMode === 'single' ? 1 : 0);
+      if (coverMode === 'none') {
+        expect(dispatch.coverPath).toBe('');
+        expect(dispatch.coverLandscapePath).toBe('');
+      }
+      if (coverMode === 'triple') {
+        expect(await Promise.all(dispatch.articleCoverPaths!.map((path) => readFile(path)))).toEqual([JPEG_STUB, Buffer.from('second'), Buffer.from('third')]);
+      }
+    });
+
+    it('rejects an incomplete Toutiao gallery', async () => {
+      const content = createVideo({ type: 'article', body: '<p>正文</p>', mediaPaths: [] });
+      const target = createTarget({ platform: 'toutiao', overrides: { articleSettings: { coverMode: 'triple' } } });
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      await expect(
+        (service as unknown as { buildDispatch(content: Content, target: ContentTarget): Promise<unknown> }).buildDispatch(content, target),
+      ).rejects.toThrow('三张封面');
+    });
+
+    it('Bilibili explicit off suppresses both common and account covers', async () => {
+      const content = createVideo({ type: 'article', body: '<p>正文</p>', mediaPaths: [] });
+      const target = createTarget({
+        platform: 'bilibili',
+        coverLandscapeMime: 'image/jpeg',
+        coverLandscapeData: JPEG_STUB,
+        overrides: { articleSettings: { customCover: false } },
+      });
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const dispatch = await (service as unknown as { buildDispatch(content: Content, target: ContentTarget): Promise<unknown> }).buildDispatch(
+        content,
+        target,
+      );
+      expect(dispatch).toMatchObject({ coverPath: '', coverLandscapePath: '', articleCoverPaths: [] });
+    });
+
+    it('validation failure leaves all eligible targets idle and content unpublished', async () => {
+      const content = createVideo({ type: 'article', body: '<p>正文</p>', mediaPaths: [] });
+      const good = createTarget();
+      const bad = createTarget({ id: 'other', overrides: { title: '字'.repeat(31) } });
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([good, bad]);
+      targets.findByIdWithCovers.mockImplementation(async (id: string) => (id === good.id ? good : bad));
+      await expect(service.publish(CONTENT_ID)).rejects.toThrow('标题最多 30 字');
+      expect(targets.saveMany).not.toHaveBeenCalled();
+      expect(contents.save).not.toHaveBeenCalled();
+      expect(good.publishStatus).toBe('idle');
+      expect(bad.publishStatus).toBe('idle');
+      expect(content.status).toBe('draft');
+    });
+
+    it.each([false, true])('dispatches Douyin article with portrait cover, account override: %s', async (accountCover) => {
+      const commonPortrait = Buffer.from('common-portrait');
+      const accountPortrait = Buffer.from('account-portrait');
+      const content = createVideo({
+        type: 'article',
+        body: '<p>正文</p>',
+        mediaPaths: [],
+        coverData: commonPortrait,
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
+      });
+      const target = createTarget(accountCover ? { coverMime: 'image/jpeg', coverData: accountPortrait } : {});
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const result = await service.publish(CONTENT_ID);
+      const dispatch = result.dispatches[0];
+      expect(dispatch.contentType).toBe('article');
+      expect(dispatch.coverLandscapePath).toBe('');
+      expect(await readFile(dispatch.coverPath)).toEqual(accountCover ? accountPortrait : commonPortrait);
+    });
+
+    it('rejects a Douyin article with only a landscape cover', async () => {
+      const content = createVideo({ type: 'article', body: '<p>正文</p>', mediaPaths: [], coverMime: null, coverData: null });
+      const target = createTarget();
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      await expect(service.publish(CONTENT_ID)).rejects.toThrow('缺少竖版封面（3:4）');
+    });
+
     it('queues graphic with images and portrait-only cover', async () => {
       const imageA = join(tempRoot, 'a.jpg');
       const imageB = join(tempRoot, 'b.jpg');
@@ -170,15 +295,14 @@ describe('ContentPublishService', () => {
       const content = createVideo({
         type: 'graphic',
         title: '测试图文',
+        tags: ['通用话题'],
         mediaPaths: [imageA, imageB],
         coverLandscapeMime: null,
         coverLandscapeData: null,
       });
-      const target = createTarget();
+      const target = createTarget({ overrides: { tags: ['账号话题'], visibility: 'private', allowDownload: false, authorDeclaration: 'ai_generated' } });
       contents.findByIdWithCovers.mockResolvedValue(content);
-      targets.findByContent
-        .mockResolvedValueOnce([target])
-        .mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
       targets.findByIdWithCovers.mockResolvedValue(target);
 
       const result = await service.publish(CONTENT_ID);
@@ -187,6 +311,10 @@ describe('ContentPublishService', () => {
         mediaPath: imageA,
         mediaPaths: [imageA, imageB],
         coverLandscapePath: '',
+        tags: ['账号话题'],
+        visibility: 'private',
+        allowDownload: false,
+        authorDeclaration: 'ai_generated',
       });
       expect(result.dispatches[0].coverPath).toBeTruthy();
     });
@@ -200,9 +328,7 @@ describe('ContentPublishService', () => {
           coverLandscapeData: null,
         }),
       );
-      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects graphic without portrait cover', async () => {
@@ -216,37 +342,24 @@ describe('ContentPublishService', () => {
           coverLandscapeData: null,
         }),
       );
-      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when a job is already running', async () => {
       contents.findByIdWithCovers.mockResolvedValue(createVideo());
-      targets.findByContent.mockResolvedValue([
-        createTarget({ publishStatus: 'running' }),
-      ]);
-      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      targets.findByContent.mockResolvedValue([createTarget({ publishStatus: 'running' })]);
+      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('rejects missing cover', async () => {
-      contents.findByIdWithCovers.mockResolvedValue(
-        createVideo({ coverMime: null, coverData: null }),
-      );
-      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-    });
-
-    it('rejects missing landscape cover', async () => {
-      contents.findByIdWithCovers.mockResolvedValue(
-        createVideo({ coverLandscapeMime: null, coverLandscapeData: null }),
-      );
-      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+    it.each(['portrait', 'landscape'] as const)('accepts video with only %s cover', async (aspect) => {
+      const content = createVideo(aspect === 'portrait' ? { coverLandscapeMime: null, coverLandscapeData: null } : { coverMime: null, coverData: null });
+      const target = createTarget();
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches[0][aspect === 'portrait' ? 'coverPath' : 'coverLandscapePath']).toBeTruthy();
+      expect(result.dispatches[0][aspect === 'portrait' ? 'coverLandscapePath' : 'coverPath']).toBe('');
     });
   });
 
@@ -264,10 +377,21 @@ describe('ContentPublishService', () => {
       expect(result.dispatch.mediaPath).toBe(videoPath);
     });
 
+    it.each(['queued', 'failed'] as const)('rechecks an expired schedule before changing %s state', async (status) => {
+      const content = createVideo({ type: 'article', body: '<p>正文</p>', mediaPaths: [] });
+      const target = createTarget({ publishStatus: status, overrides: { scheduledAt: new Date(Date.now() - 60_000).toISOString() } });
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findById.mockResolvedValue(target);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const action = status === 'queued' ? service.startTarget(CONTENT_ID, TARGET_ID) : service.retryTarget(CONTENT_ID, TARGET_ID);
+      await expect(action).rejects.toThrow('发布时间');
+      expect(targets.save).not.toHaveBeenCalled();
+      expect(target.publishStatus).toBe(status);
+    });
+
     it('completes success and failure', async () => {
-      targets.findById.mockResolvedValue(
-        createTarget({ publishStatus: 'running', startedAt: new Date() }),
-      );
+      targets.findById.mockResolvedValue(createTarget({ publishStatus: 'running', startedAt: new Date() }));
       const ok = await service.completeTarget(CONTENT_ID, TARGET_ID, {
         ok: true,
         platformPostId: 'p1',
@@ -275,9 +399,7 @@ describe('ContentPublishService', () => {
       });
       expect(ok.publishStatus).toBe('succeeded');
 
-      targets.findById.mockResolvedValue(
-        createTarget({ publishStatus: 'running', startedAt: new Date() }),
-      );
+      targets.findById.mockResolvedValue(createTarget({ publishStatus: 'running', startedAt: new Date() }));
       const fail = await service.completeTarget(CONTENT_ID, TARGET_ID, {
         ok: false,
         errorCode: 'AUTH_EXPIRED',
@@ -310,9 +432,7 @@ describe('ContentPublishService', () => {
 
     it('throws NotFound for unknown target', async () => {
       targets.findById.mockResolvedValue(null);
-      await expect(
-        service.cancelTarget(CONTENT_ID, TARGET_ID),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.cancelTarget(CONTENT_ID, TARGET_ID)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

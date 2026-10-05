@@ -1,13 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AuditedEntity } from '@pugying/core';
-import type {
-  ContentTargetOverrides,
-  TargetPublishStatus,
-} from '@pugying/content/domain/content-types';
+import type { ContentTargetOverrides, TargetPublishStatus } from '@pugying/content/domain/content-types';
 
 /** 内容的分发目标：一个平台账号 + 针对该账号的差异字段 + 发布运行态 */
 export class ContentTarget extends AuditedEntity {
-
   @ApiProperty({ description: '内容 UUID' })
   contentId: string;
 
@@ -31,6 +27,12 @@ export class ContentTarget extends AuditedEntity {
 
   /** 账号差异横封面二进制 */
   coverLandscapeData: Buffer | null;
+
+  /** 头条三图模式的第二、第三张账号封面；第一张复用横版槽。 */
+  coverLandscape2Mime: string | null;
+  coverLandscape2Data: Buffer | null;
+  coverLandscape3Mime: string | null;
+  coverLandscape3Data: Buffer | null;
 
   @ApiProperty({
     enum: ['idle', 'queued', 'running', 'succeeded', 'failed', 'cancelled'],

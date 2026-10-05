@@ -1,13 +1,22 @@
-import type { ChangeEvent, RefObject } from 'react';
-import { AlertCircle, ImagePlus, X } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { getLocalFilePath } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { CharCountInput, CharCountTextarea } from '../publish-video/CharCountFields';
-import { localPathToFileUrl } from '../publish-article/helpers';
-import type { PathWarning } from './use-graphic-composer';
+import { useState, type ChangeEvent, type RefObject } from "react";
+import { AlertCircle, ImagePlus, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
+import { getLocalFilePath } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import {
+  CharCountInput,
+  CharCountTextarea,
+} from "../publish-video/CharCountFields";
+import { localPathToFileUrl } from "../publish-article/helpers";
+import type { PathWarning } from "./use-graphic-composer";
 
 /**
  * 图文撰写区：标准 Field 表单（标题 / 图片 / 文案），与视频页通用信息一致。
@@ -25,6 +34,7 @@ export function GraphicDocument({
   pathWarning,
   disabled,
   titleRef,
+  validationAttempted = false,
   bodyRef,
   imagesRef,
 }: {
@@ -41,21 +51,26 @@ export function GraphicDocument({
   pathWarning: PathWarning;
   disabled?: boolean;
   titleRef: RefObject<HTMLInputElement | null>;
+  validationAttempted?: boolean;
   bodyRef: RefObject<HTMLTextAreaElement | null>;
   imagesRef: RefObject<HTMLDivElement | null>;
 }) {
+  const [titleTouched, setTitleTouched] = useState(false);
+  const titleError =
+    (titleTouched || validationAttempted) && !title.trim() ? "请填写标题" : "";
+
   const effectiveTitleMax = limitsActive ? titleMax : Math.max(titleMax, 200);
   const effectiveBodyMax = limitsActive ? bodyMax : Math.max(bodyMax, 1000);
 
   const onPickImages = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    event.target.value = '';
+    event.target.value = "";
     if (files.length === 0) {
       return;
     }
     const next = [...mediaPaths];
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith("image/")) {
         continue;
       }
       const path = getLocalFilePath(file);
@@ -73,17 +88,31 @@ export function GraphicDocument({
 
   return (
     <FieldGroup className="gap-4">
-      <Field>
-        <FieldLabel htmlFor="graphic-title">标题</FieldLabel>
+      <Field
+        data-invalid={
+          Boolean(titleError) || title.length > effectiveTitleMax || undefined
+        }
+      >
+        <FieldLabel className="font-normal" htmlFor="graphic-title">
+          标题
+        </FieldLabel>
         <CharCountInput
           id="graphic-title"
           ref={titleRef}
+          validationMessage={titleError}
           placeholder="填写作品标题"
           max={effectiveTitleMax}
           disabled={disabled}
           value={title}
+          onBlur={() => setTitleTouched(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              bodyRef.current?.focus();
+            }
+          }}
           onChange={(e) => {
-            onTitleChange(e.target.value.replace(/[\r\n]+/g, ' '));
+            onTitleChange(e.target.value.replace(/[\r\n]+/g, " "));
           }}
         />
       </Field>
@@ -93,12 +122,12 @@ export function GraphicDocument({
           ref={imagesRef}
           className="flex flex-wrap items-center justify-between gap-2"
         >
-          <FieldLabel>图片</FieldLabel>
+          <FieldTitle className="font-normal">图片</FieldTitle>
           <label
             className={cn(
-              buttonVariants({ variant: 'outline', size: 'sm' }),
-              disabled && 'pointer-events-none opacity-50',
-              'cursor-pointer',
+              buttonVariants({ variant: "outline", size: "sm" }),
+              disabled && "pointer-events-none opacity-50",
+              "cursor-pointer",
             )}
           >
             <ImagePlus data-icon="inline-start" />
@@ -124,7 +153,11 @@ export function GraphicDocument({
                 key={`${path}-${index}`}
                 className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
               >
-                <img src={localPathToFileUrl(path)} alt="" className="size-full object-cover" />
+                <img
+                  src={localPathToFileUrl(path)}
+                  alt=""
+                  className="size-full object-cover"
+                />
                 <Button
                   type="button"
                   size="icon-xs"
@@ -138,7 +171,7 @@ export function GraphicDocument({
                 >
                   <X />
                 </Button>
-                <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1.5 text-[10px] text-white tabular-nums">
+                <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1.5 text-xs text-white tabular-nums">
                   {index + 1}
                 </span>
               </li>
@@ -147,7 +180,9 @@ export function GraphicDocument({
         )}
         <FieldDescription>按顺序组成轮播，至少一张</FieldDescription>
         {pathWarning ? (
-          <Alert variant={pathWarning.tone === 'error' ? 'destructive' : 'default'}>
+          <Alert
+            variant={pathWarning.tone === "error" ? "destructive" : "default"}
+          >
             <AlertCircle />
             <AlertDescription>{pathWarning.text}</AlertDescription>
           </Alert>
@@ -155,7 +190,9 @@ export function GraphicDocument({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="graphic-body">文案</FieldLabel>
+        <FieldLabel className="font-normal" htmlFor="graphic-body">
+          文案
+        </FieldLabel>
         <CharCountTextarea
           id="graphic-body"
           ref={bodyRef}

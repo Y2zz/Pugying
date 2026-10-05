@@ -1,19 +1,18 @@
-import { useEffect, useState, type ReactNode, type RefObject } from 'react';
-import { Link } from 'react-router-dom';
-import { CheckCircle2, Circle, Plus, Save, Send } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
-import { useIsMobile } from '@/hooks/use-mobile';
-import type { PlatformAccountItem, PlatformCatalogItem } from '@/lib/api';
-import { ContentInfoForm } from './AccountRuleEditor';
-import { AddAccountsDialog } from './AddAccountsDialog';
-import { CoverEditorSection } from './CoverEditorSection';
-import { DistributionAccountEditor } from './DistributionAccountEditor';
-import { DistributionAccountList } from './DistributionAccountList';
-import { emptyDraft, type CoverKind, type OverrideDraft } from './helpers';
-import { Separator } from '@/components/ui/separator';
+import { useState, type ReactNode, type RefObject } from "react";
+import { CheckCircle2 } from "lucide-react";
+import { DistributionAccountsPanel } from "@/components/publishing/DistributionAccountsPanel";
+import { Badge } from "@/components/ui/badge";
+import type { PlatformAccountItem, PlatformCatalogItem } from "@/lib/api";
+import { ContentInfoForm } from "./AccountRuleEditor";
+import { AddAccountsDialog } from "./AddAccountsDialog";
+import { ArticleCoverCard } from "../publish-article/ArticleCoverCard";
+import { DistributionAccountEditor } from "./DistributionAccountEditor";
+import {
+  ACCOUNT_STATUS_TEXT,
+  getAccountDraftIssues,
+  type CoverKind,
+  type OverrideDraft,
+} from "./helpers";
 
 export interface AccountGroup {
   platform: string;
@@ -21,7 +20,15 @@ export interface AccountGroup {
   accounts: PlatformAccountItem[];
 }
 
-export type FocusKind = 'video' | 'images' | 'body' | 'cover' | 'title' | 'accounts' | 'accountConfig' | 'agent';
+export type FocusKind =
+  | "video"
+  | "images"
+  | "body"
+  | "cover"
+  | "title"
+  | "accounts"
+  | "accountConfig"
+  | "agent";
 
 export type PrecheckItem = {
   id: string;
@@ -35,7 +42,7 @@ export type PrecheckItem = {
 };
 
 /**
- * 左侧编辑区：通用信息 Card（含封面）+ 分发账号 Card（固定主从：列表 + 单编辑区）。
+ * 通用信息与分发账号纵向排列，共用页面完整宽度。
  * 选中本地视频后即可挂载；处理封面期间仍可编辑标题与账号。
  */
 export function PublishVideoFormPanel({
@@ -46,8 +53,6 @@ export function PublishVideoFormPanel({
   setSelected,
   expandedAccountId,
   setExpandedAccountId,
-  accountFocusNonce,
-  drafts,
   setDraftForAccount,
   getDraft,
   loading,
@@ -66,6 +71,7 @@ export function PublishVideoFormPanel({
   onEditCover,
   onEditAccountCover,
   titleInputRef,
+  validationAttempted = false,
   disabled,
   coverDisabled,
   portraitCoverOnly = false,
@@ -74,12 +80,11 @@ export function PublishVideoFormPanel({
   accounts: PlatformAccountItem[];
   grouped: AccountGroup[];
   selected: Record<string, boolean>;
-  setSelected: (updater: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
+  setSelected: (
+    updater: (prev: Record<string, boolean>) => Record<string, boolean>,
+  ) => void;
   expandedAccountId: string | null;
   setExpandedAccountId: (id: string | null) => void;
-  /** 父级 checklist 聚焦账号时递增，窄屏自动打开 Sheet */
-  accountFocusNonce: number;
-  drafts: Record<string, OverrideDraft>;
   setDraftForAccount: (accountId: string, draft: OverrideDraft) => void;
   getDraft: (accountId: string) => OverrideDraft;
   loading: boolean;
@@ -99,79 +104,42 @@ export function PublishVideoFormPanel({
   onEditAccountCover: (accountId: string, kind: CoverKind) => void;
   titleInputRef: RefObject<HTMLInputElement | null>;
   disabled: boolean;
+  validationAttempted?: boolean;
   /** 视频处理/截帧进行中禁用封面操作，避免与自动截帧冲突 */
   coverDisabled?: boolean;
   /** 图文仅竖版封面 */
   portraitCoverOnly?: boolean;
 }) {
-  const isMobile = useIsMobile();
   const [addOpen, setAddOpen] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const selectedEntries = grouped.flatMap((group) =>
     group.accounts
       .filter((account) => selected[account.id])
-      .map((account) => ({ account, platformLabel: group.displayName }))
+      .map((account) => ({ account, platformLabel: group.displayName })),
   );
-  const selectedCount = selectedEntries.length;
 
   const focusedEntry =
     selectedEntries.find((entry) => entry.account.id === expandedAccountId) ??
-    selectedEntries.find((entry) => entry.account.status === 'active') ??
+    selectedEntries.find((entry) => entry.account.status === "active") ??
     selectedEntries[0] ??
     null;
 
-  // 有已选账号时保证始终有聚焦项（添加/移除后自动修正）
-  useEffect(() => {
-    if (selectedCount === 0) {
-      return;
-    }
-    const stillSelected = expandedAccountId && selected[expandedAccountId];
-    if (!stillSelected) {
-      const next = selectedEntries.find((e) => e.account.status === 'active') ?? selectedEntries[0];
-      if (next) {
-        setExpandedAccountId(next.account.id);
+  const removeAccounts = (accountIds: string[]) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const id of accountIds) {
+        next[id] = false;
       }
-    }
-  }, [selectedCount, expandedAccountId, selected, selectedEntries, setExpandedAccountId]);
-
-  useEffect(() => {
-    if (accountFocusNonce > 0 && isMobile && expandedAccountId) {
-      setSheetOpen(true);
-    }
-  }, [accountFocusNonce, isMobile, expandedAccountId]);
-
-  const removeAccount = (accountId: string) => {
-    const index = selectedEntries.findIndex((e) => e.account.id === accountId);
-    setSelected((prev) => ({
-      ...prev,
-      [accountId]: false,
-    }));
-    if (expandedAccountId === accountId) {
-      setSheetOpen(false);
-    }
-    if (expandedAccountId !== accountId) {
-      return;
-    }
-    const remaining = selectedEntries.filter((e) => e.account.id !== accountId);
-    const next = remaining[index] ?? remaining[index - 1] ?? null;
-    setExpandedAccountId(next?.account.id ?? null);
+      return next;
+    });
   };
 
   const focusAccount = (accountId: string) => {
     setExpandedAccountId(accountId);
-    if (isMobile) {
-      setSheetOpen(true);
-    }
   };
 
   const formDisabled = disabled;
   const coverFormDisabled = coverDisabled ?? formDisabled;
-
-  const accountDescription =
-    selectedCount === 0
-      ? '添加要推送的抖音账号'
-      : `已选 ${selectedCount} 个账号，${isMobile ? '点击账号在面板中配置' : '左侧选择、右侧配置发布选项'}`;
 
   const editorProps = focusedEntry
     ? {
@@ -196,293 +164,127 @@ export function PublishVideoFormPanel({
     : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="shrink-0">
-        <CardHeader>
-          <CardTitle>通用信息</CardTitle>
-          <CardDescription>标题、描述与封面作为各账号默认值；发布选项请在下方账号中分别配置</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <ContentInfoForm
-            title={title}
-            setTitle={setTitle}
-            body={body}
-            setBody={setBody}
-            titleInputRef={titleInputRef}
-            disabled={formDisabled}
-          />
-          <Separator />
-          <CoverEditorSection
-            coverSectionRef={coverSectionRef}
-            coverReady={coverReady}
-            coverLandscapeReady={coverLandscapeReady}
-            coverPreviewUrl={coverPreviewUrl}
-            coverLandscapePreviewUrl={coverLandscapePreviewUrl}
-            coverHint={coverHint}
-            disabled={coverFormDisabled}
-            onEditCover={onEditCover}
-            portraitOnly={portraitCoverOnly}
-          />
-        </CardContent>
-      </Card>
+    <div className="contents">
+      <section className="order-2 min-w-0">
+        <ContentInfoForm
+          title={title}
+          setTitle={setTitle}
+          body={body}
+          setBody={setBody}
+          titleInputRef={titleInputRef}
+          validationAttempted={validationAttempted}
+          disabled={formDisabled}
+        />
+      </section>
+      <div ref={coverSectionRef} className="order-2 min-w-0">
+        <ArticleCoverCard
+          needs={
+            portraitCoverOnly
+              ? [{ aspect: "portrait", required: false, platformLabels: [] }]
+              : [
+                  {
+                    aspect: "portrait",
+                    required: false,
+                    platformLabels: ["抖音"],
+                  },
+                  {
+                    aspect: "landscape",
+                    required: false,
+                    platformLabels: ["抖音"],
+                  },
+                ]
+          }
+          covers={{
+            portrait: {
+              blob: null,
+              saved: coverReady,
+              previewUrl: coverPreviewUrl ?? "",
+              sourceUrl: "",
+            },
+            landscape: {
+              blob: null,
+              saved: coverLandscapeReady,
+              previewUrl: coverLandscapePreviewUrl ?? "",
+              sourceUrl: "",
+            },
+          }}
+          hasAccounts={selectedEntries.length > 0}
+          canUseFirstImage={false}
+          disabled={coverFormDisabled}
+          onEdit={(aspect) =>
+            onEditCover(aspect === "portrait" ? "cover" : "cover_landscape")
+          }
+          onUseFirstImage={() => {}}
+        />
+        {coverHint ? (
+          <p className="mt-2 text-xs text-muted-foreground">{coverHint}</p>
+        ) : null}
+      </div>
 
-      <Card ref={accountsSectionRef} className="flex flex-col">
-        <CardHeader className="shrink-0 pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <CardTitle>分发账号</CardTitle>
-              <CardDescription>{accountDescription}</CardDescription>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={loading || formDisabled}
-              aria-label="添加分发账号"
-              onClick={() => {
-                setAddOpen(true);
-              }}
-            >
-              <Plus data-icon="inline-start" />
-              添加
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {accountsEmpty ? (
-            <p className="text-muted-foreground">
-              还没有绑定媒体账号，请先前往
-              <Link to="/platform-accounts" className="mx-1 underline">
-                媒体账号
-              </Link>
-              完成绑定。
-            </p>
-          ) : selectedCount === 0 ? (
-            <p className="text-muted-foreground">
-              尚未添加分发账号，点击
-              <button
-                type="button"
-                className="mx-1 underline"
-                disabled={formDisabled}
-                onClick={() => {
-                  setAddOpen(true);
-                }}
-              >
-                添加
-              </button>
-              选择要推送的账号。
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(200px,280px)_minmax(0,1fr)]">
-              <DistributionAccountList
-                entries={selectedEntries}
-                drafts={drafts}
-                focusedAccountId={focusedEntry?.account.id ?? null}
-                disabled={loading || formDisabled}
-                plain
-                onFocusAccount={focusAccount}
-                onRemoveAccount={removeAccount}
-              />
-              <div className="hidden lg:block">
-                <DistributionAccountEditor
-                  account={editorProps?.account ?? null}
-                  platformLabel={editorProps?.platformLabel ?? '抖音'}
-                  draft={editorProps?.draft ?? emptyDraft()}
-                  commonTitle={editorProps?.commonTitle ?? title}
-                  commonBody={editorProps?.commonBody ?? body}
-                  commonCoverReady={editorProps?.commonCoverReady ?? coverReady}
-                  commonCoverLandscapeReady={
-                    editorProps?.commonCoverLandscapeReady ?? coverLandscapeReady
-                  }
-                  commonCoverPreviewUrl={editorProps?.commonCoverPreviewUrl ?? coverPreviewUrl}
-                  commonCoverLandscapePreviewUrl={
-                    editorProps?.commonCoverLandscapePreviewUrl ?? coverLandscapePreviewUrl
-                  }
-                  coverDisabled={editorProps?.coverDisabled ?? coverFormDisabled}
-                  disabled={editorProps?.disabled ?? formDisabled}
-                  className="min-h-[280px]"
-                  plain
-                  portraitOnly={portraitCoverOnly}
-                  onDraftChange={
-                    editorProps?.onDraftChange ??
-                    (() => {
-                      /* 无选中账号时不写入 */
-                    })
-                  }
-                  onEditCover={
-                    editorProps?.onEditCover ??
-                    (() => {
-                      /* 无选中账号 */
-                    })
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          <AddAccountsDialog
-            open={addOpen}
-            onOpenChange={setAddOpen}
-            catalog={catalog}
-            accounts={accounts}
-            selected={selected}
-            onConfirm={(next) => {
-              setSelected(() => next);
-              if (expandedAccountId && !next[expandedAccountId]) {
-                setExpandedAccountId(null);
-                setSheetOpen(false);
-              }
-              const added = Object.entries(next).find(([id, checked]) => {
-                return checked && !selected[id];
-              });
-              if (added) {
-                focusAccount(added[0]);
-              }
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      {isMobile && editorProps ? (
-        <Sheet
-          open={sheetOpen}
-          onOpenChange={(open) => {
-            setSheetOpen(open);
+      <section
+        ref={accountsSectionRef}
+        className="order-3 flex min-w-0 flex-col gap-4"
+      >
+        <DistributionAccountsPanel
+          entries={selectedEntries}
+          accountsEmpty={accountsEmpty}
+          disabled={loading || formDisabled}
+          focusedAccountId={expandedAccountId}
+          onFocusAccount={focusAccount}
+          onAdd={() => {
+            setAddOpen(true);
+          }}
+          onRemove={removeAccounts}
+          renderStatus={({ account }) => {
+            if (account.status !== "active") {
+              return (
+                <Badge variant="outline">
+                  {ACCOUNT_STATUS_TEXT[account.status]}
+                </Badge>
+              );
+            }
+            const issues = getAccountDraftIssues(getDraft(account.id), body);
+            return issues.length > 0 ? (
+              <Badge variant="destructive">{issues[0]}</Badge>
+            ) : (
+              <Badge variant="secondary">
+                <CheckCircle2 data-icon="inline-start" />
+                就绪
+              </Badge>
+            );
           }}
         >
-          <SheetContent side="bottom" className="flex max-h-[min(85dvh,720px)] flex-col gap-0 p-0">
-            <SheetHeader className="sr-only">
-              <SheetTitle>{editorProps.account.displayName}</SheetTitle>
-              <SheetDescription>配置该账号的发布选项</SheetDescription>
-            </SheetHeader>
+          {editorProps ? (
             <DistributionAccountEditor
-              account={editorProps.account}
-              platformLabel={editorProps.platformLabel}
-              draft={editorProps.draft}
-              commonTitle={editorProps.commonTitle}
-              commonBody={editorProps.commonBody}
-              commonCoverReady={editorProps.commonCoverReady}
-              commonCoverLandscapeReady={editorProps.commonCoverLandscapeReady}
-              commonCoverPreviewUrl={editorProps.commonCoverPreviewUrl}
-              commonCoverLandscapePreviewUrl={editorProps.commonCoverLandscapePreviewUrl}
-              coverDisabled={editorProps.coverDisabled}
-              disabled={editorProps.disabled}
-              className="min-h-0 flex-1"
-              plain
+              {...editorProps}
+              entries={selectedEntries}
+              onNavigate={focusAccount}
+              className="min-h-[28rem] lg:min-h-[32rem]"
               portraitOnly={portraitCoverOnly}
-              onDraftChange={editorProps.onDraftChange}
-              onEditCover={editorProps.onEditCover}
             />
-          </SheetContent>
-        </Sheet>
-      ) : null}
-    </div>
-  );
-}
+          ) : null}
+        </DistributionAccountsPanel>
 
-/** 底栏就绪清单：复用 submit 前校验项，让用户知道还差什么；随页面正常滚动。 */
-export function PublishVideoActionBar({
-  prechecks,
-  readyCount,
-  totalCount,
-  busy,
-  busyLabel,
-  publishBlocked,
-  publishHint,
-  onFocusItem,
-  onSaveDraft,
-  onPublish,
-  className,
-  /** 图文等：全部通过只提示可发布；有阻塞时只列未通过项 */
-  showOnlyBlocked = false,
-  /** 隐藏「发布」按钮（图文暂未接真实推送） */
-  hidePublish = false,
-  /** 全部通过时的就绪文案（showOnlyBlocked 时） */
-  readyLabel = '可以发布',
-  saveLabel = '存草稿',
-}: {
-  prechecks: PrecheckItem[];
-  readyCount: number;
-  totalCount: number;
-  busy: boolean;
-  busyLabel: string;
-  publishBlocked: boolean;
-  publishHint: string;
-  onFocusItem: (item: PrecheckItem) => void;
-  onSaveDraft: () => void;
-  onPublish?: () => void;
-  className?: string;
-  showOnlyBlocked?: boolean;
-  hidePublish?: boolean;
-  readyLabel?: string;
-  saveLabel?: string;
-}) {
-  const visiblePrechecks = showOnlyBlocked
-    ? prechecks.filter((item) => !item.ok)
-    : prechecks;
-
-  return (
-    <div
-      className={cn(
-        'shrink-0 bg-background py-3',
-        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
-        className,
-      )}
-    >
-      <div className="flex min-w-0 flex-col gap-2">
-        <p className="text-sm font-medium">
-          {showOnlyBlocked
-            ? publishBlocked
-              ? '还有几项待完成'
-              : readyLabel
-            : `就绪 ${readyCount}/${totalCount}`}
-          {publishHint ? <span className="ml-2 font-normal text-muted-foreground">{publishHint}</span> : null}
-        </p>
-        {visiblePrechecks.length > 0 ? (
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {visiblePrechecks.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={cn(
-                  'inline-flex items-center gap-1 text-xs transition-colors',
-                  item.ok ? 'text-muted-foreground' : 'text-foreground hover:underline',
-                  !item.focusKind || item.ok ? 'cursor-default' : 'cursor-pointer'
-                )}
-                disabled={item.ok || !item.focusKind}
-                onClick={() => {
-                  if (!item.ok && item.focusKind) {
-                    onFocusItem(item);
-                  }
-                }}
-              >
-                {item.ok ? (
-                  <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden />
-                ) : (
-                  <Circle className="size-3.5 text-muted-foreground" aria-hidden />
-                )}
-                {item.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 flex-wrap justify-end gap-2">
-        <Button
-          variant={hidePublish ? 'default' : 'outline'}
-          disabled={busy || (hidePublish && publishBlocked)}
-          onClick={onSaveDraft}
-        >
-          <Save data-icon="inline-start" />
-          {busy && hidePublish ? busyLabel : saveLabel}
-        </Button>
-        {!hidePublish && onPublish ? (
-          <Button disabled={busy || publishBlocked} onClick={onPublish}>
-            <Send data-icon="inline-start" />
-            {busy ? busyLabel : '发布'}
-          </Button>
-        ) : null}
-      </div>
+        <AddAccountsDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          catalog={catalog}
+          accounts={accounts}
+          selected={selected}
+          onConfirm={(next) => {
+            setSelected(() => next);
+            if (expandedAccountId && !next[expandedAccountId]) {
+              setExpandedAccountId(null);
+            }
+            const added = Object.entries(next).find(([id, checked]) => {
+              return checked && !selected[id];
+            });
+            if (added) {
+              focusAccount(added[0]);
+            }
+          }}
+        />
+      </section>
     </div>
   );
 }

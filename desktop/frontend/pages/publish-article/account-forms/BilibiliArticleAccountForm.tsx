@@ -1,18 +1,18 @@
-import { getArticlePlatformFields } from '../article-platform-fields';
+import { BilibiliArticleCoverField } from "./ArticleCoverModeFields";
+import { ArticlePlatformSettingsFields } from "./ArticlePlatformSettingsFields";
+import { getArticlePlatformFields } from "../article-platform-fields";
 import {
   ArticleAccountFormLayout,
-  ArticleCoverOverrideField,
   ArticleScheduleField,
-  ArticleTagsField,
-  ArticleTextField,
+  ArticleVisibilityField,
   ArticleTitleOverrideField,
   draftPatcher,
   type ArticlePlatformAccountFormProps,
-} from './shared-fields';
+} from "./shared-fields";
 
-const spec = getArticlePlatformFields('bilibili');
+const spec = getArticlePlatformFields("bilibili");
 
-/** 哔哩哔哩专栏：标题 / 横版封面可覆盖；分区、话题、定时 */
+/** 新版专栏：可选封面、可见范围、评论、原创声明和定时。 */
 export function BilibiliArticleAccountForm({
   account,
   draft,
@@ -38,37 +38,42 @@ export function BilibiliArticleAccountForm({
               patch({ title });
             }}
           />
-          <ArticleCoverOverrideField
-            platform="bilibili"
+          <BilibiliArticleCoverField
+            account={account}
             draft={draft}
             commonCovers={commonCovers}
             disabled={disabled}
-            onEdit={onEditCover}
+            onEditCover={onEditCover}
             patch={patch}
           />
         </>
       }
       publish={
         <>
-          <ArticleTextField
-            id={`article-${account.id}-partition`}
-            label={spec.partition.label}
-            value={draft.partition}
-            placeholder="如：生活"
+          <ArticleVisibilityField
+            control="radio"
+            accountId={account.id}
+            value={draft.visibility}
+            options={spec.visibility!}
+            label="可见范围"
+            publicLabel="所有人可见"
             disabled={disabled}
-            onChange={(partition) => {
-              patch({ partition });
+            onChange={(visibility) => {
+              patch({ visibility });
             }}
           />
-          <ArticleTagsField
-            tagsText={draft.tagsText}
-            maxCount={spec.tags.maxCount}
+          <ArticlePlatformSettingsFields
+            accountId={account.id}
+            platform="bilibili"
+            value={draft.articleSettings}
             disabled={disabled}
-            onChange={(tagsText) => {
-              patch({ tagsText });
+            onChange={(articleSettings) => {
+              patch({ articleSettings });
             }}
           />
+
           <ArticleScheduleField
+            control="radio"
             accountId={account.id}
             scheduledLocal={draft.scheduledLocal}
             minHours={spec.schedule!.minHours}

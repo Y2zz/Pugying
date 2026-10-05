@@ -1,15 +1,15 @@
-import type { AgentCookie } from './protocol';
+import type { AgentCookie } from "./protocol";
 
 export type PlatformPublishProgressPhase =
-  | 'accepted'
-  | 'fetching_media'
-  | 'opening_creator'
-  | 'uploading'
-  | 'submitting'
-  | 'done';
+  | "accepted"
+  | "fetching_media"
+  | "opening_creator"
+  | "uploading"
+  | "submitting"
+  | "done";
 
 /** 与内容实体 type 对齐；缺省按 video，兼容现网短视频载荷 */
-export type PlatformPublishContentType = 'video' | 'article' | 'graphic';
+export type PlatformPublishContentType = "video" | "article" | "graphic";
 
 export interface PlatformPublishStartPayload {
   requestId: string;
@@ -23,12 +23,16 @@ export interface PlatformPublishStartPayload {
   mediaPath?: string;
   /** 图文轮播图 / 文章插图本机绝对路径；视频可省略 */
   mediaPaths?: string[];
-  /** 竖封面（3:4）本机临时文件路径；文章可为横版主封面 */
+  /** 主封面本机临时文件路径；抖音文章为竖版3:4，头条/B站文章为横版 */
   coverPath: string;
   /** 横封面（4:3）本机临时文件路径；图文可不传 */
   coverLandscapePath?: string;
+  articleCoverPaths?: string[];
   title: string;
   body?: string;
+  tags?: string[];
+  articleSettings?: import("../../shared/article-settings").ArticleAccountSettings;
+  authorDeclaration?: import("../../shared/douyin-graphic-settings").DouyinAuthorDeclaration;
   visibility?: string;
   /** ISO time; when set, submit as platform schedule (not local cron). */
   scheduledAt?: string;

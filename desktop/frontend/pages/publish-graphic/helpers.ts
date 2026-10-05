@@ -1,4 +1,5 @@
 import type { ContentTargetOverrides, CoverKind, PlatformId } from '@/lib/api';
+import { composeDouyinGraphicDescription, isDouyinAuthorDeclaration } from '@shared/douyin-graphic-settings';
 import {
   effectiveCover,
   coverSlotReady,
@@ -21,6 +22,7 @@ import {
 export function getGraphicAccountDraftIssues(
   draft: ArticleOverrideDraft,
   platform: PlatformId,
+  commonBody = '',
 ): string[] {
   const spec = getGraphicPlatformFields(platform);
   const issues: string[] = [];
@@ -30,6 +32,14 @@ export function getGraphicAccountDraftIssues(
   }
   if (spec.tags.enabled && parseTags(draft.tagsText).length > spec.tags.maxCount) {
     issues.push('话题过多');
+  }
+  if (platform === 'douyin') {
+    if (composeDouyinGraphicDescription(commonBody, parseTags(draft.tagsText)).length > spec.bodyPlainMax) {
+      issues.push('作品描述与话题合计超长');
+    }
+    if (draft.authorDeclaration !== undefined && !isDouyinAuthorDeclaration(draft.authorDeclaration)) {
+      issues.push('自主声明不可用');
+    }
   }
   if (spec.schedule?.enabled && draft.scheduledLocal.trim()) {
     const iso = localInputToIso(draft.scheduledLocal);
@@ -82,6 +92,10 @@ export function graphicDraftToOverrides(
   }
   if (spec.partition.enabled && draft.partition.trim()) {
     result.partition = draft.partition.trim();
+  }
+  if (platform === 'douyin') {
+    result.allowDownload = draft.allowDownload ?? true;
+    result.authorDeclaration = draft.authorDeclaration ?? 'none';
   }
   return result;
 }

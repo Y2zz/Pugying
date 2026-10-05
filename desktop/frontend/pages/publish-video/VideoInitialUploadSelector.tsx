@@ -38,9 +38,9 @@ export function VideoInitialUploadSelector({
     >
       <Upload className="size-8 text-muted-foreground" />
       <div className="mx-auto flex max-w-sm flex-col gap-1.5">
-        <p className="text-sm font-medium">拖入或选择 MP4 视频</p>
+        <p className="text-sm font-medium">拖入或选择视频</p>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          仅支持 MP4（H.264 + AAC），大小不超过 1GB。上传后自动截帧生成竖/横封面。
+          支持 1 小时以内、16GB 以内的视频；自动提取封面。
         </p>
       </div>
     </Button>

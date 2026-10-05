@@ -52,11 +52,7 @@ export function resizeImageCrop(
     maxH,
   );
   if (normalizedRatio) {
-    w = Math.min(
-      Math.max(w, h * normalizedRatio),
-      maxW,
-      maxH * normalizedRatio,
-    );
+    w = Math.min((w + h * normalizedRatio) / 2, maxW, maxH * normalizedRatio);
     h = w / normalizedRatio;
   }
   return {
@@ -65,4 +61,24 @@ export function resizeImageCrop(
     w,
     h,
   };
+}
+
+/** 让裁剪表面与实际显示的图片同尺寸，避免留白参与坐标计算。 */
+export function fitCropImage(
+  image: { width: number; height: number },
+  viewport: { width: number; height: number },
+): { width: number; height: number } {
+  if (
+    image.width <= 0 ||
+    image.height <= 0 ||
+    viewport.width <= 0 ||
+    viewport.height <= 0
+  ) {
+    return { width: 0, height: 0 };
+  }
+  const scale = Math.min(
+    viewport.width / image.width,
+    viewport.height / image.height,
+  );
+  return { width: image.width * scale, height: image.height * scale };
 }

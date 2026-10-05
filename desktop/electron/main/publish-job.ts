@@ -45,7 +45,6 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
     Boolean(payload.targetId?.trim()) &&
     Boolean(payload.platform?.trim()) &&
     Boolean(payload.accountId?.trim()) &&
-    Boolean(payload.coverPath?.trim()) &&
     Boolean(payload.title?.trim()) &&
     Array.isArray(payload.cookies) &&
     payload.cookies.length > 0;
@@ -55,6 +54,9 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
   }
 
   const contentType = resolveContentType(payload);
+  if (contentType !== 'video' && !payload.coverPath?.trim()) {
+    return false;
+  }
   if (contentType === 'graphic') {
     const paths = (payload.mediaPaths ?? [])
       .map((p) => p.trim())
@@ -68,10 +70,7 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
     return true;
   }
 
-  return (
-    Boolean(payload.mediaPath?.trim()) &&
-    Boolean(payload.coverLandscapePath?.trim())
-  );
+  return Boolean(payload.mediaPath?.trim());
 }
 
 /**

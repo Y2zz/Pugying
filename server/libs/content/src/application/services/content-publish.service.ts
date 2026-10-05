@@ -1,30 +1,17 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { formatArticleBodyForPlatform } from '../../domain/article-body-format';
+import { articlePublishIssue } from '../../domain/article-publish-rules';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { access } from 'fs/promises';
 import { constants } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFile, mkdir } from 'fs/promises';
-import {
-  PLATFORM_ACCOUNT_REPOSITORY,
-  type IPlatformAccountRepository,
-} from '@pugying/platform-account';
+import { PLATFORM_ACCOUNT_REPOSITORY, type IPlatformAccountRepository } from '@pugying/platform-account';
 import { decryptCredentialPayload } from '@pugying/platform-account/infrastructure/credential-crypto';
 import type { ReportPublishResultDto } from '@pugying/content/application/dtos/report-publish-result.dto';
 import type { ContentView } from '@pugying/content/application/services/content.service';
-import {
-  CONTENT_REPOSITORY,
-  type IContentRepository,
-} from '@pugying/content/domain/repositories/content.repository';
-import {
-  CONTENT_TARGET_REPOSITORY,
-  type IContentTargetRepository,
-} from '@pugying/content/domain/repositories/content-target.repository';
+import { CONTENT_REPOSITORY, type IContentRepository } from '@pugying/content/domain/repositories/content.repository';
+import { CONTENT_TARGET_REPOSITORY, type IContentTargetRepository } from '@pugying/content/domain/repositories/content-target.repository';
 import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
 import { PublishErrorCodes } from '@pugying/content/domain/publish-error-codes';
@@ -54,12 +41,16 @@ export interface PublishDispatch {
   mediaPath: string;
   /** 图文为轮播图；文章为插图列表；视频通常为单元素 */
   mediaPaths: string[];
-  /** 竖封面临时文件路径（由服务端从 BLOB 写出）；文章可回退为横封面 */
+  /** 主封面临时文件路径；抖音文章为竖版，头条/B站文章为横版 */
   coverPath: string;
   /** 横封面临时文件路径；图文可为空字符串 */
   coverLandscapePath: string;
+  articleCoverPaths?: string[];
   title: string;
   body?: string;
+  tags?: string[];
+  articleSettings?: import('../../domain/article-settings').ArticleAccountSettings;
+  authorDeclaration?: import('../../domain/author-declaration').AuthorDeclaration;
   visibility: string;
   scheduledAt?: string;
   allowDownload: boolean;
@@ -96,21 +87,12 @@ export class ContentPublishService {
       throw new BadRequestException('请先选择至少一个分发账号');
     }
 
-    if (
-      existing.some(
-        (t) => t.publishStatus === 'queued' || t.publishStatus === 'running',
-      )
-    ) {
+    if (existing.some((t) => t.publishStatus === 'queued' || t.publishStatus === 'running')) {
       throw new ConflictException('发布进行中，请勿重复提交');
     }
 
     const eligible = existing.filter((t) => {
-      return (
-        P0_PUBLISH_PLATFORMS.has(t.platform) &&
-        (t.publishStatus === 'idle' ||
-          t.publishStatus === 'failed' ||
-          t.publishStatus === 'cancelled')
-      );
+      return P0_PUBLISH_PLATFORMS.has(t.platform) && (t.publishStatus === 'idle' || t.publishStatus === 'failed' || t.publishStatus === 'cancelled');
     });
 
     if (eligible.length === 0) {
@@ -125,6 +107,11 @@ export class ContentPublishService {
             ? '暂时仅支持抖音文章发布；请绑定可用的抖音账号后再试'
             : '暂时仅支持抖音短视频发布；请绑定可用的抖音账号后再试',
       );
+    }
+
+    const dispatches: PublishDispatch[] = [];
+    for (const target of eligible) {
+      dispatches.push(await this.buildDispatch(content, target));
     }
 
     for (const target of eligible) {
@@ -144,11 +131,6 @@ export class ContentPublishService {
       await this.contents.save(content);
     }
 
-    const dispatches: PublishDispatch[] = [];
-    for (const target of eligible) {
-      dispatches.push(await this.buildDispatch(content, target));
-    }
-
     return {
       content: await this.toContentView(content),
       dispatches,
@@ -156,38 +138,28 @@ export class ContentPublishService {
   }
 
   /** queued → running，并刷新本机路径 / Cookie */
-  async startTarget(
-    contentId: string,
-    targetId: string,
-  ): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
+  async startTarget(contentId: string, targetId: string): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
     const content = await this.requireContentWithCovers(contentId);
     const target = await this.requireTarget(contentId, targetId);
     if (target.publishStatus !== 'queued') {
-      throw new BadRequestException(
-        `目标状态为 ${target.publishStatus}，无法开始（需为 queued）`,
-      );
+      throw new BadRequestException(`目标状态为 ${target.publishStatus}，无法开始（需为 queued）`);
     }
+    this.assertContentReady(content);
+    const dispatch = await this.buildDispatch(content, target);
     target.publishStatus = 'running';
     target.startedAt = new Date();
     target.finishedAt = null;
     target.errorCode = null;
     target.errorMessage = null;
     const saved = await this.targets.save(target);
-    const dispatch = await this.buildDispatch(content, saved);
     return { target: saved, dispatch };
   }
 
   /** running → succeeded | failed（浏览器回写 Agent 结果） */
-  async completeTarget(
-    contentId: string,
-    targetId: string,
-    dto: ReportPublishResultDto,
-  ): Promise<ContentTarget> {
+  async completeTarget(contentId: string, targetId: string, dto: ReportPublishResultDto): Promise<ContentTarget> {
     const target = await this.requireTarget(contentId, targetId);
     if (target.publishStatus !== 'running' && target.publishStatus !== 'queued') {
-      throw new BadRequestException(
-        `目标状态为 ${target.publishStatus}，无法写入结果`,
-      );
+      throw new BadRequestException(`目标状态为 ${target.publishStatus}，无法写入结果`);
     }
     const now = new Date();
     if (!target.startedAt) {
@@ -203,8 +175,7 @@ export class ContentPublishService {
     } else {
       target.publishStatus = 'failed';
       target.errorCode = dto.errorCode?.trim() || 'PUBLISH_FAILED';
-      target.errorMessage =
-        dto.errorMessage?.trim() || '发布失败';
+      target.errorMessage = dto.errorMessage?.trim() || '发布失败';
       target.platformPostId = null;
       target.platformUrl = null;
       if (target.errorCode === 'AUTH_EXPIRED') {
@@ -227,18 +198,10 @@ export class ContentPublishService {
   }
 
   /** queued | running → cancelled */
-  async cancelTarget(
-    contentId: string,
-    targetId: string,
-  ): Promise<ContentTarget> {
+  async cancelTarget(contentId: string, targetId: string): Promise<ContentTarget> {
     const target = await this.requireTarget(contentId, targetId);
-    if (
-      target.publishStatus !== 'queued' &&
-      target.publishStatus !== 'running'
-    ) {
-      throw new BadRequestException(
-        `目标状态为 ${target.publishStatus}，无法取消`,
-      );
+    if (target.publishStatus !== 'queued' && target.publishStatus !== 'running') {
+      throw new BadRequestException(`目标状态为 ${target.publishStatus}，无法取消`);
     }
     target.publishStatus = 'cancelled';
     target.finishedAt = new Date();
@@ -248,43 +211,26 @@ export class ContentPublishService {
   }
 
   /** failed | cancelled → queued，并返回单条下发载荷 */
-  async retryTarget(
-    contentId: string,
-    targetId: string,
-  ): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
+  async retryTarget(contentId: string, targetId: string): Promise<{ target: ContentTarget; dispatch: PublishDispatch }> {
     const content = await this.requireContentWithCovers(contentId);
     this.assertContentReady(content);
     const target = await this.requireTarget(contentId, targetId);
 
     const siblings = await this.targets.findByContent(contentId);
-    if (
-      siblings.some(
-        (t) =>
-          t.id !== target.id &&
-          (t.publishStatus === 'queued' || t.publishStatus === 'running'),
-      )
-    ) {
+    if (siblings.some((t) => t.id !== target.id && (t.publishStatus === 'queued' || t.publishStatus === 'running'))) {
       throw new ConflictException('另有目标正在发布，请稍后再重试');
     }
 
-    if (
-      target.publishStatus !== 'failed' &&
-      target.publishStatus !== 'cancelled'
-    ) {
-      throw new BadRequestException(
-        `目标状态为 ${target.publishStatus}，仅失败或已取消可重试`,
-      );
+    if (target.publishStatus !== 'failed' && target.publishStatus !== 'cancelled') {
+      throw new BadRequestException(`目标状态为 ${target.publishStatus}，仅失败或已取消可重试`);
     }
     if (!P0_PUBLISH_PLATFORMS.has(target.platform)) {
       throw new BadRequestException(
-        content.type === 'graphic'
-          ? '暂时仅支持抖音图文重试'
-          : content.type === 'article'
-            ? '暂时仅支持抖音文章重试'
-            : '暂时仅支持抖音短视频重试',
+        content.type === 'graphic' ? '暂时仅支持抖音图文重试' : content.type === 'article' ? '暂时仅支持抖音文章重试' : '暂时仅支持抖音短视频重试',
       );
     }
 
+    const dispatch = await this.buildDispatch(content, target);
     target.publishStatus = 'queued';
     target.errorCode = null;
     target.errorMessage = null;
@@ -293,101 +239,117 @@ export class ContentPublishService {
     target.startedAt = null;
     target.finishedAt = null;
     const saved = await this.targets.save(target);
-    const dispatch = await this.buildDispatch(content, saved);
     return { target: saved, dispatch };
   }
 
-  private async buildDispatch(
-    content: Content,
-    target: ContentTarget,
-  ): Promise<PublishDispatch> {
+  private async buildDispatch(content: Content, target: ContentTarget): Promise<PublishDispatch> {
     const account = await this.accounts.findById(target.platformAccountId);
     if (!account) {
-      throw new BadRequestException(
-        `平台账号 #${target.platformAccountId} 不存在`,
-      );
+      throw new BadRequestException(`平台账号 #${target.platformAccountId} 不存在`);
     }
     if (account.status !== 'active') {
-      throw new BadRequestException(
-        `平台账号「${account.displayName}」不可用（${account.status}），请重新授权`,
-      );
+      throw new BadRequestException(`平台账号「${account.displayName}」不可用（${account.status}），请重新授权`);
     }
 
     const cookies = this.decryptCookies(account.credentialCipher);
     const overrides = target.overrides ?? {};
     const isGraphic = content.type === 'graphic';
     const isArticle = content.type === 'article';
+    const isDouyinArticle = isArticle && target.platform === 'douyin';
+    const scheduled = overrides.scheduledAt || (content.scheduledAt ? content.scheduledAt.toISOString() : undefined);
+    if (isArticle) {
+      const issue = articlePublishIssue({
+        platform: target.platform,
+        title: (overrides.title?.trim() || content.title).trim(),
+        body: overrides.body?.trim() || content.body || '',
+        tags: overrides.tags ?? content.tags,
+        visibility: overrides.visibility ?? content.visibility,
+        scheduledAt: scheduled,
+        settings: overrides.articleSettings,
+      });
+      if (issue) {
+        throw new BadRequestException(issue);
+      }
+    }
 
-    const mediaPaths = (content.mediaPaths ?? [])
-      .map((p) => p.trim())
-      .filter(Boolean);
+    const mediaPaths = (content.mediaPaths ?? []).map((p) => p.trim()).filter(Boolean);
     // 图文必须有轮播图；视频必须有文件；文章插图可空
     if (!isArticle && mediaPaths.length === 0) {
-      throw new BadRequestException(
-        isGraphic ? '缺少图片本地路径' : '缺少视频本地路径',
-      );
+      throw new BadRequestException(isGraphic ? '缺少图片本地路径' : '缺少视频本地路径');
     }
     for (const path of mediaPaths) {
       await this.assertReadableFile(path);
     }
     const mediaPath = mediaPaths[0] ?? '';
 
-    const targetWithCovers =
-      (await this.targets.findByIdWithCovers(target.id)) ?? target;
+    const targetWithCovers = (await this.targets.findByIdWithCovers(target.id)) ?? target;
 
     const portrait = this.resolveCover(content, targetWithCovers, 'portrait');
-    const landscape = this.resolveCover(content, targetWithCovers, 'landscape');
+    let landscape = this.resolveCover(content, targetWithCovers, 'landscape');
+    const settings = overrides.articleSettings;
+    const noArticleCover =
+      isArticle && ((target.platform === 'toutiao' && settings?.coverMode === 'none') || (target.platform === 'bilibili' && settings?.customCover === false));
+    if (noArticleCover) {
+      landscape = null;
+    }
+    const extraCovers: { mime: string; data: Buffer }[] = [];
+    if (isArticle && target.platform === 'toutiao' && settings?.coverMode === 'triple') {
+      for (const index of [2, 3] as const) {
+        const mime = targetWithCovers[index === 2 ? 'coverLandscape2Mime' : 'coverLandscape3Mime'];
+        const data = targetWithCovers[index === 2 ? 'coverLandscape2Data' : 'coverLandscape3Data'];
+        if (!mime || !data?.length) {
+          throw new BadRequestException('请设置完整的三张封面');
+        }
+        extraCovers.push({ mime, data });
+      }
+    }
 
     if (isGraphic) {
       if (!portrait) {
         throw new BadRequestException('缺少竖版封面');
       }
     } else if (isArticle) {
-      // 文章以横封面为主（头条/B站/抖音发文章）；无竖封面时用横封面顶 coverPath
-      if (!landscape) {
+      if (isDouyinArticle && !portrait) {
+        throw new BadRequestException('缺少竖版封面（3:4）');
+      }
+      if (!isDouyinArticle && !noArticleCover && !landscape && (target.platform !== 'bilibili' || settings?.customCover === true)) {
         throw new BadRequestException('缺少横版封面');
-      }
-    } else {
-      if (!portrait) {
-        throw new BadRequestException('缺少竖版封面');
-      }
-      if (!landscape) {
-        throw new BadRequestException(
-          '缺少横版封面（4:3）；抖音短视频发布需同时提供竖版与横版封面',
-        );
       }
     }
 
-    const primaryCover = isArticle ? landscape! : portrait!;
+    const primaryCover = isArticle && !isDouyinArticle ? landscape : portrait;
+    if (isArticle && ['toutiao', 'bilibili'].includes(target.platform)) {
+      for (const cover of [...(primaryCover ? [primaryCover] : []), ...extraCovers]) {
+        if (!['image/jpeg', 'image/png'].includes(cover.mime)) {
+          throw new BadRequestException('该平台封面仅支持 JPG、PNG');
+        }
+      }
+    }
     const workDir = join(tmpdir(), `pugying-dispatch-${target.id}`);
     await mkdir(workDir, { recursive: true });
-    const coverPath = join(
-      workDir,
-      `cover${extForMime(primaryCover.mime)}`,
-    );
-    await writeFile(coverPath, primaryCover.data);
+    let coverPath = '';
+    if (primaryCover) {
+      coverPath = join(workDir, `cover${extForMime(primaryCover.mime)}`);
+      await writeFile(coverPath, primaryCover.data);
+    }
+
+    const articleCoverPaths = isArticle ? (coverPath ? [coverPath] : []) : undefined;
+    for (const [index, cover] of extraCovers.entries()) {
+      const path = join(workDir, `cover-${index + 2}${extForMime(cover.mime)}`);
+      await writeFile(path, cover.data);
+      articleCoverPaths!.push(path);
+    }
 
     let coverLandscapePath = '';
-    if (isArticle) {
-      // 文章主封面即横版；协议 coverLandscapePath 同步写出，便于适配器取用
+    if (isArticle && !isDouyinArticle) {
+      // 头条/B站文章的主封面为横版；抖音文章不传横版封面。
       coverLandscapePath = coverPath;
-    } else if (landscape) {
-      coverLandscapePath = join(
-        workDir,
-        `cover-landscape${extForMime(landscape.mime)}`,
-      );
+    } else if (!isArticle && landscape) {
+      coverLandscapePath = join(workDir, `cover-landscape${extForMime(landscape.mime)}`);
       await writeFile(coverLandscapePath, landscape.data);
     }
 
-    const scheduled =
-      overrides.scheduledAt ||
-      (content.scheduledAt ? content.scheduledAt.toISOString() : undefined);
-
-    const contentType: PublishDispatch['contentType'] = isGraphic
-      ? 'graphic'
-      : isArticle
-        ? 'article'
-        : 'video';
+    const contentType: PublishDispatch['contentType'] = isGraphic ? 'graphic' : isArticle ? 'article' : 'video';
 
     return {
       targetId: target.id,
@@ -398,8 +360,14 @@ export class ContentPublishService {
       mediaPaths,
       coverPath,
       coverLandscapePath,
+      articleCoverPaths,
       title: (overrides.title?.trim() || content.title).trim(),
-      body: (overrides.body?.trim() || content.body || undefined) || undefined,
+      body: isArticle
+        ? formatArticleBodyForPlatform(overrides.body?.trim() || content.body || '', target.platform)
+        : overrides.body?.trim() || content.body || undefined,
+      tags: overrides.tags ?? content.tags,
+      articleSettings: isArticle ? overrides.articleSettings : undefined,
+      authorDeclaration: !isArticle && target.platform === 'douyin' ? (overrides.authorDeclaration ?? 'none') : undefined,
       visibility: overrides.visibility ?? content.visibility,
       scheduledAt: scheduled,
       allowDownload: overrides.allowDownload ?? content.allowDownload,
@@ -407,11 +375,7 @@ export class ContentPublishService {
     };
   }
 
-  private resolveCover(
-    content: Content,
-    target: ContentTarget,
-    kind: 'portrait' | 'landscape',
-  ): { mime: string; data: Buffer } | null {
+  private resolveCover(content: Content, target: ContentTarget, kind: 'portrait' | 'landscape'): { mime: string; data: Buffer } | null {
     if (kind === 'portrait') {
       if (target.coverMime && target.coverData?.length) {
         return { mime: target.coverMime, data: target.coverData };
@@ -490,7 +454,7 @@ export class ContentPublishService {
     }
   }
 
-  /** 文章：标题 + 正文 + 横封面；插图可空 */
+  /** 文章：标题 + 正文；封面按账号平台在 buildDispatch 校验。 */
   private assertArticleReady(content: Content): void {
     if (content.type !== 'article') {
       throw new BadRequestException('内容类型不是文章');
@@ -500,9 +464,6 @@ export class ContentPublishService {
     }
     if (!content.body?.trim()) {
       throw new BadRequestException('正文不能为空');
-    }
-    if (!content.coverLandscapeMime || !content.coverLandscapeData?.length) {
-      throw new BadRequestException('请先准备横版封面');
     }
   }
 
@@ -516,13 +477,6 @@ export class ContentPublishService {
     if (!content.mediaPaths?.length) {
       throw new BadRequestException('请先选择本机视频文件');
     }
-    // 发布要求内容级竖/横封面 BLOB；Target 差异封面仅为覆盖，不能替代通用封面
-    if (!content.coverMime || !content.coverData?.length) {
-      throw new BadRequestException('请先准备竖版封面');
-    }
-    if (!content.coverLandscapeMime || !content.coverLandscapeData?.length) {
-      throw new BadRequestException('请先准备横版封面');
-    }
   }
 
   private async requireContentWithCovers(id: string): Promise<Content> {
@@ -533,10 +487,7 @@ export class ContentPublishService {
     return content;
   }
 
-  private async requireTarget(
-    contentId: string,
-    targetId: string,
-  ): Promise<ContentTarget> {
+  private async requireTarget(contentId: string, targetId: string): Promise<ContentTarget> {
     const target = await this.targets.findById(targetId);
     if (!target || target.contentId !== contentId) {
       throw new NotFoundException(`Target #${targetId} not found`);
@@ -546,13 +497,7 @@ export class ContentPublishService {
 
   private async toContentView(content: Content): Promise<ContentView> {
     const targets = await this.targets.findByContent(content.id);
-    const {
-      coverData: _cd,
-      coverLandscapeData: _cld,
-      coverMime,
-      coverLandscapeMime,
-      ...rest
-    } = content;
+    const { coverData: _cd, coverLandscapeData: _cld, coverMime, coverLandscapeMime, ...rest } = content;
     return {
       ...rest,
       hasCover: Boolean(coverMime),
@@ -561,6 +506,10 @@ export class ContentPublishService {
         const {
           coverData: _tcd,
           coverLandscapeData: _tcld,
+          coverLandscape2Data: _tc2,
+          coverLandscape3Data: _tc3,
+          coverLandscape2Mime: tm2,
+          coverLandscape3Mime: tm3,
           coverMime: tm,
           coverLandscapeMime: tlm,
           ...tRest
@@ -569,6 +518,8 @@ export class ContentPublishService {
           ...tRest,
           hasCover: Boolean(tm),
           hasCoverLandscape: Boolean(tlm),
+          hasCoverLandscape2: Boolean(tm2),
+          hasCoverLandscape3: Boolean(tm3),
         };
       }),
     };

@@ -3,6 +3,8 @@
  * 传输层仍复用 AgentEnvelope，便于 agent-client 与 WS 协议对齐。
  */
 export const DESKTOP_IPC = {
+  /** 读取头条文章编辑器的当前账号赞赏额度 */
+  getToutiaoRewardPrivilege: 'desktop:get-toutiao-reward-privilege',
   /** renderer → main */
   message: 'desktop:message',
   /** main → renderer（hello / progress / result / closed） */

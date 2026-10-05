@@ -1,11 +1,20 @@
-import type { RefObject } from 'react';
-import { AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { CharCountInput } from '../publish-video/CharCountFields';
-import { ArticleRichTextEditor } from './ArticleRichTextEditor';
-import type { PathWarning } from './use-article-composer';
-import { countArticleTitleCharacters, normalizeArticleTitle } from './article-title';
+import { useState, type RefObject } from "react";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { CharCountInput } from "../publish-video/CharCountFields";
+import { ArticleRichTextEditor } from "./ArticleRichTextEditor";
+import type { ArticlePreviewTarget } from "./ArticleReadingPreview";
+import type { PathWarning } from "./use-article-composer";
+import {
+  countArticleTitleCharacters,
+  normalizeArticleTitle,
+} from "./article-title";
 
 /**
  * 文章撰写区：标准 Field 表单（标题 + 富文本正文），与视频页通用信息一致。
@@ -21,8 +30,11 @@ export function ArticleDocument({
   pathWarning,
   disabled,
   titleRef,
+  validationAttempted = false,
   editorRef,
   imageWarningRef,
+  previewTargets,
+  maxImages,
 }: {
   title: string;
   onTitleChange: (value: string) => void;
@@ -34,29 +46,46 @@ export function ArticleDocument({
   pathWarning: PathWarning;
   disabled?: boolean;
   titleRef: RefObject<HTMLInputElement | null>;
+  validationAttempted?: boolean;
   editorRef: RefObject<HTMLDivElement | null>;
   imageWarningRef?: RefObject<HTMLDivElement | null>;
+  previewTargets?: ArticlePreviewTarget[];
+  maxImages?: number;
 }) {
+  const [titleTouched, setTitleTouched] = useState(false);
+  const titleError =
+    (titleTouched || validationAttempted) && !title.trim() ? "请填写标题" : "";
+
   return (
     <FieldGroup className="gap-4">
-      <Field>
-        <FieldLabel htmlFor="article-title">标题</FieldLabel>
+      <Field
+        data-invalid={
+          Boolean(titleError) ||
+          countArticleTitleCharacters(title) > titleMax ||
+          undefined
+        }
+      >
+        <FieldLabel htmlFor="article-title" className="font-normal">
+          标题
+        </FieldLabel>
         <CharCountInput
           id="article-title"
           ref={titleRef}
+          validationMessage={titleError}
           placeholder="填写文章标题"
           max={titleMax}
           countCharacters={countArticleTitleCharacters}
           disabled={disabled}
           value={title}
           onChange={(e) => {
-            onTitleChange(e.target.value.replace(/[\r\n]+/g, ' '));
+            onTitleChange(e.target.value.replace(/[\r\n]+/g, " "));
           }}
           onBlur={(e) => {
+            setTitleTouched(true);
             onTitleChange(normalizeArticleTitle(e.target.value));
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
               e.preventDefault();
               editorRef.current?.focus();
             }
@@ -65,14 +94,16 @@ export function ArticleDocument({
       </Field>
 
       {pathWarning ? (
-        <Alert ref={imageWarningRef} variant={pathWarning.tone === 'error' ? 'destructive' : 'default'}>
+        <Alert
+          ref={imageWarningRef}
+          variant={pathWarning.tone === "error" ? "destructive" : "default"}
+        >
           <AlertCircle />
           <AlertDescription>{pathWarning.text}</AlertDescription>
         </Alert>
       ) : null}
 
       <Field>
-        <FieldLabel htmlFor="article-body">正文</FieldLabel>
         <ArticleRichTextEditor
           id="article-body"
           value={body}
@@ -82,8 +113,13 @@ export function ArticleDocument({
           maxLength={bodyMax}
           editorRef={editorRef}
           footerExtra="图片引用本机文件，发布前请勿移动"
+          title={title}
+          previewTargets={previewTargets}
+          maxImages={maxImages}
         />
-        <FieldDescription>可插入本机图片；字数按所选平台最严限制计</FieldDescription>
+        <FieldDescription>
+          可插入本机图片；字数按所选平台最严限制计
+        </FieldDescription>
       </Field>
     </FieldGroup>
   );

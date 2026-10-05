@@ -29,7 +29,7 @@ const DOUYIN_VISIBILITY: ContentVisibility[] = ['public', 'friends', 'private'];
 
 /**
  * 文章平台字段规格：富文本内嵌图 + 独立信息流封面。
- * 数字随真实创作者侧接口可再微调。
+ * 已核实项见 docs/article-platform-alignment.md；未核实项不作为后台结论。
  */
 export const ARTICLE_PLATFORM_FIELDS: {
   [K in (typeof ARTICLE_SUPPORTED_PLATFORMS)[number]]: ArticlePlatformFieldSpec;
@@ -39,8 +39,8 @@ export const ARTICLE_PLATFORM_FIELDS: {
     titleMax: 30,
     titleRequired: true,
     bodyPlainMin: 200,
-    bodyPlainMax: 50_000,
-    cover: { mode: 'landscape_4_3', required: true, allowFromFirstImage: true },
+    bodyPlainMax: 20_000,
+    cover: { mode: 'portrait_3_4', required: true, allowFromFirstImage: true },
     secondaryCover: null,
     tags: { enabled: true, maxCount: 5 },
     visibility: DOUYIN_VISIBILITY,
@@ -58,7 +58,7 @@ export const ARTICLE_PLATFORM_FIELDS: {
     bodyPlainMax: 50_000,
     cover: { mode: 'landscape_4_3', required: true, allowFromFirstImage: true },
     secondaryCover: null,
-    tags: { enabled: true, maxCount: 10 },
+    tags: { enabled: false, maxCount: 0 },
     visibility: null,
     schedule: { enabled: true, minHours: 2, maxDays: 14 },
     location: { enabled: false },
@@ -70,14 +70,14 @@ export const ARTICLE_PLATFORM_FIELDS: {
     titleMax: 40,
     titleRequired: true,
     bodyPlainMin: 1,
-    bodyPlainMax: 50_000,
-    cover: { mode: 'landscape_4_3', required: true, allowFromFirstImage: true },
+    bodyPlainMax: 100_000,
+    cover: { mode: 'landscape_4_3', required: false, allowFromFirstImage: true },
     secondaryCover: null,
-    tags: { enabled: true, maxCount: 10 },
-    visibility: null,
-    schedule: { enabled: true, minHours: 2, maxDays: 15 },
+    tags: { enabled: false, maxCount: 0 },
+    visibility: ['public', 'private'],
+    schedule: { enabled: true, minHours: 2, maxDays: 7 },
     location: { enabled: false },
-    partition: { enabled: true, label: '分区' },
+    partition: { enabled: false, label: '' },
   },
 };
 

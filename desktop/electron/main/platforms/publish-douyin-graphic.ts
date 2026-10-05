@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import { BrowserWindow, session, type WebContents } from 'electron';
 import { injectCookies } from '../auth-browser';
 import { getPlatformAdapter } from './adapters';
+import { fillDouyinGraphicMetadata, applyDouyinGraphicSettings } from './douyin-graphic-form';
 import type { AgentCookie } from '../protocol';
 import type {
   PlatformPublishProgressPayload,
@@ -158,14 +159,20 @@ export function runDouyinGraphicPublish(options: {
       }
 
       emit('submitting', '填写标题与正文');
-      await fillPostMeta(win.webContents, {
-        title: payload.title,
-        body: payload.body ?? '',
-      });
+      const metadataReady = await fillDouyinGraphicMetadata(win.webContents, payload);
+      const settingsReady = metadataReady && await applyDouyinGraphicSettings(win.webContents, payload);
+      if (!settingsReady) {
+        keepWindowForManual = true;
+        return fail(base, 'ADAPTER_PARTIAL', '部分发布设置未能完成，请在打开的窗口核对后发布');
+      }
 
       if (payload.scheduledAt) {
         emit('submitting', `尝试设置平台定时 ${payload.scheduledAt}`);
-        await tryEnableSchedule(win.webContents, payload.scheduledAt);
+        const scheduled = await tryEnableSchedule(win.webContents, payload.scheduledAt);
+        if (!scheduled) {
+          keepWindowForManual = true;
+          return fail(base, 'ADAPTER_PARTIAL', '定时发布未能设置，请在打开的窗口核对时间');
+        }
       }
 
       // 编辑页若有封面槽则挂竖封面；失败不阻断，留给半自动
@@ -393,79 +400,46 @@ async function isEditorPage(win: BrowserWindow): Promise<boolean> {
   }
 }
 
-async function fillPostMeta(
-  wc: WebContents,
-  meta: { title: string; body: string },
-): Promise<void> {
-  const title = meta.title.slice(0, 30);
-  const body = meta.body.slice(0, 1000);
-  await wc.executeJavaScript(`(() => {
-    const titleText = ${JSON.stringify(title)};
-    const bodyText = ${JSON.stringify(body)};
-
-    const setNativeValue = (el, value) => {
-      const proto = el.tagName === 'TEXTAREA'
-        ? window.HTMLTextAreaElement.prototype
-        : window.HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      if (setter) {
-        setter.call(el, value);
-      } else {
-        el.value = value;
-      }
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-
-    const editables = Array.from(document.querySelectorAll('[contenteditable="true"]'));
-    if (editables[0] && titleText) {
-      editables[0].focus();
-      editables[0].textContent = titleText;
-      editables[0].dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
-    if (editables[1] && bodyText) {
-      editables[1].focus();
-      editables[1].textContent = bodyText;
-      editables[1].dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
-
-    const inputs = Array.from(document.querySelectorAll('input, textarea'));
-    for (const el of inputs) {
-      const ph = (el.getAttribute('placeholder') || '') + (el.getAttribute('aria-label') || '');
-      if (/标题|作品标题|填写作品标题/.test(ph) && titleText) {
-        setNativeValue(el, titleText);
-      }
-      if (/描述|简介|作品描述|添加作品描述/.test(ph) && bodyText) {
-        setNativeValue(el, bodyText);
-      }
-    }
-    return true;
-  })()`);
-}
-
-async function tryEnableSchedule(
-  wc: WebContents,
-  scheduledAtIso: string,
-): Promise<boolean> {
+async function tryEnableSchedule(wc: WebContents, scheduledAtIso: string): Promise<boolean> {
+  const scheduled = new Date(scheduledAtIso);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const date = `${scheduled.getFullYear()}-${pad(scheduled.getMonth() + 1)}-${pad(scheduled.getDate())}`;
+  const time = `${pad(scheduled.getHours())}:${pad(scheduled.getMinutes())}`;
   try {
+    const toggled = await wc.executeJavaScript(`(() => {
+      const label = Array.from(document.querySelectorAll('label')).find((node) =>
+        node.textContent.trim() === '定时发布' && node.querySelector('input[type="checkbox"]'));
+      if (!label) { return false; }
+      const input = label.querySelector('input');
+      if (!input.checked) { label.click(); }
+      return true;
+    })()`);
+    if (!toggled) {
+      return false;
+    }
     return await wc.executeJavaScript(`(() => {
-      const iso = ${JSON.stringify(scheduledAtIso)};
-      const nodes = Array.from(document.querySelectorAll('button, label, span, div'));
-      const toggle = nodes.find((n) => /定时发布/.test((n.textContent || '').trim()));
-      if (toggle) {
-        toggle.click();
+      const values = [
+        ['input[type="datetime-local"]', ${JSON.stringify(`${date}T${time}`)}],
+        ['input[type="date"]', ${JSON.stringify(date)}],
+        ['input[type="time"]', ${JSON.stringify(time)}],
+      ];
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (!setter) { return false; }
+      let full = false;
+      let dateSet = false;
+      let timeSet = false;
+      for (const [selector, value] of values) {
+        const input = document.querySelector(selector);
+        if (!input || input.disabled || input.readOnly) { continue; }
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        if (input.value !== value) { return false; }
+        if (selector.includes('datetime-local')) { full = true; }
+        if (selector.includes('type="date"')) { dateSet = true; }
+        if (selector.includes('type="time"')) { timeSet = true; }
       }
-      const inputs = Array.from(document.querySelectorAll('input'));
-      for (const el of inputs) {
-        const t = (el.type || '') + (el.placeholder || '');
-        if (/date|time|定时/.test(t) || el.type === 'datetime-local') {
-          try {
-            el.value = iso.slice(0, 16);
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-          } catch (_) {}
-        }
-      }
-      return !!toggle;
+      return full || (dateSet && timeSet);
     })()`);
   } catch {
     return false;

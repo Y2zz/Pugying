@@ -275,6 +275,20 @@ html.desktop-chrome[data-desktop-controls='overlay'] [data-slot='drawer-overlay'
   app-region: no-drag;
 }
 
+/* 编辑器工具保留正常边界，不显示焦点外框；弹出格式面板使用同一作用域。 */
+.article-editor-tools :is(button, select):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.article-editor-tools button:focus-visible {
+  border-color: transparent;
+}
+
+.article-editor-tools select:focus-visible {
+  border-color: var(--input);
+}
+
 /* 取消 shadcn Button 按下位移（vega 默认 active:translate-y-px） */
 [data-slot="button"]:active:not([aria-haspopup]) {
   transform: none !important;

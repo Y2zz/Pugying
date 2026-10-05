@@ -1,36 +1,32 @@
-import type { RefObject } from 'react';
-import { DateTimePicker } from '@/components/DateTimePicker';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import type { PlatformAccountItem } from '@/lib/api';
-import { CharCountInput, CharCountTextarea } from './CharCountFields';
-import { CoverHoverCard } from './CoverHoverCard';
-import { TagInput } from './TagInput';
+import { useState, type RefObject } from "react";
+import { composeDouyinGraphicDescription } from "@shared/douyin-graphic-settings";
+import { DateTimePicker } from "@/components/DateTimePicker";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+  FieldTitle,
+} from "@/components/ui/field";
+import { ArticleRadioField } from "../publish-article/account-forms/ArticleRadioField";
+import { formatLocalDateTime, getDateTimeWindow } from "@/lib/date-time";
+import type { PlatformAccountItem } from "@/lib/api";
+import { CharCountInput, CharCountTextarea } from "./CharCountFields";
+import { ArticleCoverThumb } from "../publish-article/ArticleCoverThumb";
+import { TagInput } from "./TagInput";
+import { DouyinDeclarationField } from "../publish-graphic/account-forms/DouyinDeclarationField";
 import {
   BODY_MAX,
   TITLE_MAX,
   VISIBILITY_OPTIONS,
   parseTags,
-  truncateCommonReference,
+  localInputToIso,
+  validateSchedule,
   type CoverKind,
   type OverrideDraft,
-} from './helpers';
-
-/** 覆盖区展示通用默认值，避免用户来回对照上方 Card */
-function CommonReferenceHint({ label, value }: { label: string; value: string }) {
-  const text = truncateCommonReference(value);
-  if (!text) {
-    return null;
-  }
-  return (
-    <p className="text-xs text-muted-foreground">
-      通用{label}：{text}
-    </p>
-  );
-}
+} from "./helpers";
 
 /** 通用文案：仅标题与描述，作为各账号默认值 */
 export function ContentInfoForm({
@@ -39,6 +35,7 @@ export function ContentInfoForm({
   body,
   setBody,
   titleInputRef,
+  validationAttempted = false,
   disabled,
 }: {
   title: string;
@@ -47,14 +44,26 @@ export function ContentInfoForm({
   setBody: (v: string) => void;
   titleInputRef: RefObject<HTMLInputElement | null>;
   disabled: boolean;
+  validationAttempted?: boolean;
 }) {
+  const [titleTouched, setTitleTouched] = useState(false);
+  const titleError =
+    (titleTouched || validationAttempted) && !title.trim() ? "请填写标题" : "";
   return (
     <FieldGroup className="gap-4">
-      <Field>
-        <FieldLabel htmlFor="video-title">标题</FieldLabel>
+      <Field
+        data-invalid={
+          Boolean(titleError) || title.length > TITLE_MAX || undefined
+        }
+      >
+        <FieldLabel className="font-normal" htmlFor="video-title">
+          标题
+        </FieldLabel>
         <CharCountInput
           id="video-title"
           ref={titleInputRef}
+          validationMessage={titleError}
+          onBlur={() => setTitleTouched(true)}
           placeholder="填写作品标题"
           max={TITLE_MAX}
           disabled={disabled}
@@ -66,10 +75,12 @@ export function ContentInfoForm({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="video-body">作品描述</FieldLabel>
+        <FieldLabel className="font-normal" htmlFor="video-body">
+          作品简介
+        </FieldLabel>
         <CharCountTextarea
           id="video-body"
-          placeholder="添加作品描述（可选）"
+          placeholder="添加作品简介（可选）"
           max={BODY_MAX}
           disabled={disabled}
           value={body}
@@ -88,8 +99,6 @@ export function AccountOverrideForm({
   draft,
   commonTitle,
   commonBody,
-  commonCoverReady,
-  commonCoverLandscapeReady,
   commonCoverPreviewUrl,
   commonCoverLandscapePreviewUrl,
   coverDisabled,
@@ -114,15 +123,29 @@ export function AccountOverrideForm({
   portraitOnly?: boolean;
 }) {
   const scheduleEnabled = Boolean(draft.scheduledLocal.trim());
+  const scheduleError = scheduleEnabled
+    ? validateSchedule(localInputToIso(draft.scheduledLocal))
+    : null;
 
   const patch = (partial: Partial<OverrideDraft>) => {
     onDraftChange({ ...draft, ...partial });
   };
 
+  const titleError =
+    (draft.title.trim() || commonTitle).length > TITLE_MAX
+      ? `标题最多 ${TITLE_MAX} 字`
+      : "";
   const tags = parseTags(draft.tagsText);
+  const bodyError =
+    composeDouyinGraphicDescription(draft.body.trim() || commonBody, tags)
+      .length > BODY_MAX
+      ? `简介与话题合计最多 ${BODY_MAX} 字`
+      : "";
 
   const accountCoverReady =
-    Boolean(draft.coverBlob) || draft.hasCover || Boolean(draft.coverPreviewUrl.trim());
+    Boolean(draft.coverBlob) ||
+    draft.hasCover ||
+    Boolean(draft.coverPreviewUrl.trim());
   const accountLandscapeReady =
     Boolean(draft.coverLandscapeBlob) ||
     draft.hasCoverLandscape ||
@@ -137,171 +160,196 @@ export function AccountOverrideForm({
 
   return (
     <FieldGroup className="gap-4">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium">发布选项</p>
-        <p className="text-xs text-muted-foreground">以下设置按账号独立配置，不继承通用区</p>
-      </div>
-
-      <Field>
-        <FieldLabel>话题</FieldLabel>
-        <TagInput
-          value={tags}
-          disabled={disabled}
-          onChange={(next) => {
-            patch({ tagsText: next.join(' ') });
-          }}
-        />
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor={`ov-${account.id}-visibility`}>可见性</FieldLabel>
-        <Select
-          value={draft.visibility}
-          disabled={disabled}
-          items={VISIBILITY_OPTIONS}
-          onValueChange={(value) => {
-            patch({ visibility: (value as OverrideDraft['visibility'] | null) ?? 'public' });
-          }}
-        >
-          <SelectTrigger id={`ov-${account.id}-visibility`} className="w-full sm:w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {VISIBILITY_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <Field>
-        <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2.5">
-          <div className="flex flex-col gap-0.5">
-            <Label htmlFor={`ov-${account.id}-schedule-enabled`} className="text-sm font-medium">
-              定时发布
-            </Label>
-            <FieldDescription>2 小时至 14 天内；留空则立即发布</FieldDescription>
-          </div>
-          <Switch
-            id={`ov-${account.id}-schedule-enabled`}
-            checked={scheduleEnabled}
-            disabled={disabled}
-            onCheckedChange={(checked) => {
-              patch({ scheduledLocal: checked ? draft.scheduledLocal || '' : '' });
-            }}
-          />
-        </div>
-        {scheduleEnabled ? (
-          <div className="mt-3">
-            <FieldLabel htmlFor={`ov-${account.id}-schedule`}>发布时间</FieldLabel>
-            <DateTimePicker
-              id={`ov-${account.id}-schedule`}
+      <FieldSet>
+        <FieldLegend>基础信息</FieldLegend>
+        <FieldGroup className="gap-5">
+          <Field data-invalid={Boolean(titleError) || undefined}>
+            <FieldLabel
+              className="font-normal"
+              htmlFor={`ov-${account.id}-title`}
+            >
+              标题
+            </FieldLabel>
+            <CharCountInput
+              id={`ov-${account.id}-title`}
+              validationMessage={titleError}
+              placeholder={commonTitle.trim() || "沿用通用标题"}
+              max={TITLE_MAX}
               disabled={disabled}
-              value={draft.scheduledLocal}
-              onChange={(value) => {
-                patch({ scheduledLocal: value });
+              value={draft.title}
+              onChange={(e) => {
+                patch({ title: e.target.value });
               }}
             />
-          </div>
-        ) : null}
-      </Field>
+          </Field>
 
-      <Field>
-        <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2.5">
-          <div className="flex flex-col gap-0.5">
-            <Label htmlFor={`ov-${account.id}-allow-download`} className="text-sm font-medium">
-              允许下载
-            </Label>
-            <FieldDescription>是否允许观众下载该视频</FieldDescription>
-          </div>
-          <Switch
-            id={`ov-${account.id}-allow-download`}
-            checked={draft.allowDownload}
+          <Field>
+            <FieldTitle className="font-normal">封面</FieldTitle>
+            <div className="mt-2 flex flex-wrap items-start gap-4">
+              <div className="flex flex-col gap-2">
+                <ArticleCoverThumb
+                  aspect="portrait"
+                  src={portraitSrc}
+                  className="h-24"
+                  disabled={disabled || coverDisabled}
+                  onClick={() => {
+                    onEditCover("cover");
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">竖版 3:4</span>
+              </div>
+              {!portraitOnly ? (
+                <div className="flex flex-col gap-2">
+                  <ArticleCoverThumb
+                    aspect="landscape"
+                    src={landscapeSrc}
+                    className="h-24"
+                    disabled={disabled || coverDisabled}
+                    onClick={() => {
+                      onEditCover("cover_landscape");
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    横版 4:3
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            {!accountCoverReady && (portraitOnly || !accountLandscapeReady) ? (
+              <p className="mt-2 text-xs text-muted-foreground">沿用通用封面</p>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">
+                已单独设置封面
+              </p>
+            )}
+          </Field>
+
+          <Field data-invalid={Boolean(bodyError) || undefined}>
+            <FieldLabel
+              className="font-normal"
+              htmlFor={`ov-${account.id}-body`}
+            >
+              作品简介
+            </FieldLabel>
+            <CharCountTextarea
+              id={`ov-${account.id}-body`}
+              validationMessage={bodyError}
+              placeholder={commonBody.trim() || "沿用通用描述"}
+              max={BODY_MAX}
+              className="min-h-16"
+              disabled={disabled}
+              value={draft.body}
+              onChange={(e) => {
+                patch({ body: e.target.value });
+              }}
+            />
+          </Field>
+          <Field>
+            <FieldLabel
+              className="font-normal"
+              htmlFor={`ov-${account.id}-tags`}
+            >
+              话题
+            </FieldLabel>
+            <TagInput
+              id={`ov-${account.id}-tags`}
+              value={tags}
+              disabled={disabled}
+              onChange={(next) => {
+                patch({ tagsText: next.join(" ") });
+              }}
+            />
+          </Field>
+          <DouyinDeclarationField
+            accountId={`video-${account.id}`}
+            value={draft.authorDeclaration}
             disabled={disabled}
-            onCheckedChange={(checked) => {
-              patch({ allowDownload: checked });
+            onChange={(authorDeclaration) => {
+              patch({ authorDeclaration });
             }}
           />
-        </div>
-      </Field>
-
-      <Separator />
-
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium">覆盖通用（可选）</p>
-        <p className="text-xs text-muted-foreground">
-          留空则使用上方通用标题、描述与封面；封面按账号独立，不共享给其它账号
-        </p>
-      </div>
-
-      <Field>
-        <FieldLabel htmlFor={`ov-${account.id}-title`}>标题</FieldLabel>
-        {!draft.title.trim() ? <CommonReferenceHint label="标题" value={commonTitle} /> : null}
-        <CharCountInput
-          id={`ov-${account.id}-title`}
-          placeholder="使用通用标题"
-          max={TITLE_MAX}
-          disabled={disabled}
-          value={draft.title}
-          onChange={(e) => {
-            patch({ title: e.target.value });
-          }}
-        />
-      </Field>
-
-      <Field>
-        <FieldLabel>封面</FieldLabel>
-        <div className="mt-2 flex flex-wrap items-start gap-4">
-          <CoverHoverCard
-            label="竖版 3:4"
-            ready={accountCoverReady || commonCoverReady}
-            src={portraitSrc}
-            objectFit="contain"
-            aspectRatio={3 / 4}
-            previewClassName="h-24 shrink-0"
-            disabled={disabled || coverDisabled}
-            onEdit={() => {
-              onEditCover('cover');
+        </FieldGroup>
+      </FieldSet>
+      <FieldSet>
+        <FieldLegend>发布设置</FieldLegend>
+        <FieldGroup className="gap-5">
+          <ArticleRadioField
+            id={`ov-${account.id}-visibility`}
+            label="谁可以看"
+            value={draft.visibility}
+            options={VISIBILITY_OPTIONS}
+            disabled={disabled}
+            onChange={(value) => {
+              patch({ visibility: value as OverrideDraft["visibility"] });
             }}
           />
-          {!portraitOnly ? (
-            <CoverHoverCard
-              label="横版 4:3"
-              ready={accountLandscapeReady || commonCoverLandscapeReady}
-              src={landscapeSrc}
-              aspectRatio={4 / 3}
-              previewClassName="h-24 shrink-0"
-              disabled={disabled || coverDisabled}
-              onEdit={() => {
-                onEditCover('cover_landscape');
-              }}
-            />
+          <ArticleRadioField
+            id={`ov-${account.id}-download`}
+            label="保存权限"
+            value={draft.allowDownload ? "allow" : "deny"}
+            disabled={disabled}
+            options={[
+              { value: "allow", label: "允许" },
+              { value: "deny", label: "不允许" },
+            ]}
+            onChange={(value) => {
+              patch({ allowDownload: value === "allow" });
+            }}
+          />
+          <ArticleRadioField
+            id={`ov-${account.id}-publish-time`}
+            label="发布时间"
+            value={scheduleEnabled ? "scheduled" : "now"}
+            disabled={disabled}
+            options={[
+              { value: "now", label: "立即发布" },
+              { value: "scheduled", label: "定时发布" },
+            ]}
+            onChange={(value) => {
+              patch({
+                scheduledLocal:
+                  value === "now"
+                    ? ""
+                    : formatLocalDateTime(
+                        getDateTimeWindow(
+                          { minHours: 2, maxDays: 14 },
+                          Date.now(),
+                        ).min!,
+                      ),
+              });
+            }}
+          />
+          {scheduleEnabled ? (
+            <Field data-invalid={Boolean(scheduleError) || undefined}>
+              <FieldLabel
+                className="sr-only"
+                htmlFor={`ov-${account.id}-schedule`}
+              >
+                定时发布时间
+              </FieldLabel>
+              <DateTimePicker
+                id={`ov-${account.id}-schedule`}
+                aria-invalid={Boolean(scheduleError) || undefined}
+                aria-describedby={
+                  scheduleError ? `ov-${account.id}-schedule-error` : undefined
+                }
+                minHours={2}
+                maxDays={14}
+                disabled={disabled}
+                value={draft.scheduledLocal}
+                onChange={(value) => {
+                  patch({ scheduledLocal: value });
+                }}
+              />
+              {scheduleError ? (
+                <FieldError id={`ov-${account.id}-schedule-error`}>
+                  {scheduleError}
+                </FieldError>
+              ) : null}
+            </Field>
           ) : null}
-        </div>
-        {!accountCoverReady && (portraitOnly || !accountLandscapeReady) ? (
-          <p className="mt-2 text-xs text-muted-foreground">当前使用通用封面；点击槽位可为该账号单独设置</p>
-        ) : (
-          <p className="mt-2 text-xs text-muted-foreground">已覆盖该账号封面；重置账号可清除本地覆盖（已上传的需重新编辑）</p>
-        )}
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor={`ov-${account.id}-body`}>作品描述</FieldLabel>
-        {!draft.body.trim() ? <CommonReferenceHint label="描述" value={commonBody} /> : null}
-        <CharCountTextarea
-          id={`ov-${account.id}-body`}
-          placeholder="使用通用描述"
-          max={BODY_MAX}
-          className="min-h-16"
-          disabled={disabled}
-          value={draft.body}
-          onChange={(e) => {
-            patch({ body: e.target.value });
-          }}
-        />
-      </Field>
+        </FieldGroup>
+      </FieldSet>
     </FieldGroup>
   );
 }

@@ -1,9 +1,9 @@
-import type { RefObject } from 'react';
-import { Button } from '@/components/ui/button';
-import type { CoverKind } from '@/lib/api';
-import { ArticleCoverThumb } from './ArticleCoverThumb';
-import { COVER_ASPECT_LABEL, coverSlotReady, type CoverPair } from './helpers';
-import type { CoverNeed } from './use-article-composer';
+import type { RefObject } from "react";
+import { Button } from "@/components/ui/button";
+import type { CoverKind } from "@/lib/api";
+import { ArticleCoverThumb } from "./ArticleCoverThumb";
+import { COVER_ASPECT_LABEL, coverSlotReady, type CoverPair } from "./helpers";
+import type { CoverNeed } from "./use-article-composer";
 
 /**
  * 通用封面：放在正文之后、分发之前。
@@ -18,6 +18,7 @@ export function ArticleCoverCard({
   disabled,
   onEdit,
   onUseFirstImage,
+  firstImageLabel = "用正文首图",
 }: {
   sectionRef?: RefObject<HTMLElement | null>;
   needs: CoverNeed[];
@@ -27,6 +28,7 @@ export function ArticleCoverCard({
   disabled?: boolean;
   onEdit: (aspect: CoverKind) => void;
   onUseFirstImage: () => void;
+  firstImageLabel?: string;
 }) {
   const allReady = needs.every((need) => coverSlotReady(covers[need.aspect]));
 
@@ -34,16 +36,24 @@ export function ArticleCoverCard({
     <section ref={sectionRef} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="font-heading text-lg font-medium tracking-tight">封面</h2>
+          <h2 className="font-heading text-lg font-medium tracking-tight">
+            封面
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {hasAccounts
-              ? '默认用于所有账号；个别账号可在分发里单独更换'
-              : '可先设置；选定账号后会按平台要求收紧比例'}
+              ? "默认用于所有账号；个别账号可在分发里单独更换"
+              : "可先设置；选定账号后会按平台要求收紧比例"}
           </p>
         </div>
         {canUseFirstImage && !allReady ? (
-          <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onUseFirstImage}>
-            用正文首图
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={onUseFirstImage}
+          >
+            {firstImageLabel}
           </Button>
         ) : null}
       </div>
@@ -64,18 +74,24 @@ export function ArticleCoverCard({
                 {COVER_ASPECT_LABEL[need.aspect]}
                 {hasAccounts ? (
                   need.required ? null : (
-                    <span className="font-normal text-muted-foreground"> · 可选</span>
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · 可选
+                    </span>
                   )
                 ) : (
-                  <span className="font-normal text-muted-foreground"> · 待定</span>
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    · 待定
+                  </span>
                 )}
               </span>
               {need.platformLabels.length > 0 ? (
                 <span
                   className="max-w-40 truncate text-muted-foreground"
-                  title={need.platformLabels.join('、')}
+                  title={need.platformLabels.join("、")}
                 >
-                  {need.platformLabels.join('、')}
+                  {need.platformLabels.join("、")}
                 </span>
               ) : null}
             </div>

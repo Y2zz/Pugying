@@ -42,6 +42,10 @@ export const ContentTargetEntitySchema = new EntitySchema<ContentTarget>({
       nullable: true,
       select: false,
     },
+    coverLandscape2Mime: { type: String, nullable: true },
+    coverLandscape2Data: { type: 'blob', nullable: true, select: false },
+    coverLandscape3Mime: { type: String, nullable: true },
+    coverLandscape3Data: { type: 'blob', nullable: true, select: false },
     publishStatus: {
       type: String,
       default: 'idle',

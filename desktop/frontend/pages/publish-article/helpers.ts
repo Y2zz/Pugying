@@ -1,40 +1,52 @@
+import {
+  articleSettingsForPlatform,
+  hasCustomizedArticleSettings,
+  type ArticleAccountSettings,
+} from "@shared/article-settings";
 import type {
   ContentTargetOverrides,
   ContentVisibility,
   CoverKind,
   PlatformAccountItem,
   PlatformId,
-} from '@/lib/api';
-import { getPugyingDesktopBridge } from '@/lib/agent-client';
-import { countArticleAccountTitleCharacters, normalizeArticleTitle } from './article-title';
+} from "@/lib/api";
+import { getPugyingDesktopBridge } from "@/lib/agent-client";
+import {
+  countArticleAccountTitleCharacters,
+  normalizeArticleTitle,
+} from "./article-title";
 import {
   articleCoverAspects,
   getArticlePlatformFields,
   isArticleCoverRequired,
   validateArticleSchedule,
-} from './article-platform-fields';
+} from "./article-platform-fields";
 import {
   extractLocalImagePathsFromHtml,
   htmlToPlainText,
-} from './ArticleRichTextEditor';
+} from "./ArticleRichTextEditor";
 
 export { extractLocalImagePathsFromHtml, htmlToPlainText };
 
-export const VISIBILITY_OPTIONS: { value: ContentVisibility; label: string }[] = [
-  { value: 'public', label: '公开' },
-  { value: 'friends', label: '好友可见' },
-  { value: 'private', label: '仅自己可见' },
-];
+export const VISIBILITY_OPTIONS: { value: ContentVisibility; label: string }[] =
+  [
+    { value: "public", label: "公开" },
+    { value: "friends", label: "好友可见" },
+    { value: "private", label: "仅自己可见" },
+  ];
 
-export const ACCOUNT_STATUS_TEXT: Record<PlatformAccountItem['status'], string> = {
-  active: '正常',
-  expired: '需重新授权',
-  revoked: '需重新授权',
+export const ACCOUNT_STATUS_TEXT: Record<
+  PlatformAccountItem["status"],
+  string
+> = {
+  active: "正常",
+  expired: "需重新授权",
+  revoked: "需重新授权",
 };
 
 export const COVER_ASPECT_LABEL: Record<CoverKind, string> = {
-  portrait: '竖版 3:4',
-  landscape: '横版 4:3',
+  portrait: "竖版 3:4",
+  landscape: "横版 4:3",
 };
 
 export const COVER_ASPECT_RATIO: Record<CoverKind, number> = {
@@ -42,7 +54,7 @@ export const COVER_ASPECT_RATIO: Record<CoverKind, number> = {
   landscape: 4 / 3,
 };
 
-export const COVER_ASPECTS: CoverKind[] = ['portrait', 'landscape'];
+export const COVER_ASPECTS: CoverKind[] = ["portrait", "landscape"];
 
 /**
  * 单个封面槽的会话态。
@@ -60,7 +72,7 @@ export interface CoverSlot {
 export type CoverPair = Record<CoverKind, CoverSlot>;
 
 export function emptyCoverSlot(): CoverSlot {
-  return { blob: null, previewUrl: '', sourceUrl: '', saved: false };
+  return { blob: null, previewUrl: "", sourceUrl: "", saved: false };
 }
 
 export function emptyCoverPair(): CoverPair {
@@ -75,43 +87,48 @@ export function coverSlotReady(slot: CoverSlot): boolean {
 export interface ArticleOverrideDraft {
   title: string;
   covers: CoverPair;
+  extraCovers?: CoverSlot[];
   tagsText: string;
   scheduledLocal: string;
   visibility: ContentVisibility;
   location: string;
   partition: string;
+  articleSettings?: ArticleAccountSettings;
+  allowDownload?: boolean;
+  authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
 }
 
 export function emptyArticleDraft(): ArticleOverrideDraft {
   return {
-    title: '',
+    title: "",
     covers: emptyCoverPair(),
-    tagsText: '',
-    scheduledLocal: '',
-    visibility: 'public',
-    location: '',
-    partition: '',
+    extraCovers: [emptyCoverSlot(), emptyCoverSlot()],
+    tagsText: "",
+    scheduledLocal: "",
+    visibility: "public",
+    location: "",
+    partition: "",
   };
 }
 
 export function isoToLocalInput(iso: string | null | undefined): string {
   if (!iso) {
-    return '';
+    return "";
   }
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
-    return '';
+    return "";
   }
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function localInputToIso(value: string): string {
   if (!value) {
-    return '';
+    return "";
   }
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
 export function parseTags(text: string): string[] {
@@ -137,12 +154,17 @@ export function draftFromTarget(
 ): ArticleOverrideDraft {
   return {
     ...emptyArticleDraft(),
-    title: overrides?.title ?? '',
-    tagsText: (overrides?.tags ?? content.tags).join(' '),
-    scheduledLocal: isoToLocalInput(overrides?.scheduledAt ?? content.scheduledAt),
+    title: overrides?.title ?? "",
+    tagsText: (overrides?.tags ?? content.tags).join(" "),
+    scheduledLocal: isoToLocalInput(
+      overrides?.scheduledAt ?? content.scheduledAt,
+    ),
     visibility: overrides?.visibility ?? content.visibility,
-    location: (overrides?.location ?? content.location ?? '').trim(),
-    partition: overrides?.partition ?? '',
+    location: (overrides?.location ?? content.location ?? "").trim(),
+    partition: overrides?.partition ?? "",
+    allowDownload: overrides?.allowDownload ?? true,
+    authorDeclaration: overrides?.authorDeclaration ?? "none",
+    articleSettings: overrides?.articleSettings,
   };
 }
 
@@ -152,7 +174,12 @@ export function articleDraftToOverrides(
   platform: PlatformId,
 ): ContentTargetOverrides {
   const spec = getArticlePlatformFields(platform);
-  const result: ContentTargetOverrides = {};
+  const result: ContentTargetOverrides = {
+    articleSettings: articleSettingsForPlatform(
+      draft.articleSettings,
+      platform,
+    ),
+  };
   const title = normalizeArticleTitle(draft.title);
   if (title) {
     result.title = title;
@@ -179,13 +206,19 @@ export function articleDraftToOverrides(
   return result;
 }
 
-export function articleDraftHasCustomizations(draft: ArticleOverrideDraft): boolean {
+export function articleDraftHasCustomizations(
+  draft: ArticleOverrideDraft,
+): boolean {
   return (
+    hasCustomizedArticleSettings(draft.articleSettings) ||
     Boolean(draft.title.trim()) ||
     COVER_ASPECTS.some((aspect) => coverSlotReady(draft.covers[aspect])) ||
+    Boolean(draft.extraCovers?.some(coverSlotReady)) ||
     Boolean(draft.tagsText.trim()) ||
     Boolean(draft.scheduledLocal.trim()) ||
-    draft.visibility !== 'public' ||
+    draft.visibility !== "public" ||
+    draft.allowDownload === false ||
+    Boolean(draft.authorDeclaration && draft.authorDeclaration !== "none") ||
     Boolean(draft.location.trim()) ||
     Boolean(draft.partition.trim())
   );
@@ -200,16 +233,34 @@ export function getArticleAccountDraftIssues(
   const spec = getArticlePlatformFields(platform);
   const issues: string[] = [];
 
-  if (countArticleAccountTitleCharacters(draft.title.trim() || commonTitle) > spec.titleMax) {
-    issues.push('标题超长');
+  const titleLength = countArticleAccountTitleCharacters(
+    draft.title.trim() || commonTitle,
+  );
+  if (platform === "toutiao" && titleLength === 1) {
+    issues.push("标题至少 2 字");
   }
-  if (spec.tags.enabled && parseTags(draft.tagsText).length > spec.tags.maxCount) {
-    issues.push('话题过多');
+  if (
+    countArticleAccountTitleCharacters(draft.title.trim() || commonTitle) >
+    spec.titleMax
+  ) {
+    issues.push("标题超长");
+  }
+  if (
+    platform === "douyin" &&
+    Array.from(draft.articleSettings?.summary ?? "").length > 30
+  ) {
+    issues.push("摘要最多 30 字");
+  }
+  if (
+    spec.tags.enabled &&
+    parseTags(draft.tagsText).length > spec.tags.maxCount
+  ) {
+    issues.push("话题过多");
   }
   if (spec.schedule?.enabled && draft.scheduledLocal.trim()) {
     const iso = localInputToIso(draft.scheduledLocal);
     if (!iso || validateArticleSchedule(iso, spec.schedule)) {
-      issues.push('发布时间不可用');
+      issues.push("发布时间不可用");
     }
   }
   return issues;
@@ -234,6 +285,27 @@ export function missingRequiredCovers(
   common: CoverPair,
   platform: PlatformId,
 ): CoverKind[] {
+  if (platform === "bilibili") {
+    return draft.articleSettings?.customCover &&
+      !coverSlotReady(effectiveCover(draft, common, "landscape").slot)
+      ? ["landscape"]
+      : [];
+  }
+  if (platform === "toutiao") {
+    const mode = draft.articleSettings?.coverMode ?? "single";
+    if (mode === "none") {
+      return [];
+    }
+    if (
+      mode === "triple" &&
+      [0, 1].some(
+        (index) =>
+          !coverSlotReady(draft.extraCovers?.[index] ?? emptyCoverSlot()),
+      )
+    ) {
+      return ["landscape"];
+    }
+  }
   return articleCoverAspects(platform).filter(
     (aspect) =>
       isArticleCoverRequired(platform, aspect) &&
@@ -243,13 +315,13 @@ export function missingRequiredCovers(
 
 export function describeSchedule(scheduledLocal: string): string {
   if (!scheduledLocal.trim()) {
-    return '立即发布';
+    return "立即发布";
   }
   const date = new Date(scheduledLocal);
   if (Number.isNaN(date.getTime())) {
-    return '定时待完善';
+    return "定时待完善";
   }
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
@@ -261,8 +333,10 @@ export function describeVisibility(
   if (!spec.visibility) {
     return null;
   }
-  const value = spec.visibility.includes(draft.visibility) ? draft.visibility : spec.visibility[0];
-  return VISIBILITY_OPTIONS.find((opt) => opt.value === value)?.label ?? '公开';
+  const value = spec.visibility.includes(draft.visibility)
+    ? draft.visibility
+    : spec.visibility[0];
+  return VISIBILITY_OPTIONS.find((opt) => opt.value === value)?.label ?? "公开";
 }
 
 export function articleBodyPlainLength(html: string): number {
@@ -272,13 +346,13 @@ export function articleBodyPlainLength(html: string): number {
 export function localPathToFileUrl(absPath: string): string {
   const trimmed = absPath.trim();
   if (!trimmed) {
-    return '';
+    return "";
   }
-  if (trimmed.startsWith('file:')) {
+  if (trimmed.startsWith("file:")) {
     return trimmed;
   }
   if (/^[a-zA-Z]:[\\/]/.test(trimmed)) {
-    return `file:///${trimmed.replace(/\\/g, '/')}`;
+    return `file:///${trimmed.replace(/\\/g, "/")}`;
   }
   return `file://${trimmed}`;
 }
@@ -286,14 +360,14 @@ export function localPathToFileUrl(absPath: string): string {
 export function looksUnstableLocalPath(absPath: string): boolean {
   const p = absPath.toLowerCase();
   return (
-    p.includes('/volumes/') ||
-    p.includes('\\volumes\\') ||
-    p.includes('icloud') ||
-    p.includes('mobile documents') ||
-    p.includes('com~apple~clouddocs') ||
-    p.includes('onedrive') ||
-    p.includes('baidu') ||
-    p.includes('百度网盘')
+    p.includes("/volumes/") ||
+    p.includes("\\volumes\\") ||
+    p.includes("icloud") ||
+    p.includes("mobile documents") ||
+    p.includes("com~apple~clouddocs") ||
+    p.includes("onedrive") ||
+    p.includes("baidu") ||
+    p.includes("百度网盘")
   );
 }
 
@@ -313,7 +387,9 @@ async function checkLocalPathReadable(absPath: string): Promise<boolean> {
   }
 }
 
-export async function checkLocalPathsReadable(paths: string[]): Promise<boolean> {
+export async function checkLocalPathsReadable(
+  paths: string[],
+): Promise<boolean> {
   for (const p of paths) {
     if (!(await checkLocalPathReadable(p))) {
       return false;

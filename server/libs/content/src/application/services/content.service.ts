@@ -1,14 +1,8 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { articleSettingsForPlatform } from '../../domain/article-settings';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { isAbsolute } from 'path';
-import {
-  PLATFORM_ACCOUNT_REPOSITORY,
-  type IPlatformAccountRepository,
-} from '@pugying/platform-account';
+import { isAuthorDeclaration } from '../../domain/author-declaration';
+import { PLATFORM_ACCOUNT_REPOSITORY, type IPlatformAccountRepository } from '@pugying/platform-account';
 import {
   isContentStatus,
   isContentType,
@@ -21,27 +15,16 @@ import {
 } from '@pugying/content/domain/content-types';
 import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
-import {
-  CONTENT_REPOSITORY,
-  type ContentCoverKind,
-  type IContentRepository,
-} from '@pugying/content/domain/repositories/content.repository';
+import { CONTENT_REPOSITORY, type ContentCoverKind, type IContentRepository } from '@pugying/content/domain/repositories/content.repository';
 import {
   CONTENT_TARGET_REPOSITORY,
+  TARGET_COVER_COLUMNS,
+  type ContentTargetCoverKind,
   type IContentTargetRepository,
 } from '@pugying/content/domain/repositories/content-target.repository';
-import {
-  ContentTargetDto,
-  CreateContentDto,
-  TargetOverridesDto,
-  UpdateContentDto,
-} from '@pugying/content/application/dtos';
+import { ContentTargetDto, CreateContentDto, TargetOverridesDto, UpdateContentDto } from '@pugying/content/application/dtos';
 
-const COVER_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
+const COVER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 /** 封面上限 20MB（裁切后通常远小） */
 const MAX_COVER_BYTES = 20 * 1024 * 1024;
@@ -49,16 +32,22 @@ const MAX_COVER_BYTES = 20 * 1024 * 1024;
 /** API 对外视图：不返回 BLOB，仅 hasCover 标志 */
 export type ContentTargetView = Omit<
   ContentTarget,
-  'coverData' | 'coverLandscapeData' | 'coverMime' | 'coverLandscapeMime'
+  | 'coverData'
+  | 'coverLandscapeData'
+  | 'coverMime'
+  | 'coverLandscapeMime'
+  | 'coverLandscape2Data'
+  | 'coverLandscape2Mime'
+  | 'coverLandscape3Data'
+  | 'coverLandscape3Mime'
 > & {
   hasCover: boolean;
   hasCoverLandscape: boolean;
+  hasCoverLandscape2: boolean;
+  hasCoverLandscape3: boolean;
 };
 
-export type ContentView = Omit<
-  Content,
-  'coverData' | 'coverLandscapeData' | 'coverMime' | 'coverLandscapeMime'
-> & {
+export type ContentView = Omit<Content, 'coverData' | 'coverLandscapeData' | 'coverMime' | 'coverLandscapeMime'> & {
   hasCover: boolean;
   hasCoverLandscape: boolean;
   targets: ContentTargetView[];
@@ -89,12 +78,7 @@ export class ContentService {
     private readonly platformAccountRepository: IPlatformAccountRepository,
   ) {}
 
-  async findAll(
-    type?: string,
-    q?: string,
-    page = 1,
-    pageSize = 20,
-  ): Promise<ContentListPage> {
+  async findAll(type?: string, q?: string, page = 1, pageSize = 20): Promise<ContentListPage> {
     if (type !== undefined && type !== '' && !isContentType(type)) {
       throw new BadRequestException(`Unsupported content type: ${type}`);
     }
@@ -113,18 +97,14 @@ export class ContentService {
     if (rows.length === 0) {
       return { items: [], total, page, pageSize };
     }
-    const targets = await this.targetRepository.findByContents(
-      rows.map((row) => row.id),
-    );
+    const targets = await this.targetRepository.findByContents(rows.map((row) => row.id));
     const grouped = new Map<string, ContentTarget[]>();
     for (const target of targets) {
       const list = grouped.get(target.contentId) ?? [];
       list.push(target);
       grouped.set(target.contentId, list);
     }
-    const items = rows.map((row) =>
-      this.toContentView(row, grouped.get(row.id) ?? []),
-    );
+    const items = rows.map((row) => this.toContentView(row, grouped.get(row.id) ?? []));
     return { items, total, page, pageSize };
   }
 
@@ -141,14 +121,8 @@ export class ContentService {
     if (!isContentType(dto.type)) {
       throw new BadRequestException(`Unsupported content type: ${dto.type}`);
     }
-    const status: ContentStatus =
-      dto.status !== undefined && isContentStatus(dto.status)
-        ? dto.status
-        : 'draft';
-    const visibility: ContentVisibility =
-      dto.visibility !== undefined && isContentVisibility(dto.visibility)
-        ? dto.visibility
-        : 'public';
+    const status: ContentStatus = dto.status !== undefined && isContentStatus(dto.status) ? dto.status : 'draft';
+    const visibility: ContentVisibility = dto.visibility !== undefined && isContentVisibility(dto.visibility) ? dto.visibility : 'public';
 
     const preparedTargets = await this.prepareTargets(dto.type, dto.targets);
     const mediaPaths = this.normalizeMediaPaths(dto.mediaPaths);
@@ -215,10 +189,7 @@ export class ContentService {
     }
 
     const saved = await this.repository.save(content);
-    const targets =
-      preparedTargets !== undefined
-        ? await this.replaceTargets(saved, preparedTargets)
-        : await this.targetRepository.findByContent(saved.id);
+    const targets = preparedTargets !== undefined ? await this.replaceTargets(saved, preparedTargets) : await this.targetRepository.findByContent(saved.id);
     return this.toContentView(saved, targets);
   }
 
@@ -231,21 +202,14 @@ export class ContentService {
     await this.repository.remove(content);
   }
 
-  async putCover(
-    contentId: string,
-    kind: ContentCoverKind,
-    file: { buffer?: Buffer; mimetype?: string; size?: number } | undefined,
-  ): Promise<ContentView> {
+  async putCover(contentId: string, kind: ContentCoverKind, file: { buffer?: Buffer; mimetype?: string; size?: number } | undefined): Promise<ContentView> {
     await this.requireContent(contentId);
     const { mime, data } = this.assertCoverFile(file);
     await this.repository.setCover(contentId, kind, mime, data);
     return this.findById(contentId);
   }
 
-  async deleteCover(
-    contentId: string,
-    kind: ContentCoverKind,
-  ): Promise<ContentView> {
+  async deleteCover(contentId: string, kind: ContentCoverKind): Promise<ContentView> {
     await this.requireContent(contentId);
     await this.repository.clearCover(contentId, kind);
     return this.findById(contentId);
@@ -254,29 +218,28 @@ export class ContentService {
   async putTargetCover(
     contentId: string,
     targetId: string,
-    kind: ContentCoverKind,
+    kind: ContentTargetCoverKind,
     file: { buffer?: Buffer; mimetype?: string; size?: number } | undefined,
   ): Promise<ContentView> {
-    await this.requireTarget(contentId, targetId);
+    const target = await this.requireTarget(contentId, targetId);
+    if (kind === 'landscape2' || kind === 'landscape3') {
+      const content = await this.requireContent(contentId);
+      if (content.type !== 'article' || target.platform !== 'toutiao') {
+        throw new BadRequestException('该账号不支持三图封面');
+      }
+    }
     const { mime, data } = this.assertCoverFile(file);
     await this.targetRepository.setCover(targetId, kind, mime, data);
     return this.findById(contentId);
   }
 
-  async deleteTargetCover(
-    contentId: string,
-    targetId: string,
-    kind: ContentCoverKind,
-  ): Promise<ContentView> {
+  async deleteTargetCover(contentId: string, targetId: string, kind: ContentTargetCoverKind): Promise<ContentView> {
     await this.requireTarget(contentId, targetId);
     await this.targetRepository.clearCover(targetId, kind);
     return this.findById(contentId);
   }
 
-  async getCoverBinary(
-    contentId: string,
-    kind: ContentCoverKind,
-  ): Promise<CoverBinary> {
+  async getCoverBinary(contentId: string, kind: ContentCoverKind): Promise<CoverBinary> {
     const content = await this.repository.findByIdWithCovers(contentId);
     if (!content) {
       throw new NotFoundException(`Content #${contentId} not found`);
@@ -287,11 +250,7 @@ export class ContentService {
   /**
    * 仅返回 Target 自身差异封面；无差异时 404，由前端回落内容级 URL。
    */
-  async getTargetCoverBinary(
-    contentId: string,
-    targetId: string,
-    kind: ContentCoverKind,
-  ): Promise<CoverBinary> {
+  async getTargetCoverBinary(contentId: string, targetId: string, kind: ContentTargetCoverKind): Promise<CoverBinary> {
     const target = await this.targetRepository.findByIdWithCovers(targetId);
     if (!target || target.contentId !== contentId) {
       throw new NotFoundException(`Target #${targetId} not found`);
@@ -300,34 +259,28 @@ export class ContentService {
   }
 
   private pickCover(
-    owner: {
-      coverMime: string | null;
-      coverData: Buffer | null;
-      coverLandscapeMime: string | null;
-      coverLandscapeData: Buffer | null;
-    },
-    kind: ContentCoverKind,
+    owner: Pick<Content, 'coverMime' | 'coverData' | 'coverLandscapeMime' | 'coverLandscapeData'> &
+      Partial<Pick<ContentTarget, 'coverLandscape2Mime' | 'coverLandscape2Data' | 'coverLandscape3Mime' | 'coverLandscape3Data'>>,
+    kind: ContentTargetCoverKind,
   ): CoverBinary {
-    if (kind === 'portrait') {
-      if (!owner.coverMime || !owner.coverData?.length) {
-        throw new NotFoundException('竖版封面不存在');
-      }
-      return { mime: owner.coverMime, data: owner.coverData };
+    const [mimeColumn, dataColumn] = TARGET_COVER_COLUMNS[kind];
+    const mime = owner[mimeColumn];
+    const data = owner[dataColumn];
+    if (!mime || !data?.length) {
+      throw new NotFoundException('封面不存在');
     }
-    if (!owner.coverLandscapeMime || !owner.coverLandscapeData?.length) {
-      throw new NotFoundException('横版封面不存在');
-    }
-    return {
-      mime: owner.coverLandscapeMime,
-      data: owner.coverLandscapeData,
-    };
+    return { mime, data };
   }
 
-  private assertCoverFile(file: {
-    buffer?: Buffer;
-    mimetype?: string;
-    size?: number;
-  } | undefined): CoverBinary {
+  private assertCoverFile(
+    file:
+      | {
+          buffer?: Buffer;
+          mimetype?: string;
+          size?: number;
+        }
+      | undefined,
+  ): CoverBinary {
     if (!file?.buffer?.length) {
       throw new BadRequestException('请上传封面文件（字段名 file）');
     }
@@ -349,10 +302,7 @@ export class ContentService {
     return content;
   }
 
-  private async requireTarget(
-    contentId: string,
-    targetId: string,
-  ): Promise<ContentTarget> {
+  private async requireTarget(contentId: string, targetId: string): Promise<ContentTarget> {
     const target = await this.targetRepository.findById(targetId);
     if (!target || target.contentId !== contentId) {
       throw new NotFoundException(`Target #${targetId} not found`);
@@ -361,10 +311,7 @@ export class ContentService {
   }
 
   /** 校验账号归属、内容形态与平台匹配，并组装分发目标（不落库） */
-  private async prepareTargets(
-    contentType: ContentType,
-    targets: ContentTargetDto[] | undefined,
-  ): Promise<Partial<ContentTarget>[]> {
+  private async prepareTargets(contentType: ContentType, targets: ContentTargetDto[] | undefined): Promise<Partial<ContentTarget>[]> {
     if (!targets?.length) {
       return [];
     }
@@ -375,13 +322,9 @@ export class ContentService {
         continue;
       }
       seen.add(target.platformAccountId);
-      const account = await this.platformAccountRepository.findById(
-        target.platformAccountId,
-      );
+      const account = await this.platformAccountRepository.findById(target.platformAccountId);
       if (!account) {
-        throw new BadRequestException(
-          `Platform account #${target.platformAccountId} not found`,
-        );
+        throw new BadRequestException(`Platform account #${target.platformAccountId} not found`);
       }
       if (!isPlatformAllowedForContentType(contentType, account.platform)) {
         throw new BadRequestException(
@@ -395,11 +338,15 @@ export class ContentService {
       prepared.push({
         platformAccountId: account.id,
         platform: account.platform,
-        overrides: this.sanitizeOverrides(target.overrides),
+        overrides: this.sanitizeOverrides(target.overrides, contentType, account.platform),
         coverMime: null,
         coverData: null,
         coverLandscapeMime: null,
         coverLandscapeData: null,
+        coverLandscape2Mime: null,
+        coverLandscape2Data: null,
+        coverLandscape3Mime: null,
+        coverLandscape3Data: null,
         publishStatus: 'idle',
         platformPostId: null,
         platformUrl: null,
@@ -412,38 +359,29 @@ export class ContentService {
     return prepared;
   }
 
-  private async replaceTargets(
-    content: Content,
-    prepared: Partial<ContentTarget>[],
-  ): Promise<ContentTarget[]> {
+  private async replaceTargets(content: Content, prepared: Partial<ContentTarget>[]): Promise<ContentTarget[]> {
     const existing = await this.targetRepository.findByContent(content.id);
-    const busy = existing.some(
-      (target) =>
-        target.publishStatus === 'queued' || target.publishStatus === 'running',
-    );
+    const busy = existing.some((target) => target.publishStatus === 'queued' || target.publishStatus === 'running');
     if (busy) {
-      throw new BadRequestException(
-        '发布进行中，无法修改分发账号；请等待完成或取消后再试',
-      );
+      throw new BadRequestException('发布进行中，无法修改分发账号；请等待完成或取消后再试');
     }
     // 整体替换会重建 Target 行，账号差异封面需前端按需重新上传
     await this.targetRepository.deleteByContent(content.id);
     if (prepared.length === 0) {
       return [];
     }
-    const entities = prepared.map((data) =>
-      this.targetRepository.create({ ...data, contentId: content.id }),
-    );
+    const entities = prepared.map((data) => this.targetRepository.create({ ...data, contentId: content.id }));
     return this.targetRepository.saveMany(entities);
   }
 
-  private sanitizeOverrides(
-    overrides: TargetOverridesDto | undefined,
-  ): ContentTargetOverrides {
+  private sanitizeOverrides(overrides: TargetOverridesDto | undefined, contentType: string, platform: string): ContentTargetOverrides {
     if (!overrides) {
       return {};
     }
     const result: ContentTargetOverrides = {};
+    if (contentType === 'article' && overrides.articleSettings) {
+      result.articleSettings = articleSettingsForPlatform(overrides.articleSettings, platform);
+    }
     if (overrides.title?.trim()) {
       result.title = overrides.title.trim();
     }
@@ -460,14 +398,14 @@ export class ContentService {
         result.scheduledAt = date.toISOString();
       }
     }
-    if (
-      overrides.visibility !== undefined &&
-      isContentVisibility(overrides.visibility)
-    ) {
+    if (overrides.visibility !== undefined && isContentVisibility(overrides.visibility)) {
       result.visibility = overrides.visibility;
     }
     if (overrides.allowDownload !== undefined) {
       result.allowDownload = overrides.allowDownload;
+    }
+    if (overrides.authorDeclaration !== undefined && isAuthorDeclaration(overrides.authorDeclaration)) {
+      result.authorDeclaration = overrides.authorDeclaration;
     }
     if (overrides.location?.trim()) {
       result.location = overrides.location.trim();
@@ -504,9 +442,7 @@ export class ContentService {
   }
 
   private normalizeList(values: string[] | undefined): string[] {
-    return (values ?? [])
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
+    return (values ?? []).map((value) => value.trim()).filter((value) => value.length > 0);
   }
 
   /** 保存时只校验绝对路径形态，不强制 exists（源文件可稍后补齐） */
@@ -520,17 +456,8 @@ export class ContentService {
     return paths;
   }
 
-  private toContentView(
-    content: Content,
-    targets: ContentTarget[],
-  ): ContentView {
-    const {
-      coverData: _cd,
-      coverLandscapeData: _cld,
-      coverMime,
-      coverLandscapeMime,
-      ...rest
-    } = content;
+  private toContentView(content: Content, targets: ContentTarget[]): ContentView {
+    const { coverData: _cd, coverLandscapeData: _cld, coverMime, coverLandscapeMime, ...rest } = content;
     return {
       ...rest,
       hasCover: Boolean(coverMime),
@@ -545,12 +472,18 @@ export class ContentService {
       coverLandscapeData: _cld,
       coverMime,
       coverLandscapeMime,
+      coverLandscape2Mime,
+      coverLandscape2Data: _c2,
+      coverLandscape3Mime,
+      coverLandscape3Data: _c3,
       ...rest
     } = target;
     return {
       ...rest,
       hasCover: Boolean(coverMime),
       hasCoverLandscape: Boolean(coverLandscapeMime),
+      hasCoverLandscape2: Boolean(coverLandscape2Mime),
+      hasCoverLandscape3: Boolean(coverLandscape3Mime),
     };
   }
 }

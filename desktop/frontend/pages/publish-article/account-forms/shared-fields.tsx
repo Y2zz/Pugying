@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { DateTimePicker } from '@/components/DateTimePicker';
-import { Button } from '@/components/ui/button';
+import { ArticleRadioField } from "./ArticleRadioField";
+import { Switch } from "@/components/ui/switch";
+import { useId, type ReactNode } from "react";
+import { DateTimePicker } from "@/components/DateTimePicker";
+import { Button } from "@/components/ui/button";
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
@@ -11,21 +12,33 @@ import {
   FieldLegend,
   FieldSet,
   FieldTitle,
-} from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import type { ContentVisibility, CoverKind, PlatformAccountItem, PlatformId } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import { TagInput } from '../../publish-video/TagInput';
-import { ArticleCoverThumb } from '../ArticleCoverThumb';
-import { countArticleAccountTitleCharacters, normalizeArticleTitle } from '../article-title';
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { formatLocalDateTime, getDateTimeWindow } from "@/lib/date-time";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type {
+  ContentVisibility,
+  CoverKind,
+  PlatformAccountItem,
+  PlatformId,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { TagInput } from "../../publish-video/TagInput";
+import { ArticleCoverThumb } from "../ArticleCoverThumb";
+import {
+  countArticleAccountTitleCharacters,
+  normalizeArticleTitle,
+} from "../article-title";
 import {
   articleCoverAspects,
   isArticleCoverRequired,
   validateArticleSchedule,
-} from '../article-platform-fields';
+} from "../article-platform-fields";
 import {
   COVER_ASPECT_LABEL,
   VISIBILITY_OPTIONS,
@@ -36,17 +49,18 @@ import {
   parseTags,
   type ArticleOverrideDraft,
   type CoverPair,
-} from '../helpers';
+} from "../helpers";
 
 /** 各平台图文账号表单共用 props（正文全账号共用，不在此编辑） */
 export type ArticlePlatformAccountFormProps = {
   account: PlatformAccountItem;
   draft: ArticleOverrideDraft;
   commonTitle: string;
+  commonBody?: string;
   commonCovers: CoverPair;
   disabled?: boolean;
   onDraftChange: (draft: ArticleOverrideDraft) => void;
-  onEditCover: (aspect: CoverKind) => void;
+  onEditCover: (aspect: CoverKind, extraIndex?: 0 | 1) => void;
 };
 
 export type DraftPatch = (partial: Partial<ArticleOverrideDraft>) => void;
@@ -72,7 +86,6 @@ export function ArticleAccountFormLayout({
     <FieldGroup>
       <FieldSet>
         <FieldLegend>内容</FieldLegend>
-        <FieldDescription>未修改的项沿用通用内容</FieldDescription>
         <FieldGroup className="gap-5">{content}</FieldGroup>
       </FieldSet>
       <FieldSet>
@@ -88,6 +101,7 @@ export function ArticleTitleOverrideField({
   value,
   commonTitle,
   max,
+  min = 0,
   disabled,
   onChange,
 }: {
@@ -95,24 +109,36 @@ export function ArticleTitleOverrideField({
   value: string;
   commonTitle: string;
   max: number;
+  min?: number;
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   const id = `article-${accountId}-title`;
   // 计数按账号实际会用的标题：未单独填写时即通用标题
-  const effectiveLength = countArticleAccountTitleCharacters(value.trim() || commonTitle);
+  const effectiveLength = countArticleAccountTitleCharacters(
+    value.trim() || commonTitle,
+  );
   const over = effectiveLength > max;
+  const tooShort = effectiveLength > 0 && effectiveLength < min;
+  const error = over
+    ? `该平台标题最多 ${max} 字`
+    : tooShort
+      ? `该平台标题至少 ${min} 字`
+      : "";
 
   return (
-    <Field data-invalid={over || undefined}>
-      <FieldLabel htmlFor={id}>标题</FieldLabel>
+    <Field data-invalid={Boolean(error) || undefined}>
+      <FieldLabel htmlFor={id} className="font-normal">
+        标题
+      </FieldLabel>
       <InputGroup>
         <InputGroupInput
           id={id}
           value={value}
-          placeholder={normalizeArticleTitle(commonTitle) || '沿用通用标题'}
+          placeholder={normalizeArticleTitle(commonTitle) || "沿用通用标题"}
           disabled={disabled}
-          aria-invalid={over || undefined}
+          aria-invalid={Boolean(error) || undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           onChange={(e) => {
             onChange(e.target.value);
           }}
@@ -121,20 +147,25 @@ export function ArticleTitleOverrideField({
           }}
         />
         <InputGroupAddon align="inline-end" className="pointer-events-none">
-          <span className={cn('text-xs tabular-nums', over ? 'text-destructive' : 'text-muted-foreground')}>
+          <span
+            className={cn(
+              "text-xs tabular-nums",
+              over ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
             {effectiveLength}/{max}
           </span>
         </InputGroupAddon>
       </InputGroup>
-      <FieldDescription>
-        {over ? `该平台标题最多 ${max} 字` : value.trim() ? '仅用于该账号' : '留空沿用通用标题'}
-      </FieldDescription>
+      {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
     </Field>
   );
 }
 
 export function ArticleCoverOverrideField({
   platform,
+  hideLabel = false,
+  className,
   draft,
   commonCovers,
   disabled,
@@ -144,6 +175,8 @@ export function ArticleCoverOverrideField({
   isRequired: isRequiredOverride,
 }: {
   platform: PlatformId;
+  hideLabel?: boolean;
+  className?: string;
   draft: ArticleOverrideDraft;
   commonCovers: CoverPair;
   disabled?: boolean;
@@ -159,8 +192,10 @@ export function ArticleCoverOverrideField({
   }
 
   return (
-    <Field>
-      <FieldTitle>封面</FieldTitle>
+    <Field className={className}>
+      {!hideLabel ? (
+        <FieldTitle className="font-normal">封面</FieldTitle>
+      ) : null}
       <div className="flex flex-wrap items-start gap-4">
         {aspects.map((aspect) => {
           const { slot, own } = effectiveCover(draft, commonCovers, aspect);
@@ -180,8 +215,14 @@ export function ArticleCoverOverrideField({
                 }}
               />
               <span className="text-xs text-muted-foreground">
-                {COVER_ASPECT_LABEL[aspect]} ·{' '}
-                {own ? '单独设置' : ready ? '沿用通用' : required ? '未设置' : '可选'}
+                {COVER_ASPECT_LABEL[aspect]} ·{" "}
+                {own
+                  ? "单独设置"
+                  : ready
+                    ? "沿用通用"
+                    : required
+                      ? "未设置"
+                      : "可选"}
               </span>
               {own ? (
                 <Button
@@ -191,7 +232,9 @@ export function ArticleCoverOverrideField({
                   className="h-auto px-0"
                   disabled={disabled}
                   onClick={() => {
-                    patch({ covers: { ...draft.covers, [aspect]: emptyCoverSlot() } });
+                    patch({
+                      covers: { ...draft.covers, [aspect]: emptyCoverSlot() },
+                    });
                   }}
                 >
                   恢复通用
@@ -201,37 +244,51 @@ export function ArticleCoverOverrideField({
           );
         })}
       </div>
-      <FieldDescription>点击封面可为该账号单独更换</FieldDescription>
     </Field>
   );
 }
 
 export function ArticleTagsField({
+  validationMessage,
   tagsText,
   maxCount,
   disabled,
   onChange,
 }: {
   tagsText: string;
+  validationMessage?: string;
   maxCount: number;
   disabled?: boolean;
   onChange: (tagsText: string) => void;
 }) {
+  const id = useId();
   const tags = parseTags(tagsText);
   const over = tags.length > maxCount;
+  const error = over
+    ? `最多 ${maxCount} 个话题，请删除 ${tags.length - maxCount} 个`
+    : validationMessage;
   return (
-    <Field data-invalid={over || undefined}>
-      <FieldTitle>话题</FieldTitle>
+    <Field data-invalid={Boolean(error) || undefined}>
+      <FieldLabel htmlFor={id} className="font-normal">
+        话题
+      </FieldLabel>
       <TagInput
+        id={id}
+        invalid={Boolean(error)}
+        errorId={error ? `${id}-error` : undefined}
         value={tags}
         disabled={disabled}
         onChange={(next) => {
-          onChange(next.join(' '));
+          onChange(next.join(" "));
         }}
       />
-      <FieldDescription>
-        {over ? `最多 ${maxCount} 个，请删除 ${tags.length - maxCount} 个` : `最多 ${maxCount} 个`}
-      </FieldDescription>
+      {error ? (
+        <FieldError id={`${id}-error`}>{error}</FieldError>
+      ) : (
+        <FieldDescription className="text-xs">
+          最多 {maxCount} 个
+        </FieldDescription>
+      )}
     </Field>
   );
 }
@@ -240,12 +297,18 @@ export function ArticleVisibilityField({
   accountId,
   value,
   options,
+  label = "谁可以看",
+  publicLabel,
+  control = "toggle",
   disabled,
   onChange,
 }: {
   accountId: string;
   value: ContentVisibility;
   options: ContentVisibility[];
+  label?: string;
+  publicLabel?: string;
+  control?: "toggle" | "radio";
   disabled?: boolean;
   onChange: (value: ContentVisibility) => void;
 }) {
@@ -253,28 +316,53 @@ export function ArticleVisibilityField({
   const items = VISIBILITY_OPTIONS.filter((opt) => options.includes(opt.value));
   // 草稿里可能留着其他平台的取值（如批量设置），按本平台可选项归一
   const current = options.includes(value) ? value : options[0];
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>谁可以看</FieldLabel>
-      <Select
+  if (control === "radio") {
+    return (
+      <ArticleRadioField
+        id={id}
+        label={label}
         value={current}
         disabled={disabled}
-        items={items}
-        onValueChange={(next) => {
-          onChange((next as ContentVisibility | null) ?? options[0]);
+        options={items.map((item) => ({
+          value: item.value,
+          label:
+            item.value === "public" && publicLabel ? publicLabel : item.label,
+        }))}
+        onChange={(next) => {
+          const item = items.find((option) => option.value === next);
+          if (item) {
+            onChange(item.value);
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <Field data-disabled={disabled || undefined}>
+      <FieldTitle id={id} className="font-normal">
+        {label}
+      </FieldTitle>
+      <ToggleGroup
+        aria-labelledby={id}
+        value={[current]}
+        multiple={false}
+        disabled={disabled}
+        variant="outline"
+        size="sm"
+        className="flex-wrap"
+        onValueChange={(values) => {
+          const next = items.find((item) => item.value === values[0]);
+          if (next) {
+            onChange(next.value);
+          }
         }}
       >
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        {items.map((opt) => (
+          <ToggleGroupItem key={opt.value} value={opt.value}>
+            {opt.value === "public" && publicLabel ? publicLabel : opt.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     </Field>
   );
 }
@@ -286,9 +374,11 @@ export function ArticleScheduleField({
   maxDays,
   disabled,
   onChange,
+  control = "toggle",
 }: {
   accountId: string;
   scheduledLocal: string;
+  control?: "toggle" | "radio" | "switch";
   minHours: number;
   maxDays: number;
   disabled?: boolean;
@@ -296,43 +386,105 @@ export function ArticleScheduleField({
 }) {
   const switchId = `article-${accountId}-schedule-enabled`;
   const pickerId = `article-${accountId}-schedule`;
-  const [enabled, setEnabled] = useScheduleToggle(scheduledLocal);
+  const enabled = Boolean(scheduledLocal.trim());
   const iso = localInputToIso(scheduledLocal);
   const scheduleError = scheduledLocal.trim()
     ? iso
       ? validateArticleSchedule(iso, { minHours, maxDays })
-      : '时间无效'
+      : "时间无效"
     : null;
 
+  const changeMode = (next: string) => {
+    if (next === "now") {
+      onChange("");
+    } else if (next === "scheduled" && !enabled) {
+      const minimum = getDateTimeWindow({ minHours, maxDays }, Date.now()).min!;
+      onChange(formatLocalDateTime(minimum));
+    }
+  };
+  const ScheduleGroup = control === "switch" ? FieldSet : FieldGroup;
   return (
-    <>
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldLabel htmlFor={switchId}>定时发布</FieldLabel>
-          <FieldDescription>
-            {minHours} 小时后至 {maxDays} 天内
-          </FieldDescription>
-        </FieldContent>
-        <Switch
+    <ScheduleGroup className="gap-3">
+      {control === "switch" ? (
+        <FieldLegend variant="label" className="mb-0 font-normal">
+          发布时间
+        </FieldLegend>
+      ) : null}
+      {control === "radio" ? (
+        <ArticleRadioField
           id={switchId}
-          checked={enabled}
+          label="发布时间"
+          value={enabled ? "scheduled" : "now"}
           disabled={disabled}
-          onCheckedChange={(checked) => {
-            setEnabled(checked);
-            if (!checked) {
-              onChange('');
-            }
-          }}
+          options={[
+            { value: "now", label: "立即发布" },
+            { value: "scheduled", label: "定时发布" },
+          ]}
+          onChange={changeMode}
         />
-      </Field>
+      ) : control === "switch" ? (
+        <Field
+          orientation="horizontal"
+          className="w-fit"
+          data-disabled={disabled || undefined}
+        >
+          <FieldLabel htmlFor={switchId} className="font-normal">
+            定时发布
+          </FieldLabel>
+          <Switch
+            id={switchId}
+            checked={enabled}
+            disabled={disabled}
+            onCheckedChange={(checked) => {
+              changeMode(checked ? "scheduled" : "now");
+            }}
+          />
+        </Field>
+      ) : (
+        <Field>
+          <FieldTitle id={switchId} className="font-normal">
+            发布时间
+          </FieldTitle>
+          <ToggleGroup
+            aria-labelledby={switchId}
+            value={[enabled ? "scheduled" : "now"]}
+            multiple={false}
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onValueChange={(values) => {
+              changeMode(values[0]);
+            }}
+          >
+            <ToggleGroupItem value="now">立即发布</ToggleGroupItem>
+            <ToggleGroupItem value="scheduled">定时发布</ToggleGroupItem>
+          </ToggleGroup>
+        </Field>
+      )}
       {enabled ? (
-        <Field data-invalid={scheduleError ? true : undefined}>
-          <FieldLabel htmlFor={pickerId}>发布时间</FieldLabel>
-          <DateTimePicker id={pickerId} disabled={disabled} value={scheduledLocal} onChange={onChange} />
-          {scheduleError ? <FieldError>{scheduleError}</FieldError> : null}
+        <Field
+          className="max-w-sm"
+          data-invalid={scheduleError ? true : undefined}
+        >
+          <FieldLabel htmlFor={pickerId} className="sr-only">
+            发布时间
+          </FieldLabel>
+          <DateTimePicker
+            id={pickerId}
+            aria-invalid={Boolean(scheduleError) || undefined}
+            aria-describedby={scheduleError ? `${pickerId}-error` : undefined}
+            disabled={disabled}
+            value={scheduledLocal}
+            onChange={onChange}
+            minHours={minHours}
+            maxDays={maxDays}
+          />
+          {scheduleError ? (
+            <FieldError id={`${pickerId}-error`}>{scheduleError}</FieldError>
+          ) : null}
         </Field>
       ) : null}
-    </>
+    </ScheduleGroup>
   );
 }
 
@@ -353,7 +505,9 @@ export function ArticleTextField({
 }) {
   return (
     <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id} className="font-normal">
+        {label}
+      </FieldLabel>
       <Input
         id={id}
         value={value}
@@ -365,18 +519,4 @@ export function ArticleTextField({
       />
     </Field>
   );
-}
-
-/**
- * 开关与时间值分离：打开开关但尚未选时间时，草稿仍为空（= 立即发布），
- * 开关需要自己的状态才能显示时间选择器。
- */
-function useScheduleToggle(scheduledLocal: string) {
-  const [enabled, setEnabled] = useState(Boolean(scheduledLocal.trim()));
-  useEffect(() => {
-    if (scheduledLocal.trim()) {
-      setEnabled(true);
-    }
-  }, [scheduledLocal]);
-  return [enabled, setEnabled] as const;
 }

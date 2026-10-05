@@ -1,3 +1,4 @@
+import { fetchToutiaoRewardPrivilege } from './platforms/toutiao-article-privileges';
 /**
  * 业务主窗 ↔ 主进程 IPC：注册 webContents 为 bridge 客户端。
  * 不与授权壳 chrome:* handlers 共用。
@@ -77,6 +78,13 @@ export function wireDesktopIpc(): void {
     return;
   }
   ipcWired = true;
+
+  ipcMain.handle(DESKTOP_IPC.getToutiaoRewardPrivilege, async (event, accountId: unknown) => {
+    if (event.sender !== getAppWindow()?.webContents || typeof accountId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId)) {
+      return null;
+    }
+    return fetchToutiaoRewardPrivilege(accountId);
+  });
 
   ipcMain.handle(DESKTOP_IPC.getApiBaseUrl, () => getApiBaseUrl());
   ipcMain.handle(DESKTOP_IPC.getLocalApiToken, () => getLocalApiToken());
