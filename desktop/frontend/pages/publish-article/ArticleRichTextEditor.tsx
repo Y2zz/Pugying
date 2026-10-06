@@ -688,7 +688,7 @@ export function ArticleRichTextEditor({
           "aria-label": "正文",
           "aria-placeholder": "从这里开始写正文…",
           class: cn(
-            "min-h-48 w-full text-sm leading-6 outline-none focus-visible:outline-none md:text-sm",
+            "min-h-64 w-full text-sm leading-6 outline-none focus-visible:outline-none md:text-sm",
             "[&_p]:my-2 [&_p:first-child]:mt-0",
             "[&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold",
             "[&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold [&_hr]:my-4 [&_hr]:border-border",
