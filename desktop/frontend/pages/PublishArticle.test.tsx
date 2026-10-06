@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import PublishArticle from "./PublishArticle";
@@ -235,10 +236,13 @@ it("locates the common covers", () => {
   expect(mocks.scrollTo).toHaveBeenCalledWith(screen.getByTestId("covers"));
 });
 
-it("opens the account picker when bound accounts have not been selected", () => {
+it("focuses the account action without opening a dialog when accounts have not been selected", () => {
   setup();
   fireEvent.click(screen.getByRole("button", { name: "分发账号" }));
-  expect(screen.getByRole("dialog").textContent).toBe("添加账号");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "添加账号" }),
+  );
   expect(mocks.scrollTo.mock.calls[0][0].textContent).toContain("分发账号");
   expect(mocks.scrollTo.mock.calls[0][1]).toBe("start");
 });
@@ -274,4 +278,17 @@ it("publishes directly from the article page", () => {
   );
   fireEvent.click(screen.getByRole("button", { name: "发布文章" }));
   expect(save).toHaveBeenCalledExactlyOnceWith(true);
+});
+
+it("keeps the picker closed after failed publish validation until the user adds an account", async () => {
+  mocks.composer.save = vi
+    .fn()
+    .mockResolvedValue(checks.find((check) => check.id === "accounts"));
+  setup();
+  fireEvent.click(screen.getByRole("button", { name: "发布文章" }));
+  const add = screen.getByRole("button", { name: "添加账号" });
+  await waitFor(() => expect(document.activeElement).toBe(add));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(add);
+  expect(screen.getByRole("dialog").textContent).toBe("添加账号");
 });

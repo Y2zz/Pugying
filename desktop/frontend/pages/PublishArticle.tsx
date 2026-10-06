@@ -85,21 +85,18 @@ function ArticleComposerPage({ editId }: { editId: string | null }) {
           ?.focus({ preventScroll: true });
         scrollToArticleField(coverSectionRef.current);
         break;
-      case "accounts":
+      case "accounts": {
         scrollToArticleField(accountsSectionRef.current, "start");
-        if (entries.length === 0 && !accountsEmpty) {
-          setAddOpen(true);
-        } else {
-          const action =
-            accountsSectionRef.current?.querySelector<HTMLElement>(
-              'a[href="/platform-accounts"]',
-            ) ??
-            accountsSectionRef.current?.querySelector<HTMLElement>(
-              "button:not(:disabled)",
-            );
-          action?.focus({ preventScroll: true });
-        }
+        const action =
+          accountsSectionRef.current?.querySelector<HTMLElement>(
+            'a[href="/platform-accounts"]',
+          ) ??
+          accountsSectionRef.current?.querySelector<HTMLElement>(
+            "button:not(:disabled)",
+          );
+        action?.focus({ preventScroll: true });
         break;
+      }
       case "accountConfig": {
         const accountId = check.accountId;
         if (accountId) {
