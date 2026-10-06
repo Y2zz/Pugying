@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Send } from "lucide-react";
 import { toast } from "@/components/AppToaster";
 import { ArticleCoverEditDialog } from "./publish-article/ArticleCoverEditDialog";
 import { Alert, AlertTitle } from "@/components/ui/alert";
@@ -36,6 +37,7 @@ function ArticleComposerPage({ editId }: { editId: string | null }) {
   const composer = useArticleComposer(editId);
   const { loading, saving, entries, checks, covers, getDraft } = composer;
 
+  const [publishAttempted, setPublishAttempted] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [focusedAccountId, setFocusedAccountId] = useState<string | null>(null);
@@ -75,6 +77,12 @@ function ArticleComposerPage({ editId }: { editId: string | null }) {
         );
         break;
       case "cover":
+        flushSync(() => {
+          setPublishAttempted(true);
+        });
+        coverSectionRef.current
+          ?.querySelector<HTMLElement>('[aria-invalid="true"]')
+          ?.focus({ preventScroll: true });
         scrollToArticleField(coverSectionRef.current);
         break;
       case "accounts":
@@ -123,9 +131,12 @@ function ArticleComposerPage({ editId }: { editId: string | null }) {
     }
   };
 
-  const onSave = async () => {
+  const onSave = async (publish = false) => {
     setValidationAttempted(true);
-    const blocked = await composer.save();
+    if (publish) {
+      setPublishAttempted(true);
+    }
+    const blocked = await composer.save(publish);
     if (blocked) {
       focusCheck(blocked);
     }
@@ -154,12 +165,35 @@ function ArticleComposerPage({ editId }: { editId: string | null }) {
       />
       <ArticlePageHeader
         title={composer.isEditing ? "编辑文章" : "发布文章"}
-        description={description}
+        description={
+          composer.isEditing && !loading
+            ? "保存不会修改平台上的作品"
+            : description
+        }
         checks={checks}
         loading={loading}
         disabled={locked}
+        saveVariant="outline"
+        saveSize="default"
+        actions={
+          <Button
+            type="button"
+            size="default"
+            disabled={locked}
+            onClick={() => {
+              void onSave(true);
+            }}
+          >
+            <Send data-icon="inline-start" />
+            {composer.publishing ? "提交中…" : "发布文章"}
+          </Button>
+        }
         saveLabel={
-          saving ? "保存中…" : composer.isEditing ? "保存修改" : "保存草稿"
+          saving && !composer.publishing
+            ? "保存中…"
+            : composer.isEditing
+              ? "保存修改"
+              : "保存草稿"
         }
         onSave={() => {
           void onSave();
@@ -236,6 +270,9 @@ function ArticleComposerPage({ editId }: { editId: string | null }) {
           <ArticleCoverCard
             sectionRef={coverSectionRef}
             needs={composer.coverNeeds}
+            invalidAspects={
+              publishAttempted ? composer.missingCommonCoverAspects : []
+            }
             covers={covers}
             hasAccounts={entries.length > 0}
             canUseFirstImage={Boolean(composer.firstImagePath)}

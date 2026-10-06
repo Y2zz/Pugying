@@ -20,6 +20,7 @@ import {
   type PlatformCatalogItem,
   type PlatformId,
 } from "@/lib/api";
+import { submitDistribution } from "@/lib/distribution";
 import { describeCaughtError } from "@/lib/publish-errors";
 import {
   ARTICLE_SUPPORTED_PLATFORMS,
@@ -38,6 +39,7 @@ import {
   emptyArticleDraft,
   emptyCoverPair,
   extractLocalImagePathsFromHtml,
+  effectiveCover,
   getArticleAccountDraftIssues,
   localPathToFileUrl,
   looksUnstableLocalPath,
@@ -91,10 +93,6 @@ export function useArticleComposer(editId: string | null) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loadFailed, setLoadFailed] = useState(false);
-  const [validationError, setValidationError] = useState<{
-    id: ArticleCheckId;
-    text: string;
-  } | null>(null);
 
   const [catalog, setCatalog] = useState<PlatformCatalogItem[]>([]);
   const [accounts, setAccounts] = useState<PlatformAccountItem[]>([]);
@@ -444,6 +442,23 @@ export function useArticleComposer(editId: string | null) {
     return map;
   }, [entries, getDraft, title]);
 
+  const missingCommonCoverAspects = useMemo(() => {
+    const missing = new Set<CoverKind>();
+    for (const { account } of activeEntries) {
+      const draft = getDraft(account.id);
+      for (const aspect of missingRequiredCovers(
+        draft,
+        covers,
+        account.platform,
+      )) {
+        if (!coverSlotReady(effectiveCover(draft, covers, aspect).slot)) {
+          missing.add(aspect);
+        }
+      }
+    }
+    return [...missing];
+  }, [activeEntries, getDraft, covers]);
+
   const bodyLength = articleBodyPlainLength(body);
   const titleLength = countArticleTitleCharacters(title);
 
@@ -494,21 +509,20 @@ export function useArticleComposer(editId: string | null) {
         missing.add(aspect);
       }
     }
-    // 未选账号时无从判断比例要求，只要设过任一通用封面即视为完成
-    const anyCommonCover = COVER_ASPECTS.some((aspect) =>
-      coverSlotReady(covers[aspect]),
-    );
-    const coverOk =
-      activeEntries.length === 0 ? anyCommonCover : missing.size === 0;
+    // 封面要求由账号决定；未选账号时不强制通用封面。
+    const coverOk = missing.size === 0;
     list.push({
       id: "cover",
       label: "封面",
       ok: coverOk,
-      detail: coverOk
-        ? "已设置"
-        : missing.size > 0
-          ? `缺少${[...missing].map((a) => (a === "portrait" ? "竖版" : "横版")).join("、")}封面`
-          : "未设置",
+      detail:
+        activeEntries.length === 0
+          ? "选定账号后设置"
+          : coverOk
+            ? "已设置"
+            : missing.size > 0
+              ? `缺少${[...missing].map((a) => (a === "portrait" ? "竖版" : "横版")).join("、")}封面`
+              : "未设置",
     });
     list.push({
       id: "accounts",
@@ -689,152 +703,171 @@ export function useArticleComposer(editId: string | null) {
     }
   }, [firstImagePath, coverNeeds, covers, openCoverEditor]);
 
-  // 校验提示在问题被修正后自动消失；请求失败的提示保留到下次保存
-  useEffect(() => {
-    if (!blockingCheck || blockingCheck.id !== validationError?.id) {
-      setValidationError(null);
-    }
-  }, [blockingCheck, validationError?.id]);
-
   /** 保存草稿；被硬性问题拦下时返回对应检查项，由页面负责聚焦 */
-  const save = useCallback(async (): Promise<ArticleCheck | null> => {
-    if (loading || loadFailed || !recovery.ready) {
-      setError("文章未完整加载，请重新打开后再保存");
-      return null;
-    }
-    if (blockingCheck) {
-      setValidationError({
-        id: blockingCheck.id,
-        text:
-          blockingCheck.id === "accountConfig"
-            ? "有账号设置需要调整"
-            : `${blockingCheck.label}${blockingCheck.detail}`,
-      });
-      return blockingCheck;
-    }
-    setSaving(true);
-    setError("");
-    const payload = {
-      title: normalizeArticleTitle(title),
-      body: body.trim(),
-      mediaPaths,
-      tags: [],
-      visibility: "public" as const,
-      allowDownload: true,
-      targets: entries.map(({ account }) => ({
-        platformAccountId: account.id,
-        overrides: articleDraftToOverrides(
-          getDraft(account.id),
-          account.platform,
-        ),
-      })),
-      ...(contentStatus === "published"
-        ? {}
-        : { status: "draft" as ContentStatus }),
-    };
-    try {
-      let saved: ContentItem;
-      if (ownedContentId) {
-        saved = await updateContent(ownedContentId, payload);
-      } else {
-        saved = await createContent({ type: "article", ...payload });
-        setCreatedContentId(saved.id);
+  const submitInFlight = useRef(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const save = useCallback(
+    async (publish = false): Promise<ArticleCheck | null> => {
+      if (submitInFlight.current) {
+        return null;
       }
-      for (const aspect of COVER_ASPECTS) {
-        const blob = covers[aspect].blob;
-        if (blob) {
-          saved = await uploadContentCover(
-            saved.id,
-            aspect,
-            blob,
-            `cover-${aspect}.jpg`,
-          );
-        }
+      if (loading || loadFailed || !recovery.ready) {
+        setError("文章未完整加载，请重新打开后再保存");
+        return null;
       }
-      setCovers((prev) => ({
-        portrait: prev.portrait.blob
-          ? { ...prev.portrait, blob: null, saved: true }
-          : prev.portrait,
-        landscape: prev.landscape.blob
-          ? { ...prev.landscape, blob: null, saved: true }
-          : prev.landscape,
-      }));
-      // Target 每次保存都会重建，账号封面需整体重传
-      for (const target of saved.targets) {
-        const draft = drafts[target.platformAccountId];
-        if (!draft) {
-          continue;
+      const blocked = publish
+        ? checks.find((check) => !check.ok)
+        : blockingCheck;
+      if (blocked) {
+        toast.add({
+          type: "error",
+          title:
+            blocked.id === "accountConfig"
+              ? "有账号设置需要调整"
+              : `${blocked.label}${blocked.detail}`,
+        });
+        return blocked;
+      }
+      submitInFlight.current = true;
+      setSaving(true);
+      setPublishing(publish);
+      setError("");
+      const payload = {
+        title: normalizeArticleTitle(title),
+        body: body.trim(),
+        mediaPaths,
+        tags: [],
+        visibility: "public" as const,
+        allowDownload: true,
+        targets: entries.map(({ account }) => ({
+          platformAccountId: account.id,
+          overrides: articleDraftToOverrides(
+            getDraft(account.id),
+            account.platform,
+          ),
+        })),
+        ...(contentStatus === "published"
+          ? {}
+          : { status: "draft" as ContentStatus }),
+      };
+      try {
+        let saved: ContentItem;
+        if (ownedContentId) {
+          saved = await updateContent(ownedContentId, payload);
+        } else {
+          saved = await createContent({ type: "article", ...payload });
+          setCreatedContentId(saved.id);
         }
-        const aspects = isArticleSupportedPlatform(target.platform)
-          ? articleCoverAspects(target.platform)
-          : [];
-        const useCover =
-          target.platform === "toutiao"
-            ? draft.articleSettings?.coverMode !== "none"
-            : target.platform !== "bilibili" ||
-              draft.articleSettings?.customCover === true;
-        for (const aspect of useCover ? aspects : []) {
-          const blob = draft.covers[aspect].blob;
+        for (const aspect of COVER_ASPECTS) {
+          const blob = covers[aspect].blob;
           if (blob) {
-            await uploadContentCover(
+            saved = await uploadContentCover(
               saved.id,
               aspect,
               blob,
               `cover-${aspect}.jpg`,
-              target.id,
             );
           }
         }
-        if (
-          target.platform === "toutiao" &&
-          draft.articleSettings?.coverMode === "triple"
-        ) {
-          for (const index of [0, 1] as const) {
-            const blob = draft.extraCovers?.[index]?.blob;
+        setCovers((prev) => ({
+          portrait: prev.portrait.blob
+            ? { ...prev.portrait, blob: null, saved: true }
+            : prev.portrait,
+          landscape: prev.landscape.blob
+            ? { ...prev.landscape, blob: null, saved: true }
+            : prev.landscape,
+        }));
+        // Target 每次保存都会重建，账号封面需整体重传
+        for (const target of saved.targets) {
+          const draft = drafts[target.platformAccountId];
+          if (!draft) {
+            continue;
+          }
+          const aspects = isArticleSupportedPlatform(target.platform)
+            ? articleCoverAspects(target.platform)
+            : [];
+          const useCover =
+            target.platform === "toutiao"
+              ? draft.articleSettings?.coverMode !== "none"
+              : target.platform !== "bilibili" ||
+                draft.articleSettings?.customCover === true;
+          for (const aspect of useCover ? aspects : []) {
+            const blob = draft.covers[aspect].blob;
             if (blob) {
               await uploadContentCover(
                 saved.id,
-                index === 0 ? "landscape2" : "landscape3",
+                aspect,
                 blob,
-                `cover-${index + 2}.jpg`,
+                `cover-${aspect}.jpg`,
                 target.id,
               );
             }
           }
+          if (
+            target.platform === "toutiao" &&
+            draft.articleSettings?.coverMode === "triple"
+          ) {
+            for (const index of [0, 1] as const) {
+              const blob = draft.extraCovers?.[index]?.blob;
+              if (blob) {
+                await uploadContentCover(
+                  saved.id,
+                  index === 0 ? "landscape2" : "landscape3",
+                  blob,
+                  `cover-${index + 2}.jpg`,
+                  target.id,
+                );
+              }
+            }
+          }
         }
+        setContentStatus(saved.status);
+        if (publish) {
+          await submitDistribution(saved.id);
+        }
+        await recovery.discard();
+        toast.add({
+          type: "success",
+          title: publish ? "已开始分发" : "已保存",
+        });
+        void navigate("/contents");
+        return null;
+      } catch (err) {
+        setError(
+          describeCaughtError(err, publish ? "发布失败，请重试" : "保存失败"),
+        );
+        return null;
+      } finally {
+        submitInFlight.current = false;
+        setSaving(false);
+        setPublishing(false);
       }
-      setContentStatus(saved.status);
-      await recovery.discard();
-      toast.add({ type: "success", title: "已保存" });
-      void navigate("/contents");
-      return null;
-    } catch (err) {
-      setError(describeCaughtError(err, "保存失败"));
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    blockingCheck,
-    loading,
-    loadFailed,
-    title,
-    body,
-    mediaPaths,
-    entries,
-    getDraft,
-    contentStatus,
-    ownedContentId,
-    covers,
-    drafts,
-    navigate,
-    recovery.ready,
-    recovery.discard,
-  ]);
+    },
+    [
+      blockingCheck,
+      checks,
+      loading,
+      loadFailed,
+      title,
+      body,
+      mediaPaths,
+      entries,
+      getDraft,
+      contentStatus,
+      ownedContentId,
+      covers,
+      drafts,
+      navigate,
+      recovery.ready,
+      recovery.discard,
+    ],
+  );
 
   return {
     loading: loading || (!loadFailed && !recovery.ready),
     saving,
+    publishing,
     autoSaveStatus: recovery.status,
     autoSaveFailed: recovery.failed,
     retryAutoSave: recovery.retry,
@@ -843,7 +876,7 @@ export function useArticleComposer(editId: string | null) {
     recoveryError: recovery.recoveryError,
     continueRecovery: recovery.continueRecovery,
     startNew: recovery.startNew,
-    error: validationError?.text || error,
+    error,
     catalog,
     accounts,
     selected,
@@ -866,6 +899,7 @@ export function useArticleComposer(editId: string | null) {
     pathWarning,
     covers,
     coverNeeds,
+    missingCommonCoverAspects,
     coverEditor,
     openCoverEditor,
     closeCoverEditor,

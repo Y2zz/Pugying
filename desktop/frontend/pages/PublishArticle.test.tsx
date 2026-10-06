@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import type { RefObject } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import PublishArticle from "./PublishArticle";
 import type { ArticleCheck } from "./publish-article/use-article-composer";
@@ -30,11 +35,14 @@ vi.mock("./publish-article/ArticlePageHeader", () => ({
   ArticlePageHeader: ({
     checks,
     onFix,
+    actions,
   }: {
+    actions?: import("react").ReactNode;
     checks: ArticleCheck[];
     onFix: (check: ArticleCheck) => void;
   }) => (
     <div>
+      {actions}
       {checks.map((check) => (
         <button key={check.id} onClick={() => onFix(check)}>
           {check.label}
@@ -88,13 +96,19 @@ vi.mock("./publish-article/ArticleDistributionPanel", () => ({
   ArticleDistributionPanel: ({
     focusedAccountId,
     accountsEmpty,
+    onAdd,
   }: {
     focusedAccountId: string | null;
     accountsEmpty: boolean;
+    onAdd: () => void;
   }) => (
     <div>
       <h2>分发账号</h2>
-      {accountsEmpty ? <a href="/platform-accounts">去绑定账号</a> : null}
+      {accountsEmpty ? (
+        <a href="/platform-accounts">去绑定账号</a>
+      ) : (
+        <button onClick={onAdd}>添加账号</button>
+      )}
       {focusedAccountId ? (
         <div
           data-slot="article-account-editor"
@@ -248,4 +262,16 @@ it("renders the account with issues before locating and focusing its invalid fie
     screen.getByRole("textbox", { name: "账号标题" }),
   );
   expect(mocks.scrollTo).toHaveBeenCalledWith(field, "start");
+});
+
+it("publishes directly from the article page", () => {
+  const save = vi.fn().mockResolvedValue(null);
+  mocks.composer.save = save;
+  render(
+    <MemoryRouter>
+      <PublishArticle />
+    </MemoryRouter>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "发布文章" }));
+  expect(save).toHaveBeenCalledExactlyOnceWith(true);
 });

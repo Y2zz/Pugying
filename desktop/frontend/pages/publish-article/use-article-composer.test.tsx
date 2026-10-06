@@ -22,7 +22,13 @@ import {
   normalizeArticleTitle,
 } from "./article-title";
 import { articleDraftToOverrides, emptyArticleDraft } from "./helpers";
+import { toast } from "@/components/AppToaster";
+import { submitDistribution } from "@/lib/distribution";
 import { useArticleComposer } from "./use-article-composer";
+
+vi.mock("@/components/AppToaster", () => ({ toast: { add: vi.fn() } }));
+
+vi.mock("@/lib/distribution", () => ({ submitDistribution: vi.fn() }));
 
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -223,14 +229,208 @@ it("validates inherited Bilibili titles against its 40-character limit", async (
   expect(result.current.titleMax).toBe(60);
 });
 
-
 it("clears saved image paths after deleting the last image from an existing article", async () => {
   const item = await createContent({ type: "article", title: "标题" });
-  vi.mocked(fetchContent).mockResolvedValue({ ...item, body: '<p>正文</p><img src="https://example.com/legacy.png">', mediaPaths: ["/tmp/legacy.png"] });
+  vi.mocked(fetchContent).mockResolvedValue({
+    ...item,
+    body: '<p>正文</p><img src="https://example.com/legacy.png">',
+    mediaPaths: ["/tmp/legacy.png"],
+  });
   const { result } = renderHook(() => useArticleComposer("existing-article"));
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.mediaPaths).toEqual(["/tmp/legacy.png"]);
   act(() => result.current.setBody("<p>正文</p>"));
   expect(result.current.mediaPaths).toEqual([]);
   expect(result.current.firstImagePath).toBeNull();
+});
+
+it("saves the article before submitting distribution from the composer", async () => {
+  vi.mocked(submitDistribution).mockResolvedValue(undefined);
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setTitle("一阵风里的蒲公英");
+    result.current.setBody(`<p>${"正文".repeat(200)}</p>`);
+    result.current.setDraft(account.id, {
+      ...emptyArticleDraft(),
+      articleSettings: { coverMode: "none" },
+    });
+  });
+  await act(async () => {
+    await result.current.save(true);
+  });
+  expect(createContent).toHaveBeenCalledOnce();
+  expect(submitDistribution).toHaveBeenCalledExactlyOnceWith("saved-article");
+  expect(vi.mocked(createContent).mock.invocationCallOrder[0]).toBeLessThan(
+    vi.mocked(submitDistribution).mock.invocationCallOrder[0],
+  );
+  expect(result.current.saving).toBe(false);
+});
+
+it("does not submit distribution when saving fails", async () => {
+  vi.mocked(createContent).mockRejectedValueOnce(new Error("保存失败"));
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setTitle("一阵风里的蒲公英");
+    result.current.setBody(`<p>${"正文".repeat(200)}</p>`);
+    result.current.setDraft(account.id, {
+      ...emptyArticleDraft(),
+      articleSettings: { coverMode: "none" },
+    });
+  });
+  await act(async () => {
+    await result.current.save(true);
+  });
+  expect(submitDistribution).not.toHaveBeenCalled();
+  expect(result.current.error).toBeTruthy();
+  expect(result.current.publishing).toBe(false);
+});
+
+it("keeps the saved article available when distribution cannot start", async () => {
+  vi.mocked(submitDistribution).mockRejectedValueOnce(new Error("应用未就绪"));
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setTitle("一阵风里的蒲公英");
+    result.current.setBody(`<p>${"正文".repeat(200)}</p>`);
+    result.current.setDraft(account.id, {
+      ...emptyArticleDraft(),
+      articleSettings: { coverMode: "none" },
+    });
+  });
+  await act(async () => {
+    await result.current.save(true);
+  });
+  expect(createContent).toHaveBeenCalledOnce();
+  expect(submitDistribution).toHaveBeenCalledExactlyOnceWith("saved-article");
+  expect(result.current.error).toBeTruthy();
+  expect(result.current.saving).toBe(false);
+});
+
+it("ignores repeated publish clicks while submission is pending", async () => {
+  let finish!: () => void;
+  vi.mocked(submitDistribution).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setTitle("一阵风里的蒲公英");
+    result.current.setBody(`<p>${"正文".repeat(200)}</p>`);
+    result.current.setDraft(account.id, {
+      ...emptyArticleDraft(),
+      articleSettings: { coverMode: "none" },
+    });
+  });
+  let first!: Promise<unknown>;
+  await act(async () => {
+    first = result.current.save(true);
+    await result.current.save(true);
+  });
+  expect(createContent).toHaveBeenCalledOnce();
+  expect(submitDistribution).toHaveBeenCalledOnce();
+  await act(async () => {
+    finish();
+    await first;
+  });
+});
+
+it("requires a complete article before publishing but allows an incomplete draft", async () => {
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setTitle("一阵风里的蒲公英");
+  });
+  await act(async () => {
+    expect((await result.current.save(true))?.id).toBe("body");
+  });
+  expect(createContent).not.toHaveBeenCalled();
+  expect(submitDistribution).not.toHaveBeenCalled();
+  await act(async () => {
+    await result.current.save();
+  });
+  expect(createContent).toHaveBeenCalledOnce();
+  expect(submitDistribution).not.toHaveBeenCalled();
+});
+
+it("uses a global toast for missing fields without adding a page error", async () => {
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  await act(async () => {
+    expect((await result.current.save(true))?.id).toBe("title");
+  });
+  expect(toast.add).toHaveBeenCalledWith({
+    type: "error",
+    title: "标题未填写",
+  });
+  expect(result.current.error).toBe("");
+  expect(submitDistribution).not.toHaveBeenCalled();
+  await act(async () => {
+    await result.current.save(true);
+  });
+  expect(toast.add).toHaveBeenCalledTimes(2);
+});
+
+it("clears missing-cover highlighting when an account supplies its own required cover", async () => {
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.missingCommonCoverAspects).toEqual(["landscape"]);
+  act(() => {
+    const draft = emptyArticleDraft();
+    result.current.setDraft(account.id, {
+      ...draft,
+      covers: {
+        ...draft.covers,
+        landscape: {
+          ...draft.covers.landscape,
+          saved: true,
+          previewUrl: "blob:cover",
+        },
+      },
+    });
+  });
+  expect(result.current.missingCommonCoverAspects).toEqual([]);
+});
+
+it("asks for an account instead of requiring an optional common cover before accounts are selected", async () => {
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setSelected({});
+    result.current.setTitle("一阵风里的蒲公英");
+    result.current.setBody("<p>正文</p>");
+  });
+  expect(result.current.checks.find((check) => check.id === "cover")?.ok).toBe(
+    true,
+  );
+  expect(result.current.missingCommonCoverAspects).toEqual([]);
+  await act(async () => {
+    expect((await result.current.save(true))?.id).toBe("accounts");
+  });
+  expect(toast.add).toHaveBeenCalledWith({
+    type: "error",
+    title: "分发账号尚未选择",
+  });
+  expect(submitDistribution).not.toHaveBeenCalled();
+});
+
+it("keeps required-cover validation and highlighting aligned after choosing an account", async () => {
+  const { result } = renderHook(() => useArticleComposer(null));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => {
+    result.current.setTitle("一阵风里的蒲公英");
+    result.current.setBody(`<p>${"正文".repeat(200)}</p>`);
+  });
+  expect(result.current.missingCommonCoverAspects).toEqual(["landscape"]);
+  await act(async () => {
+    expect((await result.current.save(true))?.id).toBe("cover");
+  });
+  expect(result.current.checks.find((check) => check.id === "cover")?.ok).toBe(
+    false,
+  );
+  expect(submitDistribution).not.toHaveBeenCalled();
 });

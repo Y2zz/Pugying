@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useId, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import type { CoverKind } from "@/lib/api";
 import { ArticleCoverThumb } from "./ArticleCoverThumb";
@@ -12,6 +12,7 @@ import type { CoverNeed } from "./use-article-composer";
 export function ArticleCoverCard({
   sectionRef,
   needs,
+  invalidAspects = [],
   covers,
   hasAccounts,
   canUseFirstImage,
@@ -22,6 +23,7 @@ export function ArticleCoverCard({
 }: {
   sectionRef?: RefObject<HTMLElement | null>;
   needs: CoverNeed[];
+  invalidAspects?: CoverKind[];
   covers: CoverPair;
   hasAccounts: boolean;
   canUseFirstImage: boolean;
@@ -30,6 +32,7 @@ export function ArticleCoverCard({
   onUseFirstImage: () => void;
   firstImageLabel?: string;
 }) {
+  const errorId = useId();
   const allReady = needs.every((need) => coverSlotReady(covers[need.aspect]));
 
   return (
@@ -64,11 +67,21 @@ export function ArticleCoverCard({
               aspect={need.aspect}
               src={covers[need.aspect].previewUrl}
               disabled={disabled}
+              invalid={invalidAspects.includes(need.aspect)}
+              errorId={`${errorId}-${need.aspect}`}
               className="h-32"
               onClick={() => {
                 onEdit(need.aspect);
               }}
             />
+            {invalidAspects.includes(need.aspect) ? (
+              <p
+                id={`${errorId}-${need.aspect}`}
+                className="text-sm text-destructive"
+              >
+                请设置{COVER_ASPECT_LABEL[need.aspect]}封面
+              </p>
+            ) : null}
             <div className="flex flex-col gap-0.5 text-xs">
               <span className="font-medium">
                 {COVER_ASPECT_LABEL[need.aspect]}

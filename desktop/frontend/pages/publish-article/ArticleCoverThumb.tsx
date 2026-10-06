@@ -13,6 +13,8 @@ export function ArticleCoverThumb({
   src,
   onClick,
   disabled,
+  invalid = false,
+  errorId,
   className,
   label: customLabel,
 }: {
@@ -20,6 +22,8 @@ export function ArticleCoverThumb({
   src: string | null | undefined;
   onClick?: () => void;
   disabled?: boolean;
+  invalid?: boolean;
+  errorId?: string;
   className?: string;
   label?: string;
 }) {
@@ -59,6 +63,8 @@ export function ArticleCoverThumb({
     <button
       type="button"
       disabled={disabled}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid ? errorId : undefined}
       aria-label={hasImage ? `更换${label}封面` : `设置${label}封面`}
       className={cn(
         "group/cover relative block shrink-0 overflow-hidden rounded-lg outline-none transition-colors",
@@ -66,6 +72,8 @@ export function ArticleCoverThumb({
         hasImage
           ? "bg-muted"
           : "border border-dashed border-input bg-muted/40 hover:border-ring hover:bg-muted",
+        invalid &&
+          "border-destructive hover:border-destructive focus-visible:ring-destructive/20",
         className,
       )}
       style={{ aspectRatio: String(ratio) }}

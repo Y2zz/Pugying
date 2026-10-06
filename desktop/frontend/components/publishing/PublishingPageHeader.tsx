@@ -30,6 +30,7 @@ export function PublishingPageHeader<T extends { ok: boolean }>({
   renderChecks,
   actions,
   saveVariant = "default",
+  saveSize,
   surfaceSlot = "publishing-page-header-surface",
 }: {
   title: string;
@@ -46,6 +47,7 @@ export function PublishingPageHeader<T extends { ok: boolean }>({
   renderChecks: (onFix: (check: T) => void) => ReactNode;
   actions?: ReactNode;
   saveVariant?: "default" | "outline";
+  saveSize?: "default" | "sm";
   surfaceSlot?: string;
 }) {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -192,7 +194,7 @@ export function PublishingPageHeader<T extends { ok: boolean }>({
           >
             <Button
               type="button"
-              size={compact ? "sm" : "default"}
+              size={saveSize ?? (compact ? "sm" : "default")}
               disabled={disabled}
               variant={saveVariant}
               onClick={onSave}
