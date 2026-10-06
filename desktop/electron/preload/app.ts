@@ -10,6 +10,12 @@ import type {
 
 const pugyingDesktop = {
   available: true as const,
+  submitDistribution: (input: import('@shared/distribution').DistributionSubmission): Promise<import('@shared/distribution').DistributionSubmissionResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.submitDistribution, input),
+  getDistributionConcurrency: (): Promise<number> =>
+    ipcRenderer.invoke(DESKTOP_IPC.getDistributionConcurrency),
+  setDistributionConcurrency: (value: number): Promise<number> =>
+    ipcRenderer.invoke(DESKTOP_IPC.setDistributionConcurrency, value),
   getToutiaoRewardPrivilege: (accountId: string): Promise<import('@shared/toutiao-article-privileges').ToutiaoRewardPrivilege | null> =>
     ipcRenderer.invoke(DESKTOP_IPC.getToutiaoRewardPrivilege, accountId),
   postMessage: (message: unknown) => {

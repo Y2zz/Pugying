@@ -15,16 +15,14 @@ import {
 import { toast } from "@/components/AppToaster";
 import { useAgent } from "@/hooks/use-agent";
 import { agentClient } from "@/lib/agent-client";
+import { submitDistribution } from "@/lib/distribution";
 import {
   createContent,
-  completeContentTarget,
   fetchContent,
   fetchCoverObjectUrl,
   fetchPlatformAccounts,
   fetchPlatformCatalog,
   getLocalFilePath,
-  publishContent,
-  startContentTarget,
   updateContent,
   uploadContentCover,
   type ContentItem,
@@ -33,11 +31,7 @@ import {
   type PlatformAccountItem,
   type PlatformCatalogItem,
 } from "@/lib/api";
-import {
-  describeCaughtError,
-  describePublishError,
-  describePublishPhase,
-} from "@/lib/publish-errors";
+import { describeCaughtError } from "@/lib/publish-errors";
 import {
   extractCoverPairFromVideoFile,
   readVideoDuration,
@@ -732,85 +726,9 @@ export default function PublishVideo() {
       }
 
       setPublishHint("正在提交发布任务…");
-      const started = await publishContent(contentId);
-      const accountLabel = (accountId: string) =>
-        accounts.find((a) => a.id === accountId)?.displayName ??
-        `账号 ${accountId.slice(0, 8)}`;
-      const labelForTarget = (targetId: string) => {
-        const hit = started.dispatches.find((d) => d.targetId === targetId);
-        return hit ? accountLabel(hit.accountId) : "抖音";
-      };
-      const unsub = agentClient.subscribePublishProgress((event) => {
-        setPublishHint(
-          `${labelForTarget(event.targetId)} · ${describePublishPhase(event.phase)}${event.message ? ` · ${event.message}` : ""}`,
-        );
-      });
-
-      try {
-        const outcomes: Array<{
-          ok: boolean;
-          code?: string;
-          message?: string;
-        }> = [];
-        for (const dispatch of started.dispatches) {
-          setPublishHint(`开始推送「${accountLabel(dispatch.accountId)}」…`);
-          const { dispatch: live } = await startContentTarget(
-            contentId,
-            dispatch.targetId,
-          );
-          const result = await agentClient.startPublish({
-            targetId: live.targetId,
-            platform: live.platform,
-            accountId: live.accountId,
-            contentType: live.contentType ?? "video",
-            mediaPath: live.mediaPath,
-            mediaPaths: live.mediaPaths,
-            coverPath: live.coverPath,
-            coverLandscapePath: live.coverLandscapePath,
-            title: live.title,
-            body: live.body,
-            tags: live.tags,
-            authorDeclaration: live.authorDeclaration,
-            articleSettings: live.articleSettings,
-            visibility: live.visibility,
-            scheduledAt: live.scheduledAt,
-            allowDownload: live.allowDownload,
-            cookies: live.cookies,
-          });
-          await completeContentTarget(contentId, live.targetId, {
-            ok: result.ok,
-            errorCode: result.errorCode ?? result.error,
-            errorMessage: result.error,
-            platformPostId: result.platformPostId,
-            platformUrl: result.platformUrl,
-          });
-          outcomes.push({
-            ok: result.ok,
-            code: result.errorCode ?? result.error,
-            message: result.error,
-          });
-        }
-
-        const failed = outcomes.filter((o) => !o.ok);
-        if (failed.length === 0) {
-          void navigate("/contents");
-          return;
-        }
-        const first = failed[0];
-        setError(
-          failed.length === outcomes.length
-            ? describePublishError(first.code, first.message)
-            : `部分成功（${outcomes.length - failed.length}/${outcomes.length}）。${describePublishError(first.code, first.message)} 可在内容列表重试失败账号。`,
-        );
-        if (!editId && contentId) {
-          void navigate(`/publish/video?id=${contentId}`, { replace: true });
-        }
-        endBusy();
-        setPublishHint("");
-        return;
-      } finally {
-        unsub();
-      }
+      await submitDistribution(contentId);
+      toast.add({ type: "success", title: "已加入分发队列" });
+      void navigate("/contents");
     } catch (err) {
       setError(describeCaughtError(err, "保存失败"));
       if (!editId && contentId) {

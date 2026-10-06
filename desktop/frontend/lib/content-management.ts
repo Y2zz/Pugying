@@ -66,7 +66,11 @@ export function summarizeContent(item: ContentItem) {
     status = item.status === "draft" ? "draft" : "pending";
     label = status === "draft" ? "草稿" : "待发布";
   }
-  const parts = [`成功 ${succeeded} / 共 ${total} 个账号`];
+  const parts = [
+    status === "draft"
+      ? `已选 ${total} 个账号`
+      : `成功 ${succeeded} / 共 ${total} 个账号`,
+  ];
   if (failed > 0) {
     parts.push(`${failed} 失败`);
   }

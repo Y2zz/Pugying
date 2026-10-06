@@ -5,11 +5,13 @@ import {
   Clapperboard,
   FileText,
   ImageIcon,
+  MoreHorizontal,
   Pencil,
   ExternalLink,
   RefreshCw,
   RotateCcw,
   SearchIcon,
+  Send,
   Trash2,
   XIcon,
 } from "lucide-react";
@@ -26,6 +28,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -79,9 +88,8 @@ import { StickyPageHeader } from "@/components/layouts/StickyPageHeader";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { MediaPreviewImage } from "@/components/MediaPreviewImage";
 import { useUiDensity } from "@/hooks/use-ui-density";
-import { agentClient } from "@/lib/agent-client";
+import { submitDistribution } from "@/lib/distribution";
 import {
-  completeContentTarget,
   deleteContent,
   fetchContents,
   fetchContent,
@@ -89,8 +97,6 @@ import {
   type PlatformAccountItem,
   type ContentManagementStatus,
   type ContentStatusCounts,
-  retryContentTarget,
-  startContentTarget,
   type ContentItem,
   type ContentTargetItem,
   type ContentType,
@@ -363,55 +369,8 @@ export default function Contents() {
     setBusyId(`${item.id}:${target.id}`);
     setError("");
     try {
-      agentClient.connect();
-      if (agentClient.getStatus() !== "connected") {
-        setError("应用未就绪，请重启后再试");
-        return;
-      }
-      const { dispatch } = await retryContentTarget(item.id, target.id);
-      const { dispatch: started } = await startContentTarget(
-        item.id,
-        target.id,
-      );
-      void reloadRef.current(true);
-      const payload = started ?? dispatch;
-      const result = await agentClient.startPublish({
-        targetId: payload.targetId,
-        platform: payload.platform,
-        accountId: payload.accountId,
-        contentType: payload.contentType ?? "video",
-        mediaPath: payload.mediaPath,
-        mediaPaths: payload.mediaPaths,
-        coverPath: payload.coverPath,
-        coverLandscapePath: payload.coverLandscapePath,
-        articleCoverPaths: payload.articleCoverPaths,
-        title: payload.title,
-        body: payload.body,
-        tags: payload.tags,
-        authorDeclaration: payload.authorDeclaration,
-        articleSettings: payload.articleSettings,
-        visibility: payload.visibility,
-        scheduledAt: payload.scheduledAt,
-        allowDownload: payload.allowDownload,
-        cookies: payload.cookies,
-      });
-      await completeContentTarget(item.id, target.id, {
-        ok: result.ok,
-        errorCode: result.errorCode ?? result.error,
-        errorMessage: result.error,
-        platformPostId: result.platformPostId,
-        platformUrl: result.platformUrl,
-      });
+      await submitDistribution(item.id, target.id);
       await reloadRef.current(true);
-      if (!result.ok) {
-        setError(
-          contentTargetMessage({
-            ...target,
-            publishStatus: "failed",
-            errorCode: result.errorCode ?? result.error ?? null,
-          }),
-        );
-      }
     } catch {
       await reloadRef.current(true);
       setError("重新发布失败，请稍后重试");
@@ -434,13 +393,26 @@ export default function Contents() {
     }
   };
 
+  const handleDistribute = async (item: ContentItem) => {
+    if (busyId) {
+      return;
+    }
+    setBusyId(item.id);
+    setError("");
+    try {
+      await submitDistribution(item.id);
+      await reloadRef.current(true);
+    } catch {
+      setError("未能加入分发队列，请检查作品和账号后重试");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col" aria-busy={loading}>
-      <StickyPageHeader showDivider>
-        <PageHeader
-          title="作品管理"
-          description="查看作品与分发进度，处理未完成的发布"
-        />
+      <StickyPageHeader className="gap-4 pb-2 md:pb-2">
+        <PageHeader title="作品管理" description="管理作品与分发进度" />
 
         <div className="overflow-x-auto">
           <ToggleGroup
@@ -557,7 +529,9 @@ export default function Contents() {
               key={i}
               className={cn(
                 "flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4",
-                compact ? "py-4" : "py-6",
+                compact
+                  ? "py-4 first:pt-2 last:pb-2"
+                  : "py-6 first:pt-4 last:pb-4",
               )}
             >
               <div
@@ -612,7 +586,7 @@ export default function Contents() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
           <div className="divide-y">
             {items.map((item) => (
               <ContentListItem
@@ -630,6 +604,9 @@ export default function Contents() {
                 onDelete={() => {
                   setDeleteTarget(item);
                 }}
+                onDistribute={() => {
+                  void handleDistribute(item);
+                }}
               />
             ))}
           </div>
@@ -638,7 +615,8 @@ export default function Contents() {
             aria-label="分页信息"
             className="text-sm text-muted-foreground"
           >
-            共 {total} 条作品 · 第 {currentPage} / {totalPages} 页
+            共 {total} 条作品
+            {totalPages > 1 ? ` · 第 ${currentPage} / ${totalPages} 页` : null}
           </p>
           {totalPages > 1 ? (
             <Pagination>
@@ -783,12 +761,14 @@ function ContentListItem({
   busy,
   onShowDetails,
   onDelete,
+  onDistribute,
 }: {
   item: ContentItem;
   density: UiDensity;
   busy: boolean;
   onShowDetails: () => void;
   onDelete: () => void;
+  onDistribute: () => void;
 }) {
   const meta = TYPE_META[item.type];
   const TypeIcon = meta.icon;
@@ -816,7 +796,7 @@ function ContentListItem({
     <div
       className={cn(
         "flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4",
-        compact ? "py-4" : "py-6",
+        compact ? "py-4 first:pt-2 last:pb-2" : "py-6 first:pt-4 last:pb-4",
       )}
     >
       <div
@@ -881,17 +861,7 @@ function ContentListItem({
             <Badge variant={dist.tone} className="h-auto text-xs">
               {dist.label}
             </Badge>
-            {dist.total > 0 ? (
-              <button
-                type="button"
-                className="inline hover:underline"
-                onClick={onShowDetails}
-              >
-                {dist.line}
-              </button>
-            ) : (
-              <span>暂无分发</span>
-            )}
+            {dist.total > 0 ? <span>{dist.line}</span> : <span>暂无分发</span>}
           </div>
         </div>
       </div>
@@ -918,18 +888,41 @@ function ContentListItem({
             render={<Link to={editTo} />}
           >
             <Pencil data-icon="inline-start" />
-            {dist.status === "draft" ? "继续编辑" : "编辑本机内容"}
+            {dist.status === "draft" ? "继续编辑" : "编辑"}
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={active}
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2 data-icon="inline-start" />
-            删除
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button size="sm" variant="ghost" disabled={active} />}
+              aria-label={`更多操作：${item.title}`}
+            >
+              <MoreHorizontal data-icon="inline-start" />
+              更多
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                {item.targets.some(
+                  (target) =>
+                    target.platform === "douyin" &&
+                    ["idle", "failed", "cancelled"].includes(
+                      target.publishStatus,
+                    ),
+                ) ? (
+                  <DropdownMenuItem disabled={active} onClick={onDistribute}>
+                    <Send />
+                    开始分发
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={active}
+                  onClick={onDelete}
+                >
+                  <Trash2 />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <span
           className="text-right text-sm text-muted-foreground"
@@ -995,9 +988,11 @@ function ContentTargetDetailsSheet({
           </Button>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
-          <p className="text-sm text-muted-foreground">
-            发布完成不代表审核通过，请到平台查看。
-          </p>
+          {dist.succeeded > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              发布完成不代表审核通过，请到平台查看。
+            </p>
+          ) : null}
           {error || accountError ? (
             <Alert>
               <AlertDescription>
@@ -1042,13 +1037,13 @@ function ContentTargetDetailsSheet({
                                 : "正在读取账号")}{" "}
                         </span>
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {target.finishedAt
-                          ? `完成于 ${formatTime(target.finishedAt)}`
-                          : target.startedAt
-                            ? `开始于 ${formatTime(target.startedAt)}`
-                            : "尚未开始"}
-                      </p>
+                      {target.finishedAt || target.startedAt ? (
+                        <p className="text-xs text-muted-foreground">
+                          {target.finishedAt
+                            ? `完成于 ${formatTime(target.finishedAt)}`
+                            : `开始于 ${formatTime(target.startedAt)}`}
+                        </p>
+                      ) : null}
                     </div>
                     <Badge
                       variant={

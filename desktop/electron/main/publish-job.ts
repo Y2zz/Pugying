@@ -1,3 +1,4 @@
+import { DEFAULT_DISTRIBUTION_CONCURRENCY } from '../../shared/distribution';
 import { prepareArticleDocument } from './article-publish-format';
 import type {
   PlatformPublishContentType,
@@ -13,17 +14,23 @@ interface ActivePublish {
   requestId: string;
   targetId: string;
   platform: string;
+  accountId: string;
   cancelled: boolean;
   settled: boolean;
+  stub: boolean;
   signal: { cancelled: boolean };
   onResult: ResultFn;
 }
 
-/** At most one publish job on this Agent (P0). */
-let active: ActivePublish | null = null;
+const active = new Map<string, ActivePublish>();
+let concurrency = DEFAULT_DISTRIBUTION_CONCURRENCY;
+
+export function setPublishConcurrency(value: number): void {
+  concurrency = value;
+}
 
 export function isPublishBusy(): boolean {
-  return active !== null;
+  return active.size > 0;
 }
 
 function resolveContentType(
@@ -74,7 +81,7 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
 }
 
 /**
- * Validates payload, enforces single-flight, then runs Douyin adapter (or stub).
+ * Validates payload, enforces app concurrency and account isolation, then runs the adapter.
  * Set PUGYING_PUBLISH_STUB=1 to force the progress stub (unit tests / CI).
  */
 export function startPublishJob(options: {
@@ -82,44 +89,49 @@ export function startPublishJob(options: {
   onProgress: ProgressFn;
   onResult: ResultFn;
 }): { ok: true } | { error: string } {
-  if (active) {
+  const { payload } = options;
+  if (
+    active.size >= concurrency ||
+    active.has(payload.requestId) ||
+    Array.from(active.values()).some(
+      (job) => job.accountId === payload.accountId,
+    )
+  ) {
     return { error: 'busy' };
   }
-
-  const { payload } = options;
   if (!isValidPublishPayload(payload)) {
     return { error: 'invalid_payload' };
   }
 
+  const contentType = resolveContentType(payload);
   if (payload.platform !== 'douyin') {
     return { error: 'unsupported_platform' };
   }
 
-  const contentType = resolveContentType(payload);
+  const useStub = process.env.PUGYING_PUBLISH_STUB === '1';
   const signal = { cancelled: false };
   const job: ActivePublish = {
     requestId: payload.requestId,
     targetId: payload.targetId,
     platform: payload.platform,
+    accountId: payload.accountId,
     cancelled: false,
     settled: false,
+    stub: useStub,
     signal,
     onResult: options.onResult,
   };
-  active = job;
+  active.set(job.requestId, job);
 
   const finish = (result: PlatformPublishResultPayload) => {
     if (job.settled) {
       return;
     }
     job.settled = true;
-    if (active?.requestId === job.requestId) {
-      active = null;
-    }
+    active.delete(job.requestId);
     options.onResult(result);
   };
 
-  const useStub = process.env.PUGYING_PUBLISH_STUB === '1';
   if (useStub) {
     runStubPublish({
       payload,
@@ -196,14 +208,18 @@ export function startPublishJob(options: {
 }
 
 export function cancelPublishJob(requestId: string): boolean {
-  if (!active || active.requestId !== requestId) {
+  const job = active.get(requestId);
+  if (!job) {
     return false;
   }
-  const job = active;
   job.cancelled = true;
   job.signal.cancelled = true;
+  // 真实适配器完成清理后才释放账号；stub 没有外部资源，可以立即结束。
+  if (!job.stub) {
+    return true;
+  }
   job.settled = true;
-  active = null;
+  active.delete(requestId);
   job.onResult({
     requestId: job.requestId,
     targetId: job.targetId,

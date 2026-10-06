@@ -11,11 +11,20 @@ import {
   stopLocalServer,
 } from './server-process';
 import { createTray, destroyTray } from './tray';
+import { recoverInterruptedDistributions, stopDistributions } from './distribution-service';
 
 /** 清理已完成，允许 before-quit 放行真正的退出 */
 let allowQuit = false;
 /** 避免 Dock / Cmd+Q 连点时重复启动清理 */
 let quitCleanupStarted = false;
+
+// 队列和本机数据只由一个桌面进程管理，重复打开时聚焦已有窗口。
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+}
+app.on('second-instance', () => {
+  showAppWindow();
+});
 
 /**
  * Replace Electron's default application menu, whose View→Reload
@@ -60,6 +69,12 @@ app.whenReady().then(async () => {
     dialog.showErrorBox('蒲公英启动失败', message);
   }
 
+  try {
+    await recoverInterruptedDistributions();
+  } catch {
+    console.error('[pugying-desktop] could not reconcile interrupted distributions');
+  }
+
   createAppWindow();
   console.log(
     '[pugying-desktop] ready (local server + app IPC + chrome auth shell)',
@@ -93,6 +108,7 @@ app.on('before-quit', (event) => {
         win.destroy();
       }
       destroyTray();
+      await stopDistributions();
       await stopLocalServer();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

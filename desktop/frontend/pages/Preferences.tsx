@@ -8,6 +8,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useTheme } from '@/components/ThemeProvider';
 import { useUiDensity } from '@/hooks/use-ui-density';
 import type { UiDensity } from '@/lib/ui-density';
+import { DistributionPreference } from '@/components/publishing/DistributionPreference';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 
@@ -71,6 +72,17 @@ export default function Preferences() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <PageHeader title="偏好设置" description="保存在本机，切换后立即生效。" />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">分发</h2>
+        <Card>
+          <CardContent>
+            <FieldGroup>
+              <DistributionPreference />
+            </FieldGroup>
+          </CardContent>
+        </Card>
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="font-medium">外观</h2>

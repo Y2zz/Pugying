@@ -25,16 +25,16 @@ const mocks = vi.hoisted(() => ({
   fetchContents: vi.fn(),
   fetchContent: vi.fn(),
   fetchPlatformAccounts: vi.fn(),
-  retryContentTarget: vi.fn(),
-  startContentTarget: vi.fn(),
-  completeContentTarget: vi.fn(),
+  submitDistribution: vi.fn(),
   deleteContent: vi.fn(),
   connect: vi.fn(),
   getStatus: vi.fn(),
   startPublish: vi.fn(),
 }));
 vi.mock("@/lib/api", () => ({ ...mocks }));
-vi.mock("@/lib/agent-client", () => ({ agentClient: mocks }));
+vi.mock("@/lib/distribution", () => ({
+  submitDistribution: mocks.submitDistribution,
+}));
 vi.mock("@/hooks/use-ui-density", () => ({
   useUiDensity: () => ({ density: "comfortable", compact: false }),
 }));
@@ -228,25 +228,7 @@ it("retries only the selected target and refreshes details when it disappears fr
   const user = await setup();
   await user.click(screen.getByRole("button", { name: "需要处理1" }));
   const dialog = await details(user);
-  const dispatch = {
-    targetId: "daily",
-    accountId: "daily",
-    platform: "douyin",
-    contentType: "video",
-    mediaPath: "/tmp/video.mp4",
-    mediaPaths: ["/tmp/video.mp4"],
-    coverPath: "",
-    coverLandscapePath: "",
-    title: "周末记录",
-    cookies: [],
-  };
-  mocks.retryContentTarget.mockResolvedValue({ dispatch });
-  mocks.startContentTarget.mockResolvedValue({ dispatch });
-  mocks.startPublish.mockResolvedValue({
-    ok: true,
-    platformUrl: "https://www.douyin.com/video/123",
-  });
-  mocks.completeContentTarget.mockImplementation(async () => {
+  mocks.submitDistribution.mockImplementation(async () => {
     current = work([
       target("daily", "succeeded"),
       target("business", "succeeded"),
@@ -263,17 +245,9 @@ it("retries only the selected target and refreshes details when it disappears fr
       within(screen.getByRole("dialog")).getAllByText("成功"),
     ).toHaveLength(2);
   });
-  expect(mocks.retryContentTarget).toHaveBeenCalledExactlyOnceWith(
+  expect(mocks.submitDistribution).toHaveBeenCalledExactlyOnceWith(
     "work",
     "daily",
-  );
-  expect(mocks.startPublish).toHaveBeenCalledWith(
-    expect.objectContaining({ targetId: "daily", accountId: "daily" }),
-  );
-  expect(mocks.completeContentTarget).toHaveBeenCalledWith(
-    "work",
-    "daily",
-    expect.objectContaining({ ok: true }),
   );
 });
 
@@ -307,12 +281,12 @@ it("blocks edits and deletion while publishing and sends missing media back to t
   current = work([target("daily", "running")]);
   const user = await setup();
   expect(
-    screen
-      .getByRole("button", { name: "编辑本机内容" })
-      .getAttribute("aria-disabled"),
+    screen.getByRole("button", { name: "编辑" }).getAttribute("aria-disabled"),
   ).toBe("true");
   expect(
-    screen.getByRole("button", { name: "删除" }).hasAttribute("disabled"),
+    screen
+      .getByRole("button", { name: "更多操作：周末记录" })
+      .hasAttribute("disabled"),
   ).toBe(true);
   current = work([
     { ...target("daily", "failed"), errorCode: "MEDIA_MISSING" },
@@ -325,4 +299,60 @@ it("blocks edits and deletion while publishing and sends missing media back to t
       .getByRole("button", { name: "重新选择素材" })
       .getAttribute("href"),
   ).toBe("/publish/video?id=work");
+});
+
+it("opens deletion only from the selected work's menu and keeps the confirmation step", async () => {
+  const other = { ...work([]), id: "other", title: "另一条作品" };
+  mocks.fetchContents.mockResolvedValue({
+    ...page(current),
+    items: [current, other],
+    total: 2,
+  });
+  mocks.deleteContent.mockImplementation(async () => {
+    mocks.fetchContents.mockResolvedValue(page(other));
+  });
+  const user = await setup();
+  expect(screen.queryByRole("button", { name: "删除" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "更多操作：周末记录" }));
+  await user.click(await screen.findByRole("menuitem", { name: "删除" }));
+  const confirmation = await screen.findByRole("alertdialog", {
+    name: "删除作品？",
+  });
+  expect(within(confirmation).getByText(/将删除「周末记录」/)).toBeTruthy();
+  expect(mocks.deleteContent).not.toHaveBeenCalled();
+  await user.click(within(confirmation).getByRole("button", { name: "取消" }));
+  await waitFor(() => {
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+  expect(mocks.deleteContent).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "更多操作：周末记录" }));
+  await user.click(await screen.findByRole("menuitem", { name: "删除" }));
+  await user.click(
+    within(await screen.findByRole("alertdialog")).getByRole("button", {
+      name: "删除",
+    }),
+  );
+  await waitFor(() => {
+    expect(screen.queryByText("周末记录")).toBeNull();
+  });
+  expect(mocks.deleteContent).toHaveBeenCalledExactlyOnceWith("work");
+  expect(screen.getByText("另一条作品")).toBeTruthy();
+});
+
+it("submits a selected draft to the app queue and shows its queued state", async () => {
+  current = work([target("daily", "idle")]);
+  current.status = "draft";
+  const user = await setup();
+  mocks.submitDistribution.mockImplementation(async () => {
+    current = {
+      ...current,
+      status: "published",
+      targets: [target("daily", "queued")],
+    };
+    mocks.fetchContents.mockResolvedValue(page(current));
+  });
+  await user.click(screen.getByRole("button", { name: /更多操作/ }));
+  await user.click(await screen.findByRole("menuitem", { name: "开始分发" }));
+  expect(mocks.submitDistribution).toHaveBeenCalledExactlyOnceWith("work");
+  await screen.findByRole("button", { name: "查看进度" });
 });

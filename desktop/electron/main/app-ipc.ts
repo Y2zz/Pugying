@@ -26,6 +26,7 @@ import { applyTitleBarOverlayTheme, getAppWindow } from './app-window-state';
 import { currentDesktopPlatform } from './desktop-platform';
 import { getProductLogoNativeImage } from './product-logo';
 import { getApiBaseUrl, getLocalApiToken } from './server-process';
+import { getDistributionConcurrency, submitDistribution, updateDistributionConcurrency } from './distribution-service';
 
 function focusOrCreateAppWindow(): void {
   const win = getAppWindow();
@@ -78,6 +79,27 @@ export function wireDesktopIpc(): void {
     return;
   }
   ipcWired = true;
+
+  ipcMain.handle(DESKTOP_IPC.submitDistribution, (event, input: unknown) => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const submission = input as { contentId?: unknown; targetId?: unknown } | null;
+    if (event.sender !== getAppWindow()?.webContents || !submission || typeof submission.contentId !== 'string' || !uuid.test(submission.contentId) || (submission.targetId !== undefined && (typeof submission.targetId !== 'string' || !uuid.test(submission.targetId)))) {
+      return { ok: false, message: '无法提交分发任务' };
+    }
+    return submitDistribution({ contentId: submission.contentId, targetId: submission.targetId as string | undefined });
+  });
+  ipcMain.handle(DESKTOP_IPC.getDistributionConcurrency, (event) => {
+    if (event.sender !== getAppWindow()?.webContents) {
+      throw new Error('无法读取分发设置');
+    }
+    return getDistributionConcurrency();
+  });
+  ipcMain.handle(DESKTOP_IPC.setDistributionConcurrency, (event, value: unknown) => {
+    if (event.sender !== getAppWindow()?.webContents) {
+      throw new Error('无法保存分发设置');
+    }
+    return updateDistributionConcurrency(value);
+  });
 
   ipcMain.handle(DESKTOP_IPC.getToutiaoRewardPrivilege, async (event, accountId: unknown) => {
     if (event.sender !== getAppWindow()?.webContents || typeof accountId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountId)) {

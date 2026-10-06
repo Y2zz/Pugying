@@ -2,8 +2,19 @@ import {
   cancelPublishJob,
   isPublishBusy,
   startPublishJob,
+  setPublishConcurrency,
 } from './publish-job';
 import type { PlatformPublishStartPayload } from './publish-protocol';
+
+vi.mock('./platforms/publish-douyin-article', () => ({
+  runDouyinArticlePublish: vi.fn(async ({ payload }) => ({
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    ok: true,
+    platformPostId: '123',
+    platform: payload.platform,
+  })),
+}));
 
 function basePayload(
   overrides: Partial<PlatformPublishStartPayload> = {},
@@ -30,7 +41,9 @@ afterEach(() => {
   if (isPublishBusy()) {
     cancelPublishJob('pub-1');
     cancelPublishJob('pub-2');
+    cancelPublishJob('pub-3');
   }
+  setPublishConcurrency(3);
 });
 
 describe('publish-job stub', () => {
@@ -93,6 +106,7 @@ describe('publish-job stub', () => {
       const started = startPublishJob({
         payload: basePayload({
           contentType: 'article',
+          body: '<p>文章正文</p>',
           mediaPath: undefined,
           mediaPaths: [],
           coverLandscapePath: '/tmp/pugying-test/cover-landscape.jpg',
@@ -116,7 +130,7 @@ describe('publish-job stub', () => {
     expect(started).toEqual({ error: 'unsupported_platform' });
   });
 
-  it('runs one job at a time and emits success', async () => {
+  it('prevents overlapping jobs on the same account and emits success', async () => {
     const progress: string[] = [];
     const result = await new Promise<{ ok: boolean; platformPostId?: string }>(
       (resolve) => {
@@ -164,4 +178,34 @@ describe('publish-job stub', () => {
     expect(result).toMatchObject({ ok: false, error: 'cancelled' });
     expect(isPublishBusy()).toBe(false);
   });
+});
+
+it('allows three different accounts at once and rejects a fourth until capacity frees', async () => {
+  const finish = vi.fn();
+  for (const id of ['1', '2', '3']) {
+    expect(
+      startPublishJob({
+        payload: basePayload({
+          requestId: `pub-${id}`,
+          accountId: `account-${id}`,
+          targetId: `target-${id}`,
+        }),
+        onProgress: () => undefined,
+        onResult: finish,
+      }),
+    ).toEqual({ ok: true });
+  }
+  expect(
+    startPublishJob({
+      payload: basePayload({ requestId: 'pub-4', accountId: 'account-4' }),
+      onProgress: () => undefined,
+      onResult: finish,
+    }),
+  ).toEqual({ error: 'busy' });
+  cancelPublishJob('pub-2');
+  expect(finish).toHaveBeenCalledTimes(1);
+  expect(isPublishBusy()).toBe(true);
+  cancelPublishJob('pub-1');
+  cancelPublishJob('pub-3');
+  expect(isPublishBusy()).toBe(false);
 });
