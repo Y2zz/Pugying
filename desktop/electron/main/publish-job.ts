@@ -61,7 +61,7 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
   }
 
   const contentType = resolveContentType(payload);
-  if (contentType !== 'video' && !payload.coverPath?.trim()) {
+  if (contentType === 'graphic' && !payload.coverPath?.trim()) {
     return false;
   }
   if (contentType === 'graphic') {
@@ -73,8 +73,10 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
   }
 
   if (contentType === 'article') {
-    // 正文由服务端校验；Agent 侧至少要有标题与封面
-    return true;
+    return (
+      Boolean(payload.body?.trim()) &&
+      (payload.platform !== 'douyin' || Boolean(payload.coverPath?.trim()))
+    );
   }
 
   return Boolean(payload.mediaPath?.trim());
@@ -82,7 +84,7 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
 
 /**
  * Validates payload, enforces app concurrency and account isolation, then runs the adapter.
- * Set PUGYING_PUBLISH_STUB=1 to force the progress stub (unit tests / CI).
+ * PUGYING_PUBLISH_STUB 仅用于短视频/图文测试；文章始终调用真实适配器。
  */
 export function startPublishJob(options: {
   payload: PlatformPublishStartPayload;
@@ -104,11 +106,16 @@ export function startPublishJob(options: {
   }
 
   const contentType = resolveContentType(payload);
-  if (payload.platform !== 'douyin') {
+  if (
+    payload.platform !== 'douyin' &&
+    (contentType !== 'article' ||
+      !['toutiao', 'bilibili'].includes(payload.platform))
+  ) {
     return { error: 'unsupported_platform' };
   }
 
-  const useStub = process.env.PUGYING_PUBLISH_STUB === '1';
+  const useStub =
+    process.env.PUGYING_PUBLISH_STUB === '1' && contentType !== 'article';
   const signal = { cancelled: false };
   const job: ActivePublish = {
     requestId: payload.requestId,
@@ -156,9 +163,9 @@ export function startPublishJob(options: {
           )
       : contentType === 'article'
         ? () =>
-            import('./platforms/publish-douyin-article').then(
-              ({ runDouyinArticlePublish }) =>
-                runDouyinArticlePublish({
+            import('./platforms/publish-article').then(
+              ({ runPlatformArticlePublish }) =>
+                runPlatformArticlePublish({
                   payload: articlePayload,
                   article: prepareArticleDocument(
                     articleHtml || '',
@@ -180,7 +187,13 @@ export function startPublishJob(options: {
 
   void runAdapter()
     .then((result) => {
-      if (job.cancelled || signal.cancelled) {
+      if (
+        (job.cancelled || signal.cancelled) &&
+        !(
+          contentType === 'article' &&
+          (result.ok || result.errorCode === 'PUBLISH_RESULT_UNKNOWN')
+        )
+      ) {
         finish({
           requestId: payload.requestId,
           targetId: payload.targetId,
@@ -198,8 +211,13 @@ export function startPublishJob(options: {
         requestId: payload.requestId,
         targetId: payload.targetId,
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
-        errorCode: 'PUBLISH_FAILED',
+        error:
+          contentType === 'article'
+            ? '文章发布未成功，请检查正文和图片后重试'
+            : err instanceof Error
+              ? err.message
+              : String(err),
+        errorCode: job.cancelled ? 'cancelled' : 'PUBLISH_FAILED',
         platform: payload.platform,
       });
     });

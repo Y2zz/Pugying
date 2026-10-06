@@ -178,11 +178,9 @@ describe('ContentPublishService', () => {
       contents.findByIdWithCovers.mockResolvedValue(content);
       targets.findByContent.mockResolvedValueOnce([target]).mockResolvedValueOnce([{ ...target, publishStatus: 'queued' }]);
       targets.findByIdWithCovers.mockResolvedValue(target);
-      // 实际发布仍由平台接入白名单控制；这里只验证已保存账号设置的载荷准备。
-      const dispatch = await (service as unknown as { buildDispatch(content: Content, target: ContentTarget): Promise<unknown> }).buildDispatch(
-        content,
-        target,
-      );
+      const { dispatches } = await service.publish(CONTENT_ID);
+      expect(dispatches).toHaveLength(1);
+      const [dispatch] = dispatches;
       expect(dispatch).toMatchObject({
         contentType: 'article',
         coverPath: '',
@@ -190,6 +188,45 @@ describe('ContentPublishService', () => {
         visibility: 'private',
         articleSettings: { comments: 'selected', original: false },
       });
+    });
+
+    it('queues all three article platforms through the public publish entry', async () => {
+      const content = createVideo({ type: 'article', body: '<p>文章正文</p>', mediaPaths: [] });
+      const rows = ['douyin', 'toutiao', 'bilibili'].map((platform, index) =>
+        createTarget({
+          id: `22222222-2222-4222-8222-22222222222${index}`,
+          platform,
+          platformAccountId: `33333333-3333-4333-8333-33333333333${index}`,
+        }),
+      );
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue(rows);
+      targets.findByIdWithCovers.mockImplementation(async (id: string) => rows.find((row) => row.id === id));
+      accounts.findById.mockImplementation(async (id: string) => createAccount({ id, platform: rows.find((row) => row.platformAccountId === id)!.platform }));
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches.map((dispatch) => dispatch.platform)).toEqual(['douyin', 'toutiao', 'bilibili']);
+      expect(rows.map((row) => row.publishStatus)).toEqual(['queued', 'queued', 'queued']);
+    });
+
+    it('queues an unsubmitted Bilibili article without publishing a successful Douyin target again', async () => {
+      const content = createVideo({ type: 'article', body: '<p>文章正文</p>', mediaPaths: [], status: 'published' });
+      const done = createTarget({ publishStatus: 'succeeded', platformPostId: '123' });
+      const pending = createTarget({ id: '22222222-2222-4222-8222-222222222223', platform: 'bilibili' });
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([done, pending]);
+      targets.findByIdWithCovers.mockResolvedValue(pending);
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'bilibili' }));
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches.map((dispatch) => dispatch.targetId)).toEqual([pending.id]);
+      expect(done.publishStatus).toBe('succeeded');
+      expect(done.platformPostId).toBe('123');
+    });
+
+    it.each(['video', 'graphic'] as const)('does not enable Bilibili %s through article support', async (type) => {
+      contents.findByIdWithCovers.mockResolvedValue(createVideo({ type }));
+      targets.findByContent.mockResolvedValue([createTarget({ platform: 'bilibili' })]);
+      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(BadRequestException);
+      expect(targets.saveMany).not.toHaveBeenCalled();
     });
 
     it.each(['single', 'triple', 'none'] as const)('prepares Toutiao %s covers in order', async (coverMode) => {
@@ -364,6 +401,19 @@ describe('ContentPublishService', () => {
   });
 
   describe('start / complete / cancel / retry', () => {
+    it.each(['bilibili', 'toutiao'])('requeues a failed %s article through the public retry entry', async (platform) => {
+      const content = createVideo({ type: 'article', body: '<p>文章正文</p>', mediaPaths: [] });
+      const target = createTarget({ platform, publishStatus: 'failed' });
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findById.mockResolvedValue(target);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      targets.findByContent.mockResolvedValue([target]);
+      accounts.findById.mockResolvedValue(createAccount({ platform }));
+      const result = await service.retryTarget(CONTENT_ID, TARGET_ID);
+      expect(result.target.publishStatus).toBe('queued');
+      expect(result.dispatch).toMatchObject({ platform, contentType: 'article' });
+    });
+
     it('starts a queued target', async () => {
       const content = createVideo();
       const target = createTarget({ publishStatus: 'queued' });

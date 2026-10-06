@@ -89,6 +89,7 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { MediaPreviewImage } from "@/components/MediaPreviewImage";
 import { useUiDensity } from "@/hooks/use-ui-density";
 import { submitDistribution } from "@/lib/distribution";
+import { ARTICLE_SUPPORTED_PLATFORMS } from "@/lib/platforms";
 import {
   deleteContent,
   fetchContents,
@@ -902,7 +903,11 @@ function ContentListItem({
               <DropdownMenuGroup>
                 {item.targets.some(
                   (target) =>
-                    target.platform === "douyin" &&
+                    (item.type === "article"
+                      ? (
+                          ARTICLE_SUPPORTED_PLATFORMS as readonly string[]
+                        ).includes(target.platform)
+                      : target.platform === "douyin") &&
                     ["idle", "failed", "cancelled"].includes(
                       target.publishStatus,
                     ),

@@ -4,6 +4,7 @@ import type {
   ContentStatusCounts,
   ContentTargetItem,
 } from "@/lib/api";
+import { describePublishError } from "@/lib/publish-errors";
 
 export const EMPTY_CONTENT_COUNTS: ContentStatusCounts = {
   all: 0,
@@ -116,6 +117,19 @@ export function contentTargetMessage(target: ContentTargetItem): string {
       return "未能自动完成，请在打开的窗口里确认发布结果";
     case "unsupported_platform":
       return "该平台暂未开放自动发布";
+    case "ARTICLE_API_CHANGED":
+    case "ARTICLE_IMAGE_UNSUPPORTED":
+    case "ARTICLE_FORMAT_UNSUPPORTED":
+    case "ARTICLE_SETTINGS_UNSUPPORTED":
+    case "ARTICLE_SETTINGS_UNAVAILABLE":
+    case "ARTICLE_PUBLISH_LIMIT_REACHED":
+    case "PLATFORM_VERIFICATION_REQUIRED":
+    case "PLATFORM_REJECTED":
+    case "PUBLISH_RESULT_UNKNOWN":
+    case "HTTP_REQUEST_FAILED":
+    case "HTTP_TIMEOUT":
+    case "invalid_payload":
+      return describePublishError(target.errorCode, target.errorMessage);
     default:
       return "发布未成功，请稍后重试";
   }

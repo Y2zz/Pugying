@@ -1,5 +1,7 @@
-import { startPublishJob } from './publish-job';
+import { cancelPublishJob, startPublishJob } from './publish-job';
 import { runDouyinArticlePublish } from './platforms/publish-douyin-article';
+import { runToutiaoArticlePublish } from './platforms/publish-toutiao-article';
+import { runBilibiliArticlePublish } from './platforms/publish-bilibili-article';
 import type { PlatformPublishStartPayload } from './publish-protocol';
 
 vi.mock('./platforms/publish-douyin-article', () => ({
@@ -7,8 +9,25 @@ vi.mock('./platforms/publish-douyin-article', () => ({
     requestId: payload.requestId,
     targetId: payload.targetId,
     ok: false,
-    error: 'not_implemented',
-    errorCode: 'not_implemented',
+    error: 'PLATFORM_REJECTED',
+    errorCode: 'PLATFORM_REJECTED',
+  })),
+}));
+
+vi.mock('./platforms/publish-toutiao-article', () => ({
+  runToutiaoArticlePublish: vi.fn(async ({ payload }) => ({
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    ok: true,
+    platformPostId: '123',
+  })),
+}));
+vi.mock('./platforms/publish-bilibili-article', () => ({
+  runBilibiliArticlePublish: vi.fn(async ({ payload }) => ({
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    ok: true,
+    platformPostId: '123',
   })),
 }));
 
@@ -64,3 +83,60 @@ it('fails before calling the adapter when an embedded image cannot be resolved',
   expect(result.ok).toBe(false);
   expect(runDouyinArticlePublish).not.toHaveBeenCalled();
 });
+
+it.each(['toutiao', 'bilibili'])(
+  'routes %s articles without mandatory covers and bypasses the stub',
+  async (platform) => {
+    vi.stubEnv('PUGYING_PUBLISH_STUB', '1');
+    const result = await new Promise<{ ok: boolean; platformPostId?: string }>(
+      (resolve) => {
+        expect(
+          startPublishJob({
+            payload: { ...payload, platform, coverPath: '' },
+            onProgress: vi.fn(),
+            onResult: resolve,
+          }),
+        ).toEqual({ ok: true });
+      },
+    );
+    expect(result).toMatchObject({ ok: true, platformPostId: '123' });
+    expect(
+      platform === 'toutiao'
+        ? runToutiaoArticlePublish
+        : runBilibiliArticlePublish,
+    ).toHaveBeenCalledOnce();
+  },
+);
+
+it.each([true, false])(
+  'preserves the article receipt or unknown result when cancellation arrives after submission (%s)',
+  async (ok) => {
+    let settle: (value: any) => void = () => {};
+    vi.mocked(runDouyinArticlePublish).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const onResult = vi.fn();
+    startPublishJob({ payload, onProgress: vi.fn(), onResult });
+    await vi.waitFor(() =>
+      expect(runDouyinArticlePublish).toHaveBeenCalledOnce(),
+    );
+    cancelPublishJob(payload.requestId);
+    settle({
+      requestId: payload.requestId,
+      targetId: payload.targetId,
+      ok,
+      ...(ok
+        ? { platformPostId: '123' }
+        : { errorCode: 'PUBLISH_RESULT_UNKNOWN' }),
+    });
+    await vi.waitFor(() => expect(onResult).toHaveBeenCalledOnce());
+    expect(onResult.mock.calls[0][0]).toMatchObject(
+      ok
+        ? { ok: true, platformPostId: '123' }
+        : { errorCode: 'PUBLISH_RESULT_UNKNOWN' },
+    );
+  },
+);

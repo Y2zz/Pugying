@@ -356,3 +356,36 @@ it("submits a selected draft to the app queue and shows its queued state", async
   expect(mocks.submitDistribution).toHaveBeenCalledExactlyOnceWith("work");
   await screen.findByRole("button", { name: "查看进度" });
 });
+
+it.each(["bilibili", "toutiao"] as const)(
+  "offers distribution for an unsubmitted %s article after Douyin succeeds",
+  async (platform) => {
+    current = work([
+      target("daily", "succeeded"),
+      { ...target("business", "idle"), platform },
+    ]);
+    current.type = "article";
+    mocks.submitDistribution.mockResolvedValue(undefined);
+    const user = await setup();
+    await user.click(screen.getByRole("button", { name: /更多操作/ }));
+    await user.click(await screen.findByRole("menuitem", { name: "开始分发" }));
+    expect(mocks.submitDistribution).toHaveBeenCalledExactlyOnceWith("work");
+  },
+);
+
+it("shows the platform publication limit in distribution details", async () => {
+  current = work([
+    {
+      ...target("daily", "failed"),
+      platform: "bilibili",
+      errorCode: "ARTICLE_PUBLISH_LIMIT_REACHED",
+      errorMessage: "今日投稿次数已用完，请额度恢复后重试",
+    },
+  ]);
+  current.type = "article";
+  const user = await setup();
+  const dialog = await details(user);
+  expect(
+    within(dialog).getByText("今日投稿次数已用完，请额度恢复后重试"),
+  ).toBeTruthy();
+});

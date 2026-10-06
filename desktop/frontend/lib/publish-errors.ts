@@ -13,6 +13,16 @@ const KNOWN_CODES = new Set([
   'cancelled',
   'busy',
   'unsupported_platform',
+  'ARTICLE_API_CHANGED',
+  'ARTICLE_IMAGE_UNSUPPORTED',
+  'ARTICLE_FORMAT_UNSUPPORTED',
+  'ARTICLE_SETTINGS_UNSUPPORTED',
+  'ARTICLE_SETTINGS_UNAVAILABLE',
+  'ARTICLE_PUBLISH_LIMIT_REACHED',
+  'PLATFORM_VERIFICATION_REQUIRED',
+  'PLATFORM_REJECTED',
+  'PUBLISH_RESULT_UNKNOWN',
+  'invalid_payload',
 ]);
 
 /** 前端展示用：稳定错误码 → 用户可读说明 */
@@ -22,7 +32,7 @@ export function describePublishError(
 ): string {
   switch (errorCode) {
     case 'AUTH_EXPIRED':
-      return '抖音登录已失效，请到「媒体账号」重新授权后再重试';
+      return '账号登录已失效，请到「媒体账号」重新授权后再重试';
     case 'MEDIA_MISSING':
     case 'MEDIA_UNREACHABLE':
       // MEDIA_UNREACHABLE 为旧码别名，文案与 MEDIA_MISSING 一致
@@ -35,7 +45,23 @@ export function describePublishError(
       return '尚未配置抖音 HTTP 发布映射，请改用 DOM 模式或先完成抓包对齐';
     case 'HTTP_TIMEOUT':
     case 'HTTP_REQUEST_FAILED':
-      return fallback?.trim() || '抖音后台 HTTP 请求失败，可重试或切换 DOM 模式';
+      return fallback?.trim() || '暂时无法连接发布平台，请稍后重试';
+    case 'ARTICLE_API_CHANGED':
+      return '暂时无法连接文章发布功能，请稍后重试或更新应用';
+    case 'ARTICLE_PUBLISH_LIMIT_REACHED':
+      return '今日投稿次数已用完，请额度恢复后重试';
+    case 'ARTICLE_IMAGE_UNSUPPORTED':
+    case 'ARTICLE_FORMAT_UNSUPPORTED':
+    case 'ARTICLE_SETTINGS_UNSUPPORTED':
+    case 'ARTICLE_SETTINGS_UNAVAILABLE':
+    case 'invalid_payload':
+      return fallback?.trim() || '请检查文章内容、图片和发布设置后重试';
+    case 'PLATFORM_VERIFICATION_REQUIRED':
+      return '平台需要验证，请到创作者中心完成后再发布';
+    case 'PLATFORM_REJECTED':
+      return '平台未接受本次发布，请到创作者中心查看账号或内容要求';
+    case 'PUBLISH_RESULT_UNKNOWN':
+      return '尚未确认发布结果，请先到平台查看，避免重复发布';
     case 'PUBLISH_FAILED':
       return fallback?.trim() || '发布未成功，可在内容列表重试';
     case 'cancelled':
@@ -43,7 +69,7 @@ export function describePublishError(
     case 'busy':
       return '正有其它发布任务进行中，请稍候再试';
     case 'unsupported_platform':
-      return 'P0 仅支持抖音短视频与图文发布';
+      return '该平台暂不支持此类内容发布';
     default:
       return fallback?.trim() || errorCode || '发布失败';
   }

@@ -9,8 +9,12 @@ import {
 describe('describePublishError', () => {
   it('maps stable codes to Chinese copy', () => {
     expect(describePublishError('AUTH_EXPIRED')).toContain('重新授权');
-    expect(describePublishError('MEDIA_MISSING')).toContain('本机视频、图片或封面');
-    expect(describePublishError('MEDIA_UNREACHABLE')).toContain('本机视频、图片或封面');
+    expect(describePublishError('MEDIA_MISSING')).toContain(
+      '本机视频、图片或封面',
+    );
+    expect(describePublishError('MEDIA_UNREACHABLE')).toContain(
+      '本机视频、图片或封面',
+    );
     expect(describePublishError('PUBLISH_FAILED')).toContain('内容列表重试');
     expect(describePublishError('PUBLISH_FAILED', '平台拒绝')).toBe('平台拒绝');
   });
@@ -30,7 +34,9 @@ describe('describePublishPhase', () => {
 
 describe('describeCaughtError', () => {
   it('maps known codes from Error.message', () => {
-    expect(describeCaughtError(new Error('busy'))).toContain('正有其它发布任务');
+    expect(describeCaughtError(new Error('busy'))).toContain(
+      '正有其它发布任务',
+    );
   });
 
   it('keeps Chinese backend messages', () => {
@@ -44,5 +50,14 @@ describe('isRetryablePublishError', () => {
   it('includes PUBLISH_FAILED', () => {
     expect(isRetryablePublishError('PUBLISH_FAILED')).toBe(true);
     expect(isRetryablePublishError('unsupported_platform')).toBe(false);
+  });
+  it('keeps unknown commit results out of retryable errors', () => {
+    expect(isRetryablePublishError('PUBLISH_RESULT_UNKNOWN')).toBe(false);
+    expect(describePublishError('PUBLISH_RESULT_UNKNOWN')).toContain(
+      '先到平台查看',
+    );
+    expect(describePublishError('PLATFORM_VERIFICATION_REQUIRED')).toContain(
+      '创作者中心',
+    );
   });
 });

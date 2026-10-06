@@ -16,8 +16,11 @@ import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
 import { PublishErrorCodes } from '@pugying/content/domain/publish-error-codes';
 
-/** P0：仅抖音真正下发（短视频 / 图文；文章走骨架适配器） */
-const P0_PUBLISH_PLATFORMS = new Set(['douyin']);
+const ARTICLE_PUBLISH_PLATFORMS = new Set(['douyin', 'toutiao', 'bilibili']);
+
+function supportsPublish(contentType: Content['type'], platform: string): boolean {
+  return contentType === 'article' ? ARTICLE_PUBLISH_PLATFORMS.has(platform) : platform === 'douyin';
+}
 
 export interface PublishCookie {
   name: string;
@@ -76,7 +79,7 @@ export class ContentPublishService {
 
   /**
    * 幂等发布：已有 queued/running 拒绝；其余未成功 Target 入队并下发编排载荷。
-   * 后端不直连 Agent；由浏览器按 dispatches 串行调本机 Agent。
+   * 后端不直连平台；由桌面按 dispatches 加入本机分发队列。
    */
   async publish(contentId: string): Promise<PublishStartResult> {
     const content = await this.requireContentWithCovers(contentId);
@@ -92,7 +95,7 @@ export class ContentPublishService {
     }
 
     const eligible = existing.filter((t) => {
-      return P0_PUBLISH_PLATFORMS.has(t.platform) && (t.publishStatus === 'idle' || t.publishStatus === 'failed' || t.publishStatus === 'cancelled');
+      return supportsPublish(content.type, t.platform) && (t.publishStatus === 'idle' || t.publishStatus === 'failed' || t.publishStatus === 'cancelled');
     });
 
     if (eligible.length === 0) {
@@ -104,7 +107,7 @@ export class ContentPublishService {
         content.type === 'graphic'
           ? '暂时仅支持抖音图文发布；请绑定可用的抖音账号后再试'
           : content.type === 'article'
-            ? '暂时仅支持抖音文章发布；请绑定可用的抖音账号后再试'
+            ? '请绑定可用的文章发布账号后再试'
             : '暂时仅支持抖音短视频发布；请绑定可用的抖音账号后再试',
       );
     }
@@ -224,9 +227,9 @@ export class ContentPublishService {
     if (target.publishStatus !== 'failed' && target.publishStatus !== 'cancelled') {
       throw new BadRequestException(`目标状态为 ${target.publishStatus}，仅失败或已取消可重试`);
     }
-    if (!P0_PUBLISH_PLATFORMS.has(target.platform)) {
+    if (!supportsPublish(content.type, target.platform)) {
       throw new BadRequestException(
-        content.type === 'graphic' ? '暂时仅支持抖音图文重试' : content.type === 'article' ? '暂时仅支持抖音文章重试' : '暂时仅支持抖音短视频重试',
+        content.type === 'graphic' ? '暂时仅支持抖音图文重试' : content.type === 'article' ? '该平台暂不支持文章发布' : '暂时仅支持抖音短视频重试',
       );
     }
 
