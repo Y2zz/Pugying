@@ -118,7 +118,11 @@ export default function PublishGraphic() {
     <div className="flex flex-col gap-6">
       <PublishingPageHeader
         title={composer.isEditing ? "编辑图文" : "发布图文"}
-        description={description}
+        description={
+          composer.isEditing && !loading
+            ? "保存不会修改平台上的作品"
+            : description
+        }
         checks={checks}
         loading={loading}
         disabled={locked}

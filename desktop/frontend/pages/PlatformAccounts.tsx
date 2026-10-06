@@ -548,7 +548,7 @@ export default function PlatformAccounts() {
     if (!platform) {
       toast.add({
         type: "error",
-        title: mode === "create" ? "请选择平台" : "账号已移除，请刷新列表",
+        title: mode === "create" ? "请选择平台" : "账号已移除，请刷新",
       });
       return;
     }
@@ -887,7 +887,7 @@ export default function PlatformAccounts() {
             ) : (
               <RefreshCw data-icon="inline-start" />
             )}
-            刷新列表
+            刷新
           </Button>
           <DropdownMenu
             open={addMenuOpen}

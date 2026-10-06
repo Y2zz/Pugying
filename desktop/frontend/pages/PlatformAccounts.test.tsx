@@ -150,7 +150,7 @@ it("keeps loaded accounts visible during refresh and on failure", async () => {
   await setup();
   const refresh = deferred<PlatformAccountItem[]>();
   mocks.fetchPlatformAccounts.mockReturnValueOnce(refresh.promise);
-  fireEvent.click(screen.getByRole("button", { name: "刷新列表" }));
+  fireEvent.click(screen.getByRole("button", { name: "刷新" }));
   expect(card("a")).toBeTruthy();
   expect(screen.queryByLabelText("正在加载账号")).toBeNull();
   await act(async () => {
@@ -159,7 +159,7 @@ it("keeps loaded accounts visible during refresh and on failure", async () => {
   mocks.fetchPlatformAccounts.mockRejectedValueOnce(
     new Error("connection failed"),
   );
-  fireEvent.click(screen.getByRole("button", { name: "刷新列表" }));
+  fireEvent.click(screen.getByRole("button", { name: "刷新" }));
   await screen.findByText("账号加载失败，请重试");
   expect(card("a")).toBeTruthy();
 });
@@ -478,7 +478,7 @@ it("moves to the preceding valid page after removing the only account on the las
   expect(card("page-1")).toBeTruthy();
   const refreshed = [...rows.slice(0, 12), account("page-14")];
   mocks.fetchPlatformAccounts.mockResolvedValue(refreshed);
-  await user.click(screen.getByRole("button", { name: "刷新列表" }));
+  await user.click(screen.getByRole("button", { name: "刷新" }));
   await waitFor(() => {
     expect(pageSummary().textContent).toBe("共 13 个账号 · 第 1 / 2 页");
   });

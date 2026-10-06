@@ -1193,7 +1193,11 @@ export default function PublishVideo() {
     <div className="flex flex-col gap-6">
       <PublishingPageHeader
         title={editId ? "编辑视频" : "发布视频"}
-        description={describePublishFlowStep(flowStep)}
+        description={
+          editId && !loading
+            ? "保存不会修改平台上的作品"
+            : describePublishFlowStep(flowStep)
+        }
         checks={checklistItems}
         loading={loading || !showFormPanel}
         disabled={formLocked || !showFormPanel}
