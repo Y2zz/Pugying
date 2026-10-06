@@ -65,7 +65,7 @@ export function ArticleCoverThumb({
       disabled={disabled}
       aria-invalid={invalid || undefined}
       aria-describedby={invalid ? errorId : undefined}
-      aria-label={hasImage ? `更换${label}封面` : `设置${label}封面`}
+      aria-label={hasImage ? `编辑${label}封面` : `设置${label}封面`}
       className={cn(
         "group/cover relative block shrink-0 overflow-hidden rounded-lg outline-none transition-colors",
         "focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
@@ -82,7 +82,7 @@ export function ArticleCoverThumb({
       {content}
       {hasImage ? (
         <span className="absolute inset-0 flex items-end justify-center bg-linear-to-t from-black/60 to-transparent pb-2 text-xs font-medium text-white opacity-0 transition-opacity group-hover/cover:opacity-100 group-focus-visible/cover:opacity-100">
-          更换
+          编辑封面
         </span>
       ) : null}
     </button>

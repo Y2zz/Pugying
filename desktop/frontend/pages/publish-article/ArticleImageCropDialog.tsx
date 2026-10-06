@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
+import { useRef, useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,21 +7,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { toast } from '@/lib/app-toast';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Empty, EmptyDescription } from '@/components/ui/empty';
-import { ArticleImageCropArea } from './ArticleImageCropArea';
-import { centeredImageCrop, FULL_IMAGE_CROP } from './article-image-crop';
+} from "@/components/ui/dialog";
+import { toast } from "@/lib/app-toast";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { ImagePlus } from "lucide-react";
+import { ArticleImageCropArea } from "./ArticleImageCropArea";
+import { centeredImageCrop, FULL_IMAGE_CROP } from "./article-image-crop";
 
 const RATIOS = [
-  { label: '原图比例', value: 'original', ratio: null },
-  { label: '1:1', value: 'square', ratio: 1 },
-  { label: '2:3', value: 'portrait', ratio: 2 / 3 },
-  { label: '3:2', value: 'landscape', ratio: 3 / 2 },
-  { label: '9:16', value: 'tall', ratio: 9 / 16 },
-  { label: '16:9', value: 'wide', ratio: 16 / 9 },
-  { label: '自由', value: 'free', ratio: null },
+  { label: "原图比例", value: "original", ratio: null },
+  { label: "1:1", value: "square", ratio: 1 },
+  { label: "2:3", value: "portrait", ratio: 2 / 3 },
+  { label: "3:2", value: "landscape", ratio: 3 / 2 },
+  { label: "9:16", value: "tall", ratio: 9 / 16 },
+  { label: "16:9", value: "wide", ratio: 16 / 9 },
+  { label: "自由", value: "free", ratio: null },
 ] as const;
 /** 正文图片与文章封面共用的裁剪交互；保存由调用方处理。 */
 export function ArticleImageCropDialog({
@@ -30,27 +38,33 @@ export function ArticleImageCropDialog({
   onSave,
   returnFocus,
   fixedRatio,
-  title = '裁剪图片',
+  title = "裁剪图片",
   imageAction,
+  emptyDescription = "选择一张图片，开始调整裁剪范围。",
+  emptyHint,
 }: {
   source: string;
   onClose: () => void;
   onSave: (canvas: HTMLCanvasElement) => Promise<void>;
   fixedRatio?: number;
   title?: string;
-  imageAction?: (disabled: boolean) => ReactNode;
+  imageAction?: (disabled: boolean, empty?: boolean) => ReactNode;
+  emptyDescription?: string;
+  emptyHint?: string;
   returnFocus?: HTMLElement;
 }) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [crop, setCrop] = useState(FULL_IMAGE_CROP);
-  const [ratio, setRatio] = useState('original');
+  const [ratio, setRatio] = useState("original");
   const [imageRatio, setImageRatio] = useState(1);
+  const [imageFailed, setImageFailed] = useState(false);
+  const hasSource = Boolean(source) && !imageFailed;
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const selectedRatio = RATIOS.find((item) => item.value === ratio)!;
   const normalizedRatio = fixedRatio
     ? fixedRatio / imageRatio
-    : ratio === 'free'
+    : ratio === "free"
       ? null
       : (selectedRatio.ratio || imageRatio) / imageRatio;
   const save = async () => {
@@ -60,12 +74,12 @@ export function ArticleImageCropDialog({
     }
     setSaving(true);
     try {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.naturalWidth * crop.w));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * crop.h));
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) {
-        throw new Error('Canvas unavailable');
+        throw new Error("Canvas unavailable");
       }
       ctx.drawImage(
         image,
@@ -80,7 +94,7 @@ export function ArticleImageCropDialog({
       );
       await onSave(canvas);
     } catch {
-      toast.add({ type: 'error', title: '图片保存失败，请重试' });
+      toast.add({ type: "error", title: "图片保存失败，请重试" });
     } finally {
       setSaving(false);
     }
@@ -106,32 +120,36 @@ export function ArticleImageCropDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {fixedRatio
-              ? '拖动裁剪框或四角调整范围。'
-              : '选择比例，拖动裁剪框或四角调整范围。'}
+            {!hasSource
+              ? "先选择图片，再调整封面构图。"
+              : fixedRatio
+                ? "拖动裁剪框或四角调整范围。"
+                : "选择比例，拖动裁剪框或四角调整范围。"}
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {imageAction?.(saving)}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={saving || !ready}
-              onClick={() => {
-                setCrop(
-                  fixedRatio
-                    ? centeredImageCrop(fixedRatio, imageRatio)
-                    : FULL_IMAGE_CROP,
-                );
-                setRatio('original');
-              }}
-            >
-              重置
-            </Button>
-          </div>
-          {source ? (
+          {hasSource ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {imageAction?.(saving, false)}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={saving || !ready}
+                onClick={() => {
+                  setCrop(
+                    fixedRatio
+                      ? centeredImageCrop(fixedRatio, imageRatio)
+                      : FULL_IMAGE_CROP,
+                  );
+                  setRatio("original");
+                }}
+              >
+                重置
+              </Button>
+            </div>
+          ) : null}
+          {hasSource ? (
             <ArticleImageCropArea
               source={source}
               crop={crop}
@@ -151,15 +169,34 @@ export function ArticleImageCropDialog({
               }}
               onError={() => {
                 setReady(false);
-                toast.add({ type: 'error', title: '图片无法读取，请重新选择' });
+                setImageFailed(true);
+                toast.add({ type: "error", title: "图片无法读取，请重新选择" });
               }}
             />
           ) : (
-            <Empty className="h-[min(20rem,40vh)] border bg-muted">
-              <EmptyDescription>选择一张图片作为封面</EmptyDescription>
+            <Empty className="min-h-[min(20rem,40dvh)] border bg-muted/20 px-6 py-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ImagePlus aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>
+                  {imageFailed ? "重新选择封面图片" : "选择封面图片"}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {imageFailed
+                    ? "图片无法读取，请选择另一张图片。"
+                    : emptyDescription}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                {imageAction?.(saving, true)}
+                {emptyHint ? (
+                  <p className="text-xs text-muted-foreground">{emptyHint}</p>
+                ) : null}
+              </EmptyContent>
             </Empty>
           )}
-          {!fixedRatio ? (
+          {hasSource && !fixedRatio ? (
             <ToggleGroup
               aria-label="裁剪比例"
               variant="outline"
@@ -175,7 +212,7 @@ export function ArticleImageCropDialog({
                 }
                 setRatio(value);
                 setCrop(
-                  value === 'free'
+                  value === "free"
                     ? crop
                     : centeredImageCrop(
                         selected.ratio || imageRatio,
@@ -201,18 +238,20 @@ export function ArticleImageCropDialog({
           >
             取消
           </Button>
-          <Button
-            type="button"
-            disabled={
-              !ready ||
-              saving ||
-              crop.w * (imageRef.current?.naturalWidth || 0) < 1 ||
-              crop.h * (imageRef.current?.naturalHeight || 0) < 1
-            }
-            onClick={() => void save()}
-          >
-            {saving ? '保存中…' : '确定'}
-          </Button>
+          {hasSource ? (
+            <Button
+              type="button"
+              disabled={
+                !ready ||
+                saving ||
+                crop.w * (imageRef.current?.naturalWidth || 0) < 1 ||
+                crop.h * (imageRef.current?.naturalHeight || 0) < 1
+              }
+              onClick={() => void save()}
+            >
+              {saving ? "保存中…" : "确定"}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
