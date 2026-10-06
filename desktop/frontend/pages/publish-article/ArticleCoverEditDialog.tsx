@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { EditCoverSavedResult } from '@/components/EditCoverDialog';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/toast';
+import { toast } from '@/lib/app-toast';
 import type { CoverKind } from '@/lib/api';
 import { MAX_COVER_UPLOAD_BYTES } from '../publish-video/helpers';
 import { ArticleImageCropDialog } from './ArticleImageCropDialog';

@@ -1,4 +1,4 @@
-import { toast } from '@/components/ui/toast';
+import { toast } from '@/lib/app-toast';
 import { getPugyingDesktopBridge } from '@/lib/agent-client';
 import { ArticleImageCropDialog } from './ArticleImageCropDialog';
 

@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { toast } from '@/components/ui/toast';
+import { toast } from '@/lib/app-toast';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { ArticleImageCropArea } from './ArticleImageCropArea';

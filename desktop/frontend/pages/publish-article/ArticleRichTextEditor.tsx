@@ -76,7 +76,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { toast } from "@/components/ui/toast";
+import { toast } from "@/lib/app-toast";
 import { cn } from "@/lib/utils";
 import { getLocalFilePath } from "@/lib/api";
 import { getPugyingDesktopBridge } from "@/lib/agent-client";
