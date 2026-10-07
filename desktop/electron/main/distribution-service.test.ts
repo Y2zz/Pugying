@@ -98,6 +98,63 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+it("exposes safe live progress to refreshed observers and keeps saving results distinct from publishing", async () => {
+  const service = await import("./distribution-service");
+  const notified = vi.fn();
+  const unsubscribe = service.observeDistributions(notified);
+  const broken = service.observeDistributions(() => {
+    throw new Error("closed view");
+  });
+  await service.submitDistribution({ contentId: "work" });
+  await flush();
+  expect(
+    service
+      .getDistributionSnapshot()
+      .tasks.filter((task) => task.state === "running"),
+  ).toHaveLength(3);
+  expect(
+    service
+      .getDistributionSnapshot()
+      .tasks.find((task) => task.targetId === "4"),
+  ).toMatchObject({ state: "waiting", waitingReason: "capacity" });
+  const options = mocks.start.mock.calls[0][0];
+  options.onProgress({
+    ...options.payload,
+    phase: "uploading",
+    message: "private platform debug data",
+  });
+  const snapshot = service.getDistributionSnapshot();
+  expect(snapshot.tasks.find((task) => task.targetId === "1")?.phase).toBe(
+    "uploading",
+  );
+  expect(JSON.stringify(snapshot)).not.toContain("private platform debug data");
+  expect(JSON.stringify(snapshot)).not.toContain("cookies");
+  expect(notified).toHaveBeenCalled();
+  const save = Promise.withResolvers<Response>();
+  api.mockImplementationOnce(() => save.promise);
+  results.get("1")!({ requestId: "1", targetId: "1", ok: true });
+  await flush();
+  expect(
+    service
+      .getDistributionSnapshot()
+      .tasks.find((task) => task.targetId === "1")?.state,
+  ).toBe("saving");
+  expect(
+    service
+      .getDistributionSnapshot()
+      .tasks.find((task) => task.targetId === "4")?.state,
+  ).toBe("waiting");
+  save.resolve(json({}));
+  await flush();
+  expect(
+    service
+      .getDistributionSnapshot()
+      .tasks.some((task) => task.targetId === "1"),
+  ).toBe(false);
+  unsubscribe();
+  broken();
+});
+
 it("accepts all targets before completion and saves outcomes without a renderer", async () => {
   const service = await import("./distribution-service");
   expect(await service.submitDistribution({ contentId: "work" })).toEqual({

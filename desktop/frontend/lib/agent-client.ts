@@ -143,6 +143,8 @@ export interface PlatformPublishResult {
 
 /** 业务窗 preload 注入的桥（与授权壳 chromeShell 隔离） */
 export type PugyingDesktopBridge = {
+  getDistributionSnapshot?: () => Promise<import('@shared/distribution').DistributionSnapshot>;
+  onDistributionChanged?: (callback: () => void) => () => void;
   submitDistribution?: (
     input: import("@shared/distribution").DistributionSubmission,
   ) => Promise<import("@shared/distribution").DistributionSubmissionResult>;

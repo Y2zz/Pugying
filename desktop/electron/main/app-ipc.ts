@@ -26,7 +26,7 @@ import { applyTitleBarOverlayTheme, getAppWindow } from './app-window-state';
 import { currentDesktopPlatform } from './desktop-platform';
 import { getProductLogoNativeImage } from './product-logo';
 import { getApiBaseUrl, getLocalApiToken } from './server-process';
-import { getDistributionConcurrency, submitDistribution, updateDistributionConcurrency } from './distribution-service';
+import { getDistributionConcurrency, getDistributionSnapshot, observeDistributions, submitDistribution, updateDistributionConcurrency } from './distribution-service';
 
 function focusOrCreateAppWindow(): void {
   const win = getAppWindow();
@@ -79,6 +79,19 @@ export function wireDesktopIpc(): void {
     return;
   }
   ipcWired = true;
+
+  ipcMain.handle(DESKTOP_IPC.getDistributionSnapshot, (event) => {
+    if (event.sender !== getAppWindow()?.webContents) {
+      throw new Error('无法读取分发状态');
+    }
+    return getDistributionSnapshot();
+  });
+  observeDistributions(() => {
+    const contents = getAppWindow()?.webContents;
+    if (contents && !contents.isDestroyed()) {
+      contents.send(DESKTOP_IPC.distributionChanged);
+    }
+  });
 
   ipcMain.handle(DESKTOP_IPC.submitDistribution, (event, input: unknown) => {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

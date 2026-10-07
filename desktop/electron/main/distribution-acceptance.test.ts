@@ -246,6 +246,36 @@ describe.skipIf(process.env.PUGYING_RUN_DISTRIBUTION_ACCEPTANCE !== "1")(
       ).toBe(true);
     });
 
+    it('observes cross-work active and waiting tasks through the real read API and recovers their latest results after reload', async () => {
+      await service.updateDistributionConcurrency(1);
+      const first = await createWork([accounts[0], accounts[1], accounts[2]]);
+      const second = await createWork([accounts[0], accounts[3]]);
+      await service.submitDistribution({ contentId: first.id });
+      await service.submitDistribution({ contentId: second.id });
+      await waitForWork(first.id, (work) => work.targets.some((target) => target.publishStatus === 'running'));
+      const live = service.getDistributionSnapshot();
+      expect(live.tasks.some((task) => task.state === 'waiting' && task.waitingReason === 'account')).toBe(true);
+      expect(live.tasks.some((task) => task.state === 'waiting' && task.waitingReason === 'capacity')).toBe(true);
+      const waiting = await api<{ items: Array<{ contentId: string; accountName: string }>; counts: { active: number; waiting: number } }>('/contents/distribution?view=waiting&pageSize=100');
+      expect(new Set(waiting.items.map((item) => item.contentId))).toEqual(new Set([first.id, second.id]));
+      expect(waiting.counts.active).toBe(1);
+      expect(waiting.counts.waiting).toBe(4);
+      expect(waiting.items.every((item) => item.accountName.startsWith('验收账号'))).toBe(true);
+      expect(JSON.stringify(waiting)).not.toContain('cookies');
+      expect(JSON.stringify(waiting)).not.toContain('credentialCipher');
+      await waitForWork(second.id, (work) => work.targets.every((target) => target.publishStatus === 'succeeded'));
+      await waitForWork(first.id, (work) => work.targets.every((target) => target.publishStatus === 'succeeded'));
+      const complete = await api<{ items: Array<{ contentId: string; platformUrl: string }>; counts: { active: number; waiting: number } }>('/contents/distribution?view=completed&pageSize=100');
+      expect(complete.items.filter((item) => [first.id, second.id].includes(item.contentId))).toHaveLength(5);
+      expect(complete.counts.active).toBe(0);
+      expect(complete.counts.waiting).toBe(0);
+      vi.resetModules();
+      service = await import('./distribution-service');
+      await service.recoverInterruptedDistributions();
+      expect(service.getDistributionSnapshot().tasks).toEqual([]);
+      expect((await api<{ items: Array<{ contentId: string }> }>('/contents/distribution?view=completed&pageSize=100')).items.filter((item) => [first.id, second.id].includes(item.contentId))).toHaveLength(5);
+    });
+
     it("raises the limit to a user-selected five concurrent targets", async () => {
       await service.updateDistributionConcurrency(1);
       const work = await createWork(accounts);

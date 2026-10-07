@@ -3,6 +3,8 @@
  * 传输层仍复用 AgentEnvelope，便于 agent-client 与 WS 协议对齐。
  */
 export const DESKTOP_IPC = {
+  getDistributionSnapshot: 'desktop:get-distribution-snapshot',
+  distributionChanged: 'desktop:distribution-changed',
   submitDistribution: 'desktop:submit-distribution',
   getDistributionConcurrency: 'desktop:get-distribution-concurrency',
   setDistributionConcurrency: 'desktop:set-distribution-concurrency',

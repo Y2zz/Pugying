@@ -10,6 +10,12 @@ import type {
 
 const pugyingDesktop = {
   available: true as const,
+  getDistributionSnapshot: (): Promise<import('@shared/distribution').DistributionSnapshot> => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),
+  onDistributionChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(DESKTOP_IPC.distributionChanged, handler);
+    return () => { ipcRenderer.removeListener(DESKTOP_IPC.distributionChanged, handler); };
+  },
   submitDistribution: (input: import('@shared/distribution').DistributionSubmission): Promise<import('@shared/distribution').DistributionSubmissionResult> =>
     ipcRenderer.invoke(DESKTOP_IPC.submitDistribution, input),
   getDistributionConcurrency: (): Promise<number> =>

@@ -21,7 +21,24 @@ export class DistributionQueue {
 
   constructor(
     private readonly execute: (task: DistributionTask) => Promise<void>,
+    private readonly onChange: () => void = () => undefined,
   ) {}
+
+  snapshot() {
+    const running = Array.from(this.running.values(), ({ task }) => ({
+      ...task,
+    }));
+    const accounts = new Set(running.map((task) => task.accountId));
+    return {
+      running,
+      waiting: this.waiting.map((task) => ({
+        ...task,
+        waitingReason: accounts.has(task.accountId)
+          ? ("account" as const)
+          : ("capacity" as const),
+      })),
+    };
+  }
 
   getConcurrency(): number {
     return this.concurrency;
@@ -33,6 +50,7 @@ export class DistributionQueue {
     }
     this.concurrency = value;
     this.drain();
+    this.onChange();
   }
 
   enqueue(tasks: DistributionTask[]): void {
@@ -48,6 +66,7 @@ export class DistributionQueue {
       }
     }
     this.drain();
+    this.onChange();
   }
 
   stop(): DistributionTask[] {
@@ -57,6 +76,7 @@ export class DistributionQueue {
       ...Array.from(this.running.values(), ({ task }) => task),
     ];
     this.waiting = [];
+    this.onChange();
     return tasks;
   }
 
@@ -90,6 +110,7 @@ export class DistributionQueue {
         .finally(() => {
           this.running.delete(task.targetId);
           this.drain();
+          this.onChange();
         });
       this.running.set(task.targetId, { task, promise });
     }

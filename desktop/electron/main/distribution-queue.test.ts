@@ -24,6 +24,36 @@ function fixture() {
   return { queue, finish, started };
 }
 
+it("reports account and capacity waits from detached snapshots and notifies on slot release", async () => {
+  const finish = new Map<string, () => void>();
+  const changed = vi.fn();
+  const queue = new DistributionQueue(
+    (item) =>
+      new Promise<void>((resolve) => finish.set(item.targetId, resolve)),
+    changed,
+  );
+  queue.setConcurrency(1);
+  queue.enqueue([task("1", "same"), task("2", "same"), task("3", "other")]);
+  await flush();
+  const state = queue.snapshot();
+  expect(
+    state.waiting.map((item) => [item.targetId, item.waitingReason]),
+  ).toEqual([
+    ["2", "account"],
+    ["3", "capacity"],
+  ]);
+  state.waiting[0].accountId = "changed-by-view";
+  expect(queue.snapshot().waiting[0].accountId).toBe("same");
+  changed.mockClear();
+  finish.get("1")!();
+  await flush();
+  expect(queue.snapshot().running[0].targetId).toBe("2");
+  expect(changed).toHaveBeenCalled();
+  queue.stop();
+  finish.forEach((resolve) => resolve());
+  await queue.settled();
+});
+
 it("defaults to three concurrent tasks and advances the waiting queue", async () => {
   const { queue, finish, started } = fixture();
   queue.enqueue(["1", "2", "3", "4", "5"].map((id) => task(id)));

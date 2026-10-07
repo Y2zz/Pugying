@@ -4,6 +4,8 @@ import { join } from "node:path";
 import type {
   DistributionSubmission,
   DistributionSubmissionResult,
+  DistributionSnapshot,
+  DistributionLiveTask,
 } from "../../shared/distribution";
 import { isDistributionConcurrency } from "../../shared/distribution";
 import { DistributionQueue, type DistributionTask } from "./distribution-queue";
@@ -34,6 +36,49 @@ class LocalApiError extends Error {
 const activeRequests = new Map<string, string>();
 const finishedResults = new Map<string, PlatformPublishResultPayload>();
 const submitting = new Set<string>();
+const live = new Map<
+  string,
+  Pick<DistributionLiveTask, "queuedAt" | "startedAt" | "phase" | "state">
+>();
+const observers = new Set<() => void>();
+let revision = 0;
+function changed(): void {
+  revision += 1;
+  for (const observer of observers) {
+    try {
+      observer();
+    } catch {
+      // 观测窗口退出或刷新不影响发布任务。
+    }
+  }
+}
+export function observeDistributions(observer: () => void): () => void {
+  observers.add(observer);
+  return () => {
+    observers.delete(observer);
+  };
+}
+export function getDistributionSnapshot(): DistributionSnapshot {
+  const concurrency = getDistributionConcurrency();
+  const state = queue.snapshot();
+  return {
+    revision,
+    concurrency,
+    tasks: [
+      ...state.running.map((task): DistributionLiveTask => ({
+        ...task,
+        ...live.get(task.targetId)!,
+        state:
+          live.get(task.targetId)?.state === "saving" ? "saving" : "running",
+      })),
+      ...state.waiting.map((task): DistributionLiveTask => ({
+        ...task,
+        ...live.get(task.targetId)!,
+        state: "waiting",
+      })),
+    ],
+  };
+}
 let stopping = false;
 let initialized = false;
 let saveSettings = Promise.resolve();
@@ -81,6 +126,13 @@ async function reportResult(
 }
 
 async function execute(task: DistributionTask): Promise<void> {
+  live.set(task.targetId, {
+    ...live.get(task.targetId)!,
+    state: "running",
+    startedAt: new Date().toISOString(),
+    phase: "accepted",
+  });
+  changed();
   let result: PlatformPublishResultPayload;
   try {
     if (stopping) {
@@ -104,7 +156,14 @@ async function execute(task: DistributionTask): Promise<void> {
       );
       const started = startPublishJob({
         payload: { ...dispatch, requestId },
-        onProgress: () => undefined,
+        onProgress: (event) => {
+          // 只传公开阶段；平台原始消息、Cookie 与本机路径不进入观测通道。
+          live.set(task.targetId, {
+            ...live.get(task.targetId)!,
+            phase: event.phase,
+          });
+          changed();
+        },
         onResult: (value) => {
           clearTimeout(timer);
           resolve(value);
@@ -135,10 +194,13 @@ async function execute(task: DistributionTask): Promise<void> {
     activeRequests.delete(task.targetId);
   }
   finishedResults.set(task.targetId, result);
+  live.set(task.targetId, { ...live.get(task.targetId)!, state: "saving" });
+  changed();
   // 重试的是结果保存，不会重复发布。保存成功前继续占用该账号的队列位置。
   while (!stopping) {
     try {
       await reportResult(task, result);
+      live.delete(task.targetId);
       return;
     } catch (error) {
       if (
@@ -150,6 +212,7 @@ async function execute(task: DistributionTask): Promise<void> {
       ) {
         // 目标已取消/删除等终态无需重试；网络故障和服务暂不可用继续保存结果。
         finishedResults.delete(task.targetId);
+        live.delete(task.targetId);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -157,7 +220,7 @@ async function execute(task: DistributionTask): Promise<void> {
   }
 }
 
-const queue = new DistributionQueue(execute);
+const queue = new DistributionQueue(execute, changed);
 
 function settingsPath(): string {
   return join(app.getPath("userData"), "distribution-settings.json");
@@ -226,6 +289,12 @@ export async function submitDistribution(
         tasks.map((task) => request(`${targetPath(task)}/cancel`, {})),
       );
       return { ok: false, message: "应用正在退出" };
+    }
+    for (const task of tasks) {
+      live.set(task.targetId, {
+        queuedAt: new Date().toISOString(),
+        state: "waiting",
+      });
     }
     queue.enqueue(tasks);
     return { ok: true, targetIds: tasks.map((task) => task.targetId) };
