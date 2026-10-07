@@ -9,18 +9,24 @@ export function ArticleImageEditDialog({
   onClose,
   onSaved,
   returnFocus,
+  allowZoom,
+  title,
 }: {
   source: string;
   localPath: string;
   onClose: () => void;
   onSaved: (path: string, preview: string) => void;
   returnFocus?: HTMLElement;
+  allowZoom?: boolean;
+  title?: string;
 }) {
   return (
     <ArticleImageCropDialog
       source={source}
       onClose={onClose}
       returnFocus={returnFocus}
+      allowZoom={allowZoom}
+      title={title}
       onSave={async (canvas) => {
         const bridge = getPugyingDesktopBridge();
         if (!bridge?.saveArticleImage) {

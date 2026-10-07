@@ -13,6 +13,8 @@ const drawImage = vi.fn();
 
 beforeEach(() => {
   drawImage.mockClear();
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(300);
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     drawImage,
   } as unknown as CanvasRenderingContext2D);
@@ -89,17 +91,25 @@ it("keeps the fixed ratio when resizing a corner, and resets to the centered cov
   );
   const image = loadPreview();
   vi.stubGlobal("PointerEvent", MouseEvent);
-  const stage = image.parentElement!;
+  const stage = screen.getByRole("group", { name: "图片裁剪区域" });
   Object.defineProperty(stage, "getBoundingClientRect", {
     value: () => new DOMRect(0, 0, 400, 300),
   });
   Object.defineProperty(stage, "setPointerCapture", { value: vi.fn() });
+  const frame = screen.getByRole("button", { name: "移动图片" }).parentElement!;
+  const frameStyle = frame.getAttribute("style");
   fireEvent.pointerDown(
     screen.getByRole("button", { name: "调整裁剪框右下角" }),
-    { clientX: 312.5, clientY: 300 },
+    { clientX: 300, clientY: 288 },
   );
-  fireEvent.pointerMove(stage, { clientX: 250, clientY: 200 });
-  fireEvent.pointerUp(stage, { clientX: 250, clientY: 200 });
+  fireEvent.pointerUp(stage, { clientX: 300, clientY: 288 });
+  expect(frame.getAttribute("style")).toBe(frameStyle);
+  fireEvent.pointerDown(
+    screen.getByRole("button", { name: "调整裁剪框右下角" }),
+    { clientX: 300, clientY: 288 },
+  );
+  fireEvent.pointerMove(stage, { clientX: 237.5, clientY: 188 });
+  fireEvent.pointerUp(stage, { clientX: 237.5, clientY: 188 });
   fireEvent.click(screen.getByRole("button", { name: "确定" }));
   await waitFor(() => expect(saved).toHaveBeenCalledOnce());
   const args = drawImage.mock.calls[0];
@@ -178,7 +188,7 @@ it.each(["cancel", "click"] as const)(
       />,
     );
     const image = loadPreview();
-    const stage = image.parentElement!;
+    const stage = screen.getByRole("group", { name: "图片裁剪区域" });
     Object.defineProperty(stage, "getBoundingClientRect", {
       value: () => new DOMRect(0, 0, 400, 300),
     });

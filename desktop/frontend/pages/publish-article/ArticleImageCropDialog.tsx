@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/lib/app-toast";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Slider } from "@/components/ui/slider";
+import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Empty,
   EmptyContent,
@@ -20,7 +22,15 @@ import {
 } from "@/components/ui/empty";
 import { ImagePlus } from "lucide-react";
 import { ArticleImageCropArea } from "./ArticleImageCropArea";
-import { centeredImageCrop, FULL_IMAGE_CROP } from "./article-image-crop";
+import {
+  centeredImageCrop,
+  clampImageOffset,
+  fitImageCrop,
+  FULL_IMAGE_CROP,
+  sourceImageCrop,
+  type CropPoint,
+  type ArticleImageCrop,
+} from "./article-image-crop";
 
 const RATIOS = [
   { label: "原图比例", value: "original", ratio: null },
@@ -37,6 +47,7 @@ export function ArticleImageCropDialog({
   onClose,
   onSave,
   returnFocus,
+  allowZoom = false,
   fixedRatio,
   title = "裁剪图片",
   imageAction,
@@ -52,6 +63,7 @@ export function ArticleImageCropDialog({
   emptyDescription?: string;
   emptyHint?: string;
   returnFocus?: HTMLElement;
+  allowZoom?: boolean;
 }) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [crop, setCrop] = useState(FULL_IMAGE_CROP);
@@ -61,6 +73,13 @@ export function ArticleImageCropDialog({
   const hasSource = Boolean(source) && !imageFailed;
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [zoom, setZoom] = useState(100);
+  const [imageOffset, setImageOffset] = useState<CropPoint>({ x: 0, y: 0 });
+  const offset = clampImageOffset(imageOffset, crop, zoom / 100);
+  const changeCrop = (nextCrop: ArticleImageCrop) => {
+    setCrop(nextCrop);
+    setImageOffset(clampImageOffset(offset, nextCrop, zoom / 100));
+  };
   const selectedRatio = RATIOS.find((item) => item.value === ratio)!;
   const normalizedRatio = fixedRatio
     ? fixedRatio / imageRatio
@@ -75,6 +94,7 @@ export function ArticleImageCropDialog({
     setSaving(true);
     try {
       const canvas = document.createElement("canvas");
+      const sourceCrop = sourceImageCrop(crop, zoom / 100, offset);
       canvas.width = Math.max(1, Math.round(image.naturalWidth * crop.w));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * crop.h));
       const ctx = canvas.getContext("2d");
@@ -83,10 +103,10 @@ export function ArticleImageCropDialog({
       }
       ctx.drawImage(
         image,
-        image.naturalWidth * crop.x,
-        image.naturalHeight * crop.y,
-        image.naturalWidth * crop.w,
-        image.naturalHeight * crop.h,
+        image.naturalWidth * sourceCrop.x,
+        image.naturalHeight * sourceCrop.y,
+        image.naturalWidth * sourceCrop.w,
+        image.naturalHeight * sourceCrop.h,
         0,
         0,
         canvas.width,
@@ -123,8 +143,8 @@ export function ArticleImageCropDialog({
             {!hasSource
               ? "先选择图片，再调整封面构图。"
               : fixedRatio
-                ? "拖动裁剪框或四角调整范围。"
-                : "选择比例，拖动裁剪框或四角调整范围。"}
+                ? "拖动内部移动图片，边线移动裁剪框，四角调整大小。"
+                : "选择比例后，拖动内部移动图片，边线移动裁剪框，四角调整大小。"}
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-w-0 flex-col gap-3">
@@ -143,6 +163,8 @@ export function ArticleImageCropDialog({
                       : FULL_IMAGE_CROP,
                   );
                   setRatio("original");
+                  setZoom(100);
+                  setImageOffset({ x: 0, y: 0 });
                 }}
               >
                 重置
@@ -152,11 +174,14 @@ export function ArticleImageCropDialog({
           {hasSource ? (
             <ArticleImageCropArea
               source={source}
+              zoom={zoom / 100}
+              imageOffset={offset}
+              onImageOffsetChange={setImageOffset}
               crop={crop}
               normalizedRatio={normalizedRatio}
               disabled={saving}
               imageRef={imageRef}
-              onChange={setCrop}
+              onChange={changeCrop}
               onLoad={(image) => {
                 const nextRatio = image.naturalWidth / image.naturalHeight;
                 setImageRatio(nextRatio);
@@ -166,6 +191,8 @@ export function ArticleImageCropDialog({
                     : FULL_IMAGE_CROP,
                 );
                 setReady(true);
+                setZoom(100);
+                setImageOffset({ x: 0, y: 0 });
               }}
               onError={() => {
                 setReady(false);
@@ -211,7 +238,7 @@ export function ArticleImageCropDialog({
                   return;
                 }
                 setRatio(value);
-                setCrop(
+                changeCrop(
                   value === "free"
                     ? crop
                     : centeredImageCrop(
@@ -227,6 +254,35 @@ export function ArticleImageCropDialog({
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+          ) : null}
+          {hasSource && allowZoom ? (
+            <Field>
+              <FieldLabel id="image-crop-zoom-label" htmlFor="image-crop-zoom">
+                图片缩放 <span className="tabular-nums">{zoom}%</span>
+              </FieldLabel>
+              <Slider
+                id="image-crop-zoom"
+                aria-labelledby="image-crop-zoom-label"
+                min={100}
+                max={300}
+                step={10}
+                value={[zoom]}
+                disabled={!ready || saving}
+                onValueChange={(value) => {
+                  const nextZoom = Array.isArray(value) ? value[0] : value;
+                  const scale = nextZoom / 100;
+                  const nextCrop = fitImageCrop(crop, {
+                    x: crop.x + (crop.w - scale) / 2,
+                    y: crop.y + (crop.h - scale) / 2,
+                    w: scale,
+                    h: scale,
+                  });
+                  setCrop(nextCrop);
+                  setImageOffset(clampImageOffset(offset, nextCrop, scale));
+                  setZoom(nextZoom);
+                }}
+              />
+            </Field>
           ) : null}
         </div>
         <DialogFooter>
