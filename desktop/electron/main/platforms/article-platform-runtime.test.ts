@@ -60,13 +60,11 @@ it('distinguishes an explicit micro post rejection from timeout uncertainty', as
 it('uses the official Xiaohongshu API origin and separates business refusals from network uncertainty', async () => {
   const client = {
     get: vi.fn(),
-    post: vi
-      .fn()
-      .mockResolvedValue({
-        code: 'N/A',
-        success: true,
-        data: { id: '6ac5d15f00000000140002c3' },
-      }),
+    post: vi.fn().mockResolvedValue({
+      code: 'N/A',
+      success: true,
+      data: { id: '6ac5d15f00000000140002c3' },
+    }),
   };
   const modules = { 21069: { LV: client }, 69517: { d9: { post: vi.fn() } } };
   const require = Object.assign((id: number) => modules[id], { m: modules });
@@ -400,4 +398,117 @@ it('WBI matches the reference keys and timestamp', () => {
   expect(query).toBe(
     'bar=514&baz=1919810&foo=114&wts=1702204169&w_rid=6149fdadf571698ca7e6a567265cd0ee',
   );
+});
+
+it('uses the official video uploader, reports progress and retains only upload metadata', async () => {
+  const client = {
+    get: vi.fn(async () => ({ user: { uid: '123' } })),
+    post: vi.fn(),
+  };
+  const cancel = vi.fn();
+  const uploadFile = vi.fn(async (_file, progress) => {
+    progress(42.5);
+    return {
+      vid: 'v-real',
+      duration: 8,
+      width: 720,
+      height: 960,
+      coverUri: 'video/frame',
+      file: { private: true },
+    };
+  });
+  const Uploader = vi.fn(function () {
+    return { uploadFile, cancel };
+  });
+  const modules = {
+    56211: { A: client },
+    64477: { A: Uploader },
+    70858: { sW: vi.fn() },
+  };
+  const require = Object.assign((id: number) => modules[id], { m: modules });
+  const window: any = {
+    webpackChunkdouyin_creator_content: {
+      push: ([, , callback]: any[]) => callback(require),
+    },
+  };
+  await runInNewContext(DOUYIN_ARTICLE_RUNTIME, {
+    window,
+    crypto: webcrypto,
+    location: { hostname: 'creator.douyin.com' },
+  });
+  expect(await window.__pugyingArticleApi.uploadVideo({ size: 1024 })).toEqual({
+    vid: 'v-real',
+    duration: 8,
+    width: 720,
+    height: 960,
+    coverUri: 'video/frame',
+  });
+  expect(Uploader).toHaveBeenCalledWith({ type: 'video' }, {}, '123');
+  expect(window.__pugyingVideoProgress).toBe(100);
+  expect(cancel).toHaveBeenCalledOnce();
+});
+
+it('waits for cloud conversion rather than submitting a video with incomplete metadata', async () => {
+  const client = {
+    get: vi
+      .fn()
+      .mockResolvedValueOnce({ user: { uid: '123' } })
+      .mockResolvedValueOnce({ status_code: 0 })
+      .mockResolvedValueOnce({ status_code: 0, encode: 0 })
+      .mockResolvedValueOnce({
+        status_code: 0,
+        encode: 1,
+        duration: 8,
+        width: '720',
+        height: '960',
+        poster_uri: 'video/frame',
+      }),
+    post: vi.fn(),
+  };
+  const cancel = vi.fn();
+  const Uploader = vi.fn(function () {
+    return {
+      uploadFile: async () => ({
+        vid: 'v-real',
+        duration: 0,
+        shouldConvert: true,
+      }),
+      cancel,
+    };
+  });
+  const modules = {
+    56211: { A: client },
+    64477: { A: Uploader },
+    70858: { sW: vi.fn() },
+  };
+  const require = Object.assign((id: number) => modules[id], { m: modules });
+  const window: any = {
+    webpackChunkdouyin_creator_content: {
+      push: ([, , callback]: any[]) => callback(require),
+    },
+  };
+  await runInNewContext(DOUYIN_ARTICLE_RUNTIME, {
+    window,
+    crypto: webcrypto,
+    setTimeout: (callback: () => void) => callback(),
+    location: { hostname: 'creator.douyin.com' },
+  });
+  expect(await window.__pugyingArticleApi.uploadVideo({})).toEqual({
+    vid: 'v-real',
+    duration: 8,
+    width: 720,
+    height: 960,
+    coverUri: 'video/frame',
+  });
+  expect(client.get).toHaveBeenCalledTimes(4);
+  expect(client.get).toHaveBeenNthCalledWith(
+    2,
+    '/web/api/media/video/enable/',
+    expect.objectContaining({ params: { video_id: 'v-real' }, retries: 0 }),
+  );
+  expect(client.get).toHaveBeenLastCalledWith(
+    '/web/api/media/video/transend/',
+    expect.objectContaining({ params: { video_id: 'v-real' }, retries: 0 }),
+  );
+  expect(cancel).toHaveBeenCalledOnce();
 });

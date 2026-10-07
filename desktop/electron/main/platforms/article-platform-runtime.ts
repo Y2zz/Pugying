@@ -46,6 +46,42 @@ export const DOUYIN_ARTICLE_RUNTIME = `(async () => {
       const result = await uploader.uploadFile(file);
       return { uri: result.uri, url: await getImageUrl(result.uri), width: result.imageWidth,
         height: result.imageHeight, size: file.size / 1024 };
+    },
+    async uploadVideo(file) {
+      const profile = await client.get('/web/api/media/user/info/', { retries: 0, noToast: true });
+      const uid = profile?.user?.uid || profile?.uid;
+      if (!uid) { throw { code: 'AUTH_EXPIRED' }; }
+      const uploader = new Uploader({ type: 'video' }, {}, uid);
+      window.__pugyingVideoProgress = 0;
+      try {
+        const result = await uploader.uploadFile(file, percent => {
+          window.__pugyingVideoProgress = Math.min(100, Math.max(0, Number(percent) || 0));
+        });
+        if (!result?.vid) { throw { code: 'ARTICLE_API_CHANGED' }; }
+        window.__pugyingVideoProgress = 100;
+        if (result.shouldConvert || !(result.duration > 0 && result.width > 0 && result.height > 0 && result.coverUri)) {
+          // 当前 SDK 返回的视频须先启用，平台才会生成转码信息和首帧封面。
+          const enabled = await client.get('/web/api/media/video/enable/', {
+            params: { video_id: result.vid }, retries: 0, noToast: true, timeout: 45000
+          });
+          if (enabled.status_code !== 0) { throw enabled; }
+          const deadline = Date.now() + 900000;
+          while (Date.now() < deadline) {
+            const meta = await client.get('/web/api/media/video/transend/', {
+              params: { video_id: result.vid }, retries: 0, noToast: true, timeout: 45000
+            });
+            if (meta.status_code !== 0) { throw meta; }
+            if (meta.encode === 1 && meta.duration > 0 && meta.width > 0 && meta.height > 0 && meta.poster_uri) {
+              return { vid: result.vid, duration: Number(meta.duration), width: Number(meta.width),
+                height: Number(meta.height), coverUri: meta.poster_uri };
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          throw { code: 'VIDEO_PROCESSING_TIMEOUT' };
+        }
+        return { vid: result.vid, duration: result.duration, width: result.width,
+          height: result.height, coverUri: result.coverUri };
+      } finally { uploader.cancel(); }
     }
   };
   return true;
@@ -210,12 +246,21 @@ export const XIAOHONGSHU_GRAPHIC_RUNTIME = `(() => {
         if (data === undefined) { return await client.get(url, config); }
         return await client.post(url, data, config);
       } catch (error) {
-        // 官方客户端将明确的业务拒绝转换为异常，保留业务码用于区分未知结果。
+        // 官方客户端将明确的业务拒绝转换为异常，保留业务码与文案用于区分未知结果。
         if (error?.name === 'HTTPBizError' && typeof error.data?.code === 'number') {
-          return { code: error.data.code, success: false };
+          return {
+            code: error.data.code,
+            success: false,
+            msg: typeof error.data?.msg === 'string' ? error.data.msg : undefined,
+            data: error.data?.data,
+          };
         }
         if (error?.name === 'HTTPServerError' && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
-          return { code: typeof error.data?.code === 'number' ? error.data.code : error.status, success: false };
+          return {
+            code: typeof error.data?.code === 'number' ? error.data.code : error.status,
+            success: false,
+            msg: typeof error.data?.msg === 'string' ? error.data.msg : undefined,
+          };
         }
         throw error;
       }
@@ -225,11 +270,23 @@ export const XIAOHONGSHU_GRAPHIC_RUNTIME = `(() => {
       const width = bitmap.width, height = bitmap.height;
       bitmap.close();
       const result = await uploader.post({ Body: file });
-      if (result?.success !== true || !result.data?.Key) { throw { code: 'ARTICLE_API_CHANGED' }; }
-      const image = result.data;
+      const image = result?.data;
+      // 当前官方回执用 fileId；兼容旧字段 Key。
+      const uri = image?.Key || image?.fileId;
+      if (result?.success !== true || !uri) {
+        throw {
+          code: 'ARTICLE_API_CHANGED',
+          receipt: {
+            stage: 'image_upload',
+            success: result?.success,
+            keys: result && typeof result === 'object' ? Object.keys(result) : [],
+            dataKeys: image && typeof image === 'object' ? Object.keys(image) : [],
+          },
+        };
+      }
       // 官方上传回执中的预览地址，不从本机路径构造远程图片地址。
-      const url = image.headers?.['x-ros-preview-url'];
-      return { uri: image.Key, url, width, height, size: file.size / 1024 };
+      const url = image.headers?.['x-ros-preview-url'] || image.previewUrl;
+      return { uri, url, width, height, size: file.size / 1024 };
     }
   };
   return true;

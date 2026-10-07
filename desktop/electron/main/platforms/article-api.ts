@@ -36,6 +36,7 @@ export class ArticleApiError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly receipt?: unknown,
   ) {
     super(message);
   }
