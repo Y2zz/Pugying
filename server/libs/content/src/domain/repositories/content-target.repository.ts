@@ -11,6 +11,7 @@ export const TARGET_COVER_COLUMNS = {
 } as const;
 
 export interface IContentTargetRepository {
+  findDistributionPage(filter: import('../distribution').DistributionFilter): Promise<import('../distribution').DistributionPage>;
   create(data: Partial<ContentTarget>): ContentTarget;
   findById(id: string): Promise<ContentTarget | null>;
   findByIdWithCovers(id: string): Promise<ContentTarget | null>;

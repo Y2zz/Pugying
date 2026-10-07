@@ -21,7 +21,7 @@ describe('content management queries', () => {
       synchronize: true,
     }).initialize();
     repository = new TypeOrmContentRepository(source.getRepository(Content), source);
-    service = new ContentService(repository, new TypeOrmContentTargetRepository(source.getRepository(ContentTarget), source), {} as IPlatformAccountRepository);
+    service = new ContentService(repository, new TypeOrmContentTargetRepository(source.getRepository(ContentTarget), source), { findAll: jest.fn().mockResolvedValue([]) } as unknown as IPlatformAccountRepository);
   });
   afterEach(async () => {
     await source.destroy();
@@ -81,5 +81,41 @@ describe('content management queries', () => {
     await expect(service.findAll(undefined, undefined, 1, 20, 'unknown')).rejects.toThrow('作品状态无效');
     await expect(service.findAll(undefined, undefined, 0)).rejects.toThrow();
     await expect(service.findAll(undefined, undefined, 1, 101)).rejects.toThrow();
+  });
+
+  it('observes tasks across content types with global counts, pagination and no idle or deleted work', async () => {
+    const running = await add('文章分发', ['running', 'failed', 'idle'], 'published', 'article');
+    await add('视频分发', ['running', 'queued']);
+    await add('另一条失败', ['failed']);
+    await add('仅有草稿', ['idle'], 'draft');
+    const removed = await add('已删除任务', ['running', 'failed']);
+    await repository.remove(removed);
+    const result = await service.findDistributions('active', 1, 1);
+    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(1);
+    expect(result.counts).toEqual({ active: 2, waiting: 1, attention: 2, completed: 0 });
+    const pages = [...result.items, ...(await service.findDistributions('active', 2, 1)).items];
+    expect(new Set(pages.map((row) => row.targetId)).size).toBe(2);
+    const article = pages.find((row) => row.contentId === running.id)!;
+    expect(article).toMatchObject({ taskCount: 2, processedCount: 1, accountName: '账号已移除', accountAvailable: false });
+    expect(article).not.toHaveProperty('overrides');
+    expect(article).not.toHaveProperty('coverData');
+  });
+
+  it('limits recent success to 24 hours, serializes UTC dates and leaves all failures visible', async () => {
+    const work = await add('发布结果', ['succeeded', 'succeeded', 'failed']);
+    const targets = await source.getRepository(ContentTarget).findBy({ contentId: work.id });
+    const successes = targets.filter((target) => target.publishStatus === 'succeeded');
+    await source.getRepository(ContentTarget).update(successes[0].id, { startedAt: new Date(Date.now() - 60000), finishedAt: new Date() });
+    await source.getRepository(ContentTarget).update(successes[1].id, { finishedAt: new Date(Date.now() - 25 * 60 * 60 * 1000) });
+    const result = await service.findDistributions('completed');
+    expect(result.total).toBe(1);
+    expect(result.counts.attention).toBe(1);
+    expect(result.items[0].finishedAt).toMatch(/Z$/);
+    expect(result.items[0].startedAt).toMatch(/Z$/);
+    expect(result.items[0]).toMatchObject({ processedCount: 3, taskCount: 3 });
+    await expect(service.findDistributions('unknown')).rejects.toThrow('分发筛选条件无效');
+    await expect(service.findDistributions('active', 0)).rejects.toThrow();
+    await expect(service.findDistributions('active', 1, 101)).rejects.toThrow();
   });
 });

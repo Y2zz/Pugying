@@ -57,6 +57,12 @@ export class ContentController {
     return this.service.findAll(type, q, parsedPage, parsedPageSize, managementStatus);
   }
 
+  @Get('distribution')
+  @ApiOperation({ summary: '全局分发任务：正在执行、等待、需要处理和最近 24 小时完成的结果' })
+  findDistributions(@Query('view') view?: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.service.findDistributions(view, page === undefined ? 1 : Number(page), pageSize === undefined ? 20 : Number(pageSize));
+  }
+
   @Get(':id')
   @ApiOperation({ summary: '内容详情（不含封面字节）' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {

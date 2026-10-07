@@ -25,6 +25,7 @@ import {
 import { ContentTargetDto, CreateContentDto, TargetOverridesDto, UpdateContentDto } from '@pugying/content/application/dtos';
 
 import { CONTENT_MANAGEMENT_STATUSES, type ContentManagementStatus, type ContentStatusCounts } from '../../domain/repositories/content.repository';
+import { DISTRIBUTION_VIEWS, type DistributionView } from '../../domain/distribution';
 
 const COVER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -80,6 +81,15 @@ export class ContentService {
     @Inject(PLATFORM_ACCOUNT_REPOSITORY)
     private readonly platformAccountRepository: IPlatformAccountRepository,
   ) {}
+
+  async findDistributions(view = 'active', page = 1, pageSize = 20) {
+    if (!DISTRIBUTION_VIEWS.includes(view as DistributionView) || !Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+      throw new BadRequestException('分发筛选条件无效');
+    }
+    const result = await this.targetRepository.findDistributionPage({ view: view as DistributionView, page, pageSize, since: new Date(Date.now() - 24 * 60 * 60 * 1000) });
+    const accounts = new Map((await this.platformAccountRepository.findAll()).map((account) => [account.id, account]));
+    return { ...result, page, pageSize, items: result.items.map((item) => ({ ...item, accountName: accounts.get(item.accountId)?.displayName ?? '账号已移除', accountAvailable: accounts.has(item.accountId) })) };
+  }
 
   async findAll(type?: string, q?: string, page = 1, pageSize = 20, managementStatus?: string): Promise<ContentListPage> {
     if (type !== undefined && type !== '' && !isContentType(type)) {
