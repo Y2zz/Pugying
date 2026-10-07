@@ -4,11 +4,13 @@ import { GRAPHIC_SUPPORTED_PLATFORMS as GRAPHIC_PLATFORM_IDS } from '@/lib/platf
 /** 与 lib/platforms 同源 */
 export const GRAPHIC_SUPPORTED_PLATFORMS = GRAPHIC_PLATFORM_IDS;
 
-export type GraphicCoverMode = 'portrait_3_4' | 'landscape_4_3' | 'optional' | 'from_images';
+export type GraphicCoverMode =
+  'portrait_3_4' | 'landscape_4_3' | 'optional' | 'from_images';
 
 export interface GraphicPlatformFieldSpec {
   platformId: PlatformId;
   titleMax: number;
+  imageMax: number;
   titleRequired: boolean;
   bodyPlainMin: number;
   bodyPlainMax: number;
@@ -36,6 +38,7 @@ export const GRAPHIC_PLATFORM_FIELDS: {
 } = {
   douyin: {
     platformId: 'douyin',
+    imageMax: 30,
     titleMax: 20,
     titleRequired: true,
     bodyPlainMin: 1,
@@ -50,6 +53,7 @@ export const GRAPHIC_PLATFORM_FIELDS: {
   },
   channels: {
     platformId: 'channels',
+    imageMax: 9,
     titleMax: 30,
     titleRequired: false,
     bodyPlainMin: 1,
@@ -62,18 +66,34 @@ export const GRAPHIC_PLATFORM_FIELDS: {
     location: { enabled: false },
     partition: { enabled: false, label: '' },
   },
+  toutiao: {
+    platformId: 'toutiao',
+    imageMax: 18,
+    titleMax: 100,
+    titleRequired: true,
+    bodyPlainMin: 1,
+    bodyPlainMax: 2000,
+    cover: { mode: 'optional', required: false, allowFromFirstImage: false },
+    secondaryCover: null,
+    tags: { enabled: false, maxCount: 0 },
+    visibility: ['public'],
+    schedule: null,
+    location: { enabled: false },
+    partition: { enabled: false, label: '' },
+  },
   xiaohongshu: {
     platformId: 'xiaohongshu',
+    imageMax: 18,
     titleMax: 20,
     titleRequired: true,
     bodyPlainMin: 1,
     bodyPlainMax: 1000,
-    cover: { mode: 'portrait_3_4', required: true, allowFromFirstImage: true },
+    cover: { mode: 'optional', required: false, allowFromFirstImage: true },
     secondaryCover: null,
-    tags: { enabled: true, maxCount: 10 },
+    tags: { enabled: false, maxCount: 0 },
     visibility: GRAPHIC_VISIBILITY,
     schedule: { enabled: true, minHours: 1, maxDays: 14 },
-    location: { enabled: true },
+    location: { enabled: false },
     partition: { enabled: false, label: '' },
   },
 };
@@ -84,7 +104,9 @@ export function isGraphicSupportedPlatform(
   return (GRAPHIC_SUPPORTED_PLATFORMS as readonly string[]).includes(id);
 }
 
-export function getGraphicPlatformFields(platform: PlatformId): GraphicPlatformFieldSpec {
+export function getGraphicPlatformFields(
+  platform: PlatformId,
+): GraphicPlatformFieldSpec {
   if (!isGraphicSupportedPlatform(platform)) {
     throw new Error(`Platform ${platform} is not a graphic platform`);
   }
@@ -101,13 +123,19 @@ export function graphicCoverAspects(platform: PlatformId): CoverKind[] {
   ) {
     aspects.push('portrait');
   }
-  if (spec.cover.mode === 'landscape_4_3' || spec.secondaryCover === 'landscape_4_3') {
+  if (
+    spec.cover.mode === 'landscape_4_3' ||
+    spec.secondaryCover === 'landscape_4_3'
+  ) {
     aspects.push('landscape');
   }
   return aspects;
 }
 
-export function isGraphicCoverRequired(platform: PlatformId, aspect: CoverKind): boolean {
+export function isGraphicCoverRequired(
+  platform: PlatformId,
+  aspect: CoverKind,
+): boolean {
   const spec = getGraphicPlatformFields(platform);
   if (!spec.cover.required) {
     return false;
@@ -119,9 +147,11 @@ export function isGraphicCoverRequired(platform: PlatformId, aspect: CoverKind):
 
 export function intersectGraphicTitleMax(platforms: PlatformId[]): number {
   if (platforms.length === 0) {
-    return Math.max(...GRAPHIC_SUPPORTED_PLATFORMS.map((p) => GRAPHIC_PLATFORM_FIELDS[p].titleMax));
+    return 30;
   }
-  return Math.min(...platforms.map((p) => getGraphicPlatformFields(p).titleMax));
+  return Math.min(
+    ...platforms.map((p) => getGraphicPlatformFields(p).titleMax),
+  );
 }
 
 export function intersectGraphicBodyLimits(platforms: PlatformId[]): {
@@ -131,12 +161,16 @@ export function intersectGraphicBodyLimits(platforms: PlatformId[]): {
   if (platforms.length === 0) {
     return {
       min: 1,
-      max: Math.max(...GRAPHIC_SUPPORTED_PLATFORMS.map((p) => GRAPHIC_PLATFORM_FIELDS[p].bodyPlainMax)),
+      max: 1000,
     };
   }
   return {
-    min: Math.max(...platforms.map((p) => getGraphicPlatformFields(p).bodyPlainMin)),
-    max: Math.min(...platforms.map((p) => getGraphicPlatformFields(p).bodyPlainMax)),
+    min: Math.max(
+      ...platforms.map((p) => getGraphicPlatformFields(p).bodyPlainMin),
+    ),
+    max: Math.min(
+      ...platforms.map((p) => getGraphicPlatformFields(p).bodyPlainMax),
+    ),
   };
 }
 
@@ -149,7 +183,9 @@ export interface GraphicBulkCapabilities {
   partition: { label: string } | null;
 }
 
-export function intersectGraphicBulkCapabilities(platforms: PlatformId[]): GraphicBulkCapabilities {
+export function intersectGraphicBulkCapabilities(
+  platforms: PlatformId[],
+): GraphicBulkCapabilities {
   const specs = platforms.map((p) => getGraphicPlatformFields(p));
   if (specs.length === 0) {
     return {
@@ -167,7 +203,9 @@ export function intersectGraphicBulkCapabilities(platforms: PlatformId[]): Graph
     : null;
   let visibility: ContentVisibility[] | null = null;
   if (specs.every((s) => s.visibility && s.visibility.length > 0)) {
-    const shared = DOUYIN_VISIBILITY.filter((v) => specs.every((s) => s.visibility?.includes(v)));
+    const shared = DOUYIN_VISIBILITY.filter((v) =>
+      specs.every((s) => s.visibility?.includes(v)),
+    );
     visibility = shared.length > 0 ? shared : null;
   }
   const schedule = specs.every((s) => s.schedule?.enabled)

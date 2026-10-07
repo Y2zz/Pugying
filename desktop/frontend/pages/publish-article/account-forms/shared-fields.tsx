@@ -102,6 +102,7 @@ export function ArticleTitleOverrideField({
   commonTitle,
   max,
   min = 0,
+  validationMessage,
   disabled,
   onChange,
 }: {
@@ -110,6 +111,7 @@ export function ArticleTitleOverrideField({
   commonTitle: string;
   max: number;
   min?: number;
+  validationMessage?: string;
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -124,7 +126,7 @@ export function ArticleTitleOverrideField({
     ? `该平台标题最多 ${max} 字`
     : tooShort
       ? `该平台标题至少 ${min} 字`
-      : "";
+      : (validationMessage ?? "");
 
   return (
     <Field data-invalid={Boolean(error) || undefined}>

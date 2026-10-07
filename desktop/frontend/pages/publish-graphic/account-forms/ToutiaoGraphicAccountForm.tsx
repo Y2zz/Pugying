@@ -1,28 +1,26 @@
 import { FieldDescription } from "@/components/ui/field";
-import { DouyinDeclarationField } from "./DouyinDeclarationField";
-import { getGraphicPlatformFields } from "../graphic-platform-fields";
 import {
   ArticleAccountFormLayout,
-  ArticleScheduleField,
-  ArticleTagsField,
   ArticleTitleOverrideField,
-  ArticleVisibilityField,
+  ArticleTagsField,
   draftPatcher,
   type ArticlePlatformAccountFormProps,
 } from "../../publish-article/account-forms/shared-fields";
+import { DouyinDeclarationField } from "./DouyinDeclarationField";
 
-const spec = getGraphicPlatformFields("xiaohongshu");
-
-/** 小红书图文：首图为封面，标题、可见性、定时与自主声明按账号设置。 */
-export function XiaohongshuGraphicAccountForm({
+export function ToutiaoGraphicAccountForm({
   account,
   draft,
   commonTitle,
+  commonBody = "",
   disabled,
   onDraftChange,
 }: ArticlePlatformAccountFormProps) {
   const patch = draftPatcher(draft, onDraftChange);
-
+  const over =
+    [draft.title.trim() || commonTitle.trim(), commonBody.trim()]
+      .filter(Boolean)
+      .join("\n\n").length > 2000;
   return (
     <ArticleAccountFormLayout
       content={
@@ -31,13 +29,16 @@ export function XiaohongshuGraphicAccountForm({
             accountId={account.id}
             value={draft.title}
             commonTitle={commonTitle}
-            max={spec.titleMax}
+            max={100}
+            validationMessage={over ? "标题与文案合计最多 2000 字" : undefined}
             disabled={disabled}
             onChange={(title) => {
               patch({ title });
             }}
           />
-          <FieldDescription>第一张配图作为笔记封面。</FieldDescription>
+          <FieldDescription>
+            标题作为微头条文案首行，图片按槽位顺序发布。
+          </FieldDescription>
           {draft.tagsText.trim() && (
             <ArticleTagsField
               tagsText={draft.tagsText}
@@ -53,25 +54,7 @@ export function XiaohongshuGraphicAccountForm({
       }
       publish={
         <>
-          <ArticleVisibilityField
-            accountId={account.id}
-            value={draft.visibility}
-            options={spec.visibility ?? ["public"]}
-            disabled={disabled}
-            onChange={(visibility) => {
-              patch({ visibility });
-            }}
-          />
-          <ArticleScheduleField
-            accountId={account.id}
-            scheduledLocal={draft.scheduledLocal}
-            minHours={spec.schedule!.minHours}
-            maxDays={spec.schedule!.maxDays}
-            disabled={disabled}
-            onChange={(scheduledLocal) => {
-              patch({ scheduledLocal });
-            }}
-          />
+          <FieldDescription>微头条发布后公开可见。</FieldDescription>
           <DouyinDeclarationField
             accountId={account.id}
             value={draft.authorDeclaration}
@@ -81,10 +64,10 @@ export function XiaohongshuGraphicAccountForm({
             }}
             options={[
               { value: "none", label: "无需添加自主声明" },
-              { value: "ai_generated", label: "笔记含AI合成内容" },
-              { value: "marketing", label: "内容包含营销广告" },
+              { value: "ai_generated", label: "内容由AI生成" },
+              { value: "personal_opinion", label: "个人观点，仅供参考" },
+              { value: "reposted", label: "内容来源于网络" },
               { value: "fictional", label: "虚构演绎，仅供娱乐" },
-              { value: "reposted", label: "来源转载" },
             ]}
           />
         </>

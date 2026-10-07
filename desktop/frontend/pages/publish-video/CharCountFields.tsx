@@ -65,13 +65,15 @@ export const CharCountTextarea = forwardRef<
   Omit<ComponentProps<"textarea">, "value" | "maxLength"> & {
     value: string;
     max: number;
+    countCharacters?: (value: string) => number;
     validationMessage?: string;
   }
 >(function CharCountTextarea(
-  { value, max, validationMessage, className, ...props },
+  { value, max, countCharacters, validationMessage, className, ...props },
   ref,
 ) {
-  const over = value.length > max;
+  const length = countCharacters ? countCharacters(value) : value.length;
+  const over = length > max;
   const errorId = useId();
   const error = validationMessage || (over ? `最多 ${max} 字` : "");
 
@@ -95,7 +97,7 @@ export const CharCountTextarea = forwardRef<
           className="pointer-events-none w-full justify-end pt-0"
         >
           <span className={countClassName(over)} aria-hidden>
-            {value.length}/{max}
+            {length}/{max}
           </span>
         </InputGroupAddon>
       </InputGroup>

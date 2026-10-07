@@ -19,17 +19,26 @@ export const ARTICLE_SUPPORTED_PLATFORMS = [
 /** 图文：多图 + 文案分离（抖音图文 / 小红书 / 视频号） */
 export const GRAPHIC_SUPPORTED_PLATFORMS = [
   'douyin',
+  'toutiao',
   'xiaohongshu',
   'channels',
 ] as const satisfies readonly PlatformId[];
 
-export function matchPlatformQuery(item: PlatformCatalogItem, query: string): boolean {
+export function matchPlatformQuery(
+  item: PlatformCatalogItem,
+  query: string,
+): boolean {
   const q = query.trim().toLowerCase();
   if (!q) {
     return true;
   }
-  if (item.displayName.toLowerCase().includes(q) || item.id.toLowerCase().includes(q)) {
+  if (
+    item.displayName.toLowerCase().includes(q) ||
+    item.id.toLowerCase().includes(q)
+  ) {
     return true;
   }
-  return PLATFORM_SEARCH_ALIASES[item.id].some((alias) => alias.toLowerCase().includes(q));
+  return PLATFORM_SEARCH_ALIASES[item.id].some((alias) =>
+    alias.toLowerCase().includes(q),
+  );
 }

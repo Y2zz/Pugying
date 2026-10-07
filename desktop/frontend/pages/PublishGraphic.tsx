@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/components/AppToaster";
 import { ArticleCoverEditDialog } from "./publish-article/ArticleCoverEditDialog";
 import { PublishingPageHeader } from "@/components/publishing/PublishingPageHeader";
@@ -30,6 +31,11 @@ export default function PublishGraphic() {
   const { loading, saving, entries, checks, covers, getDraft } = composer;
 
   const [validationAttempted, setValidationAttempted] = useState(false);
+  const [bodyValidationAttempted, setBodyValidationAttempted] = useState(false);
+  const [imagesValidationAttempted, setImagesValidationAttempted] =
+    useState(false);
+  const [coverValidationAttempted, setCoverValidationAttempted] =
+    useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [focusedAccountId, setFocusedAccountId] = useState<string | null>(null);
   const [bulkIds, setBulkIds] = useState<string[] | null>(null);
@@ -37,6 +43,7 @@ export default function PublishGraphic() {
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const imagesRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const coverSectionRef = useRef<HTMLElement>(null);
   const accountsSectionRef = useRef<HTMLDivElement>(null);
 
@@ -58,20 +65,32 @@ export default function PublishGraphic() {
         scrollTo(titleRef.current);
         break;
       case "body":
+        flushSync(() => setBodyValidationAttempted(true));
         bodyRef.current?.focus({ preventScroll: true });
         scrollTo(bodyRef.current);
         break;
       case "images":
+        flushSync(() => setImagesValidationAttempted(true));
+        imageInputRef.current?.focus({ preventScroll: true });
         scrollTo(imagesRef.current, "start");
         break;
       case "cover":
+        flushSync(() => setCoverValidationAttempted(true));
+        coverSectionRef.current
+          ?.querySelector<HTMLElement>('[aria-invalid="true"]')
+          ?.focus({ preventScroll: true });
         scrollTo(coverSectionRef.current);
         break;
       case "accounts":
         scrollTo(accountsSectionRef.current);
-        if (entries.length === 0 && !accountsEmpty) {
-          setAddOpen(true);
-        }
+        (
+          accountsSectionRef.current?.querySelector<HTMLElement>(
+            'a[href="/platform-accounts"]',
+          ) ??
+          accountsSectionRef.current?.querySelector<HTMLElement>(
+            "button:not(:disabled)",
+          )
+        )?.focus({ preventScroll: true });
         break;
       case "accountConfig":
         {
@@ -86,19 +105,29 @@ export default function PublishGraphic() {
           const field = editor?.querySelector<HTMLElement>(
             '[data-slot="field"][data-invalid="true"]',
           );
-          const input = field?.querySelector<HTMLElement>(
-            '[aria-invalid="true"], input:not(:disabled), textarea:not(:disabled), button:not(:disabled)',
-          );
+          const input =
+            field?.querySelector<HTMLElement>(
+              '[aria-invalid="true"], input:not(:disabled), textarea:not(:disabled), button:not(:disabled)',
+            ) ?? editor?.querySelector<HTMLElement>('[aria-invalid="true"]');
           input?.focus({ preventScroll: true });
-          scrollTo(field ?? editor ?? accountsSectionRef.current, "start");
+          scrollTo(
+            field ??
+              input?.closest<HTMLElement>('[data-slot="field"]') ??
+              editor ??
+              accountsSectionRef.current,
+            "start",
+          );
         }
         break;
     }
   };
 
-  const onSave = async () => {
+  const onSave = async (publish = false) => {
     setValidationAttempted(true);
-    const blocked = await composer.save();
+    if (publish) {
+      setCoverValidationAttempted(true);
+    }
+    const blocked = await composer.save(publish);
     if (blocked) {
       focusCheck(blocked);
     }
@@ -126,8 +155,27 @@ export default function PublishGraphic() {
         checks={checks}
         loading={loading}
         disabled={locked}
+        saveVariant="outline"
+        saveSize="default"
+        actions={
+          <Button
+            type="button"
+            size="default"
+            disabled={locked}
+            onClick={() => {
+              void onSave(true);
+            }}
+          >
+            <Send data-icon="inline-start" />
+            {composer.publishing ? "提交中…" : "发布图文"}
+          </Button>
+        }
         saveLabel={
-          saving ? "保存中…" : composer.isEditing ? "保存修改" : "保存草稿"
+          saving && !composer.publishing
+            ? "保存中…"
+            : composer.isEditing
+              ? "保存修改"
+              : "保存草稿"
         }
         onSave={() => {
           void onSave();
@@ -151,10 +199,11 @@ export default function PublishGraphic() {
         <div className="flex min-w-0 flex-col gap-8">
           <GraphicDocument
             validationAttempted={validationAttempted}
+            bodyValidationAttempted={bodyValidationAttempted}
+            imagesValidationAttempted={imagesValidationAttempted}
             title={composer.title}
             onTitleChange={composer.setTitle}
             titleMax={composer.titleMax}
-            limitsActive={entries.length > 0}
             body={composer.body}
             onBodyChange={composer.setBody}
             bodyMin={composer.bodyLimits.min}
@@ -166,20 +215,28 @@ export default function PublishGraphic() {
             titleRef={titleRef}
             bodyRef={bodyRef}
             imagesRef={imagesRef}
+            imageInputRef={imageInputRef}
           />
 
-          <GraphicCoverCard
-            sectionRef={coverSectionRef}
-            needs={composer.coverNeeds}
-            covers={covers}
-            hasAccounts={entries.length > 0}
-            canUseFirstImage={Boolean(composer.firstImagePath)}
-            disabled={locked}
-            onEdit={(aspect) => {
-              composer.openCoverEditor(aspect);
-            }}
-            onUseFirstImage={composer.applyFirstImageAsCover}
-          />
+          {(entries.length === 0 || composer.coverNeeds.length > 0) && (
+            <GraphicCoverCard
+              sectionRef={coverSectionRef}
+              needs={composer.coverNeeds}
+              invalidAspects={
+                coverValidationAttempted
+                  ? composer.missingCommonCoverAspects
+                  : []
+              }
+              covers={covers}
+              hasAccounts={entries.length > 0}
+              canUseFirstImage={Boolean(composer.firstImagePreview)}
+              disabled={locked}
+              onEdit={(aspect) => {
+                composer.openCoverEditor(aspect);
+              }}
+              onUseFirstImage={composer.applyFirstImageAsCover}
+            />
+          )}
 
           <section ref={accountsSectionRef} className="flex flex-col gap-4">
             <DistributionAccountsPanel

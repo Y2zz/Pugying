@@ -101,7 +101,7 @@ it('round-trips permissions and declarations and resets them without affecting o
   expect(loaded.authorDeclaration).toBe('ai_generated');
   expect(articleDraftHasCustomizations(loaded)).toBe(true);
   expect(articleDraftHasCustomizations(emptyArticleDraft())).toBe(false);
-  expect(graphicDraftToOverrides(draft, 'xiaohongshu')).not.toHaveProperty('authorDeclaration');
+  expect(graphicDraftToOverrides(draft, 'xiaohongshu')).toHaveProperty('authorDeclaration', 'ai_generated');
   expect(graphicDraftToOverrides(draft, 'xiaohongshu')).not.toHaveProperty('allowDownload');
 });
 

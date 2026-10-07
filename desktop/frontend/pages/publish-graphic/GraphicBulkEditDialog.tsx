@@ -19,21 +19,39 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { ContentVisibility } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { TagInput } from '../publish-video/TagInput';
-import { intersectGraphicBulkCapabilities, validateGraphicSchedule } from './graphic-platform-fields';
+import {
+  intersectGraphicBulkCapabilities,
+  validateGraphicSchedule,
+} from './graphic-platform-fields';
 import {
   VISIBILITY_OPTIONS,
   localInputToIso,
   type ArticleOverrideDraft,
 } from '../publish-article/helpers';
 import type { GraphicRosterEntry } from './use-graphic-composer';
+import {
+  countArticleAccountTitleCharacters,
+  normalizeArticleTitle,
+} from '../publish-article/article-title';
 
-type BulkField = 'title' | 'tags' | 'visibility' | 'schedule' | 'location' | 'partition';
+type BulkField =
+  'title' | 'tags' | 'visibility' | 'schedule' | 'location' | 'partition';
 
 interface BulkValues {
   title: string;
@@ -74,9 +92,14 @@ export function GraphicBulkEditDialog({
     () => [...new Set(targets.map((t) => t.account.platform))],
     [targets],
   );
-  const caps = useMemo(() => intersectGraphicBulkCapabilities(platforms), [platforms]);
+  const caps = useMemo(
+    () => intersectGraphicBulkCapabilities(platforms),
+    [platforms],
+  );
   const [enabled, setEnabled] = useState<Set<BulkField>>(() => new Set());
-  const [values, setValues] = useState<BulkValues>(() => initialValues('public'));
+  const [values, setValues] = useState<BulkValues>(() =>
+    initialValues('public'),
+  );
 
   useEffect(() => {
     if (open) {
@@ -102,12 +125,15 @@ export function GraphicBulkEditDialog({
     });
   };
 
-  const titleOver = values.title.trim().length > caps.titleMax;
+  const titleLength = countArticleAccountTitleCharacters(values.title);
+  const titleOver = titleLength > caps.titleMax;
   const tagsOver = caps.tags ? values.tags.length > caps.tags.maxCount : false;
   let scheduleError: string | null = null;
   if (caps.schedule && values.scheduleMode === 'scheduled') {
     const iso = localInputToIso(values.scheduledLocal);
-    scheduleError = iso ? validateGraphicSchedule(iso, caps.schedule) : '请选择发布时间';
+    scheduleError = iso
+      ? validateGraphicSchedule(iso, caps.schedule)
+      : '请选择发布时间';
   }
   const invalid =
     (enabled.has('title') && titleOver) ||
@@ -117,7 +143,7 @@ export function GraphicBulkEditDialog({
   const apply = () => {
     const patch: Partial<ArticleOverrideDraft> = {};
     if (enabled.has('title')) {
-      patch.title = values.title.trim();
+      patch.title = normalizeArticleTitle(values.title);
     }
     if (enabled.has('tags')) {
       patch.tagsText = values.tags.join(' ');
@@ -126,7 +152,8 @@ export function GraphicBulkEditDialog({
       patch.visibility = values.visibility;
     }
     if (enabled.has('schedule')) {
-      patch.scheduledLocal = values.scheduleMode === 'scheduled' ? values.scheduledLocal : '';
+      patch.scheduledLocal =
+        values.scheduleMode === 'scheduled' ? values.scheduledLocal : '';
     }
     if (enabled.has('location')) {
       patch.location = values.location.trim();
@@ -138,7 +165,9 @@ export function GraphicBulkEditDialog({
     onOpenChange(false);
   };
 
-  const visibilityItems = VISIBILITY_OPTIONS.filter((opt) => caps.visibility?.includes(opt.value));
+  const visibilityItems = VISIBILITY_OPTIONS.filter((opt) =>
+    caps.visibility?.includes(opt.value),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -161,7 +190,11 @@ export function GraphicBulkEditDialog({
               onToggle={(on) => {
                 toggle('title', on);
               }}
-              error={enabled.has('title') && titleOver ? `最多 ${caps.titleMax} 字` : null}
+              error={
+                enabled.has('title') && titleOver
+                  ? `最多 ${caps.titleMax} 字`
+                  : null
+              }
             >
               <InputGroup>
                 <InputGroupInput
@@ -173,14 +206,17 @@ export function GraphicBulkEditDialog({
                     change('title', { title: e.target.value });
                   }}
                 />
-                <InputGroupAddon align="inline-end" className="pointer-events-none">
+                <InputGroupAddon
+                  align="inline-end"
+                  className="pointer-events-none"
+                >
                   <span
                     className={cn(
                       'text-xs tabular-nums',
                       titleOver ? 'text-destructive' : 'text-muted-foreground',
                     )}
                   >
-                    {values.title.trim().length}/{caps.titleMax}
+                    {titleLength}/{caps.titleMax}
                   </span>
                 </InputGroupAddon>
               </InputGroup>
@@ -195,7 +231,11 @@ export function GraphicBulkEditDialog({
                 onToggle={(on) => {
                   toggle('tags', on);
                 }}
-                error={enabled.has('tags') && tagsOver ? `最多 ${caps.tags.maxCount} 个` : null}
+                error={
+                  enabled.has('tags') && tagsOver
+                    ? `最多 ${caps.tags.maxCount} 个`
+                    : null
+                }
               >
                 <TagInput
                   value={values.tags}
@@ -220,7 +260,9 @@ export function GraphicBulkEditDialog({
                   items={visibilityItems}
                   onValueChange={(next) => {
                     change('visibility', {
-                      visibility: (next as ContentVisibility | null) ?? visibilityItems[0].value,
+                      visibility:
+                        (next as ContentVisibility | null) ??
+                        visibilityItems[0].value,
                     });
                   }}
                 >
@@ -253,18 +295,26 @@ export function GraphicBulkEditDialog({
                   value={values.scheduleMode}
                   className="flex flex-wrap gap-x-6 gap-y-2"
                   onValueChange={(mode) => {
-                    change('schedule', { scheduleMode: mode as BulkValues['scheduleMode'] });
+                    change('schedule', {
+                      scheduleMode: mode as BulkValues['scheduleMode'],
+                    });
                   }}
                 >
                   <Field orientation="horizontal" className="w-auto">
                     <RadioGroupItem value="now" id="bulk-schedule-now" />
-                    <FieldLabel htmlFor="bulk-schedule-now" className="font-normal">
+                    <FieldLabel
+                      htmlFor="bulk-schedule-now"
+                      className="font-normal"
+                    >
                       立即发布
                     </FieldLabel>
                   </Field>
                   <Field orientation="horizontal" className="w-auto">
                     <RadioGroupItem value="scheduled" id="bulk-schedule-at" />
-                    <FieldLabel htmlFor="bulk-schedule-at" className="font-normal">
+                    <FieldLabel
+                      htmlFor="bulk-schedule-at"
+                      className="font-normal"
+                    >
                       定时发布
                     </FieldLabel>
                   </Field>
@@ -335,7 +385,11 @@ export function GraphicBulkEditDialog({
           >
             取消
           </Button>
-          <Button type="button" disabled={enabled.size === 0 || invalid} onClick={apply}>
+          <Button
+            type="button"
+            disabled={enabled.size === 0 || invalid}
+            onClick={apply}
+          >
             {enabled.size > 0 ? `应用 ${enabled.size} 项` : '应用'}
           </Button>
         </DialogFooter>

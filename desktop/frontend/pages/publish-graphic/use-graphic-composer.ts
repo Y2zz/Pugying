@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLocalImagePreview } from '@/hooks/use-local-image-preview';
 import type { EditCoverSavedResult } from '@/components/EditCoverDialog';
 import { toast } from '@/components/AppToaster';
+import {
+  countArticleAccountTitleCharacters,
+  normalizeArticleTitle,
+} from '../publish-article/article-title';
 import {
   createContent,
   fetchContent,
@@ -18,8 +23,10 @@ import {
   type PlatformId,
 } from '@/lib/api';
 import { describeCaughtError } from '@/lib/publish-errors';
+import { submitDistribution } from '@/lib/distribution';
 import {
   GRAPHIC_SUPPORTED_PLATFORMS,
+  getGraphicPlatformFields,
   graphicCoverAspects,
   intersectGraphicBodyLimits,
   intersectGraphicTitleMax,
@@ -33,7 +40,6 @@ import {
   draftFromTarget,
   emptyArticleDraft,
   emptyCoverPair,
-  localPathToFileUrl,
   looksUnstableLocalPath,
   type ArticleOverrideDraft,
   type CoverPair,
@@ -42,19 +48,17 @@ import {
 import {
   getGraphicAccountDraftIssues,
   graphicDraftToOverrides,
+  graphicBodyPlainLength,
   missingRequiredGraphicCovers,
 } from './helpers';
-
-function graphicBodyPlainLength(text: string): number {
-  return text.replace(/\s+/g, ' ').trim().length;
-}
 
 export interface GraphicRosterEntry {
   account: PlatformAccountItem;
   platformLabel: string;
 }
 
-export type GraphicCheckId = 'title' | 'body' | 'images' | 'cover' | 'accounts' | 'accountConfig';
+export type GraphicCheckId =
+  'title' | 'body' | 'images' | 'cover' | 'accounts' | 'accountConfig';
 
 export interface GraphicCheck {
   id: GraphicCheckId;
@@ -85,15 +89,17 @@ export function useGraphicComposer(editId: string | null) {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const submitInFlight = useRef(false);
   const [error, setError] = useState('');
-  const [validationError, setValidationError] = useState<{ id: GraphicCheckId; text: string } | null>(
-    null,
-  );
 
   const [catalog, setCatalog] = useState<PlatformCatalogItem[]>([]);
   const [accounts, setAccounts] = useState<PlatformAccountItem[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [drafts, setDrafts] = useState<Record<string, ArticleOverrideDraft>>({});
+  const [drafts, setDrafts] = useState<Record<string, ArticleOverrideDraft>>(
+    {},
+  );
 
   const [title, setTitle] = useState('');
   /** 图文文案（纯文本，与轮播图分离） */
@@ -104,7 +110,9 @@ export function useGraphicComposer(editId: string | null) {
   const [pathWarning, setPathWarning] = useState<PathWarning>(null);
 
   const [createdContentId, setCreatedContentId] = useState<string | null>(null);
-  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
+  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(
+    null,
+  );
   const ownedContentId = editId ?? createdContentId;
 
   const [coverEditor, setCoverEditor] = useState<{
@@ -136,6 +144,7 @@ export function useGraphicComposer(editId: string | null) {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setLoadFailed(false);
       try {
         const [platforms, accountList] = await Promise.all([
           fetchPlatformCatalog(),
@@ -144,7 +153,9 @@ export function useGraphicComposer(editId: string | null) {
         if (cancelled) {
           return;
         }
-        const graphicAccounts = accountList.filter((a) => isGraphicSupportedPlatform(a.platform));
+        const graphicAccounts = accountList.filter((a) =>
+          isGraphicSupportedPlatform(a.platform),
+        );
         setCatalog(platforms.filter((p) => isGraphicSupportedPlatform(p.id)));
         setAccounts(graphicAccounts);
 
@@ -161,6 +172,7 @@ export function useGraphicComposer(editId: string | null) {
           return;
         }
         if (item.type !== 'graphic') {
+          setLoadFailed(true);
           setError('该内容不是图文，无法在此编辑');
           return;
         }
@@ -171,13 +183,16 @@ export function useGraphicComposer(editId: string | null) {
 
         const nextCovers = emptyCoverPair();
         for (const aspect of COVER_ASPECTS) {
-          const has = aspect === 'portrait' ? item.hasCover : item.hasCoverLandscape;
+          const has =
+            aspect === 'portrait' ? item.hasCover : item.hasCoverLandscape;
           if (!has) {
             continue;
           }
           nextCovers[aspect].saved = true;
           try {
-            nextCovers[aspect].previewUrl = trackUrl(await fetchCoverObjectUrl(item.id, aspect));
+            nextCovers[aspect].previewUrl = trackUrl(
+              await fetchCoverObjectUrl(item.id, aspect),
+            );
           } catch {
             /* 预览失败不影响「已有封面」状态 */
           }
@@ -192,9 +207,17 @@ export function useGraphicComposer(editId: string | null) {
           nextSelected[target.platformAccountId] = true;
           const draft = draftFromTarget(target.overrides, item);
           for (const aspect of COVER_ASPECTS) {
-            const has = aspect === 'portrait' ? target.hasCover : target.hasCoverLandscape;
+            const has =
+              aspect === 'portrait'
+                ? target.hasCover
+                : target.hasCoverLandscape;
             if (has) {
-              draft.covers[aspect] = await loadTargetCover(item.id, aspect, target.id, trackUrl);
+              draft.covers[aspect] = await loadTargetCover(
+                item.id,
+                aspect,
+                target.id,
+                trackUrl,
+              );
             }
           }
           nextDrafts[target.platformAccountId] = draft;
@@ -207,6 +230,7 @@ export function useGraphicComposer(editId: string | null) {
         setDrafts(nextDrafts);
       } catch (err) {
         if (!cancelled) {
+          setLoadFailed(true);
           setError(err instanceof Error ? err.message : '加载失败');
         }
       } finally {
@@ -236,7 +260,10 @@ export function useGraphicComposer(editId: string | null) {
         return;
       }
       if (!readable) {
-        setPathWarning({ tone: 'error', text: '有图片找不到了，请移除后重新选择' });
+        setPathWarning({
+          tone: 'error',
+          text: '有图片找不到了，请移除后重新选择',
+        });
       } else if (paths.some((p) => looksUnstableLocalPath(p))) {
         setPathWarning({
           tone: 'warning',
@@ -253,11 +280,17 @@ export function useGraphicComposer(editId: string | null) {
   }, [mediaPathsKey]);
 
   const entries = useMemo<GraphicRosterEntry[]>(() => {
-    const order = catalog.length > 0 ? catalog.map((c) => c.id) : [...GRAPHIC_SUPPORTED_PLATFORMS];
-    const label = (id: PlatformId) => catalog.find((c) => c.id === id)?.displayName ?? id;
+    const order =
+      catalog.length > 0
+        ? catalog.map((c) => c.id)
+        : [...GRAPHIC_SUPPORTED_PLATFORMS];
+    const label = (id: PlatformId) =>
+      catalog.find((c) => c.id === id)?.displayName ?? id;
     return order.flatMap((platform) =>
       accounts
-        .filter((account) => account.platform === platform && selected[account.id])
+        .filter(
+          (account) => account.platform === platform && selected[account.id],
+        )
         .map((account) => ({ account, platformLabel: label(platform) })),
     );
   }, [accounts, catalog, selected]);
@@ -273,13 +306,26 @@ export function useGraphicComposer(editId: string | null) {
   );
   const titleMax = intersectGraphicTitleMax(selectedPlatforms);
   const bodyLimits = intersectGraphicBodyLimits(selectedPlatforms);
+  const imageMax = selectedPlatforms.length
+    ? Math.min(
+        ...selectedPlatforms.map(
+          (platform) => getGraphicPlatformFields(platform).imageMax,
+        ),
+      )
+    : 30;
 
   const coverNeeds = useMemo<GraphicCoverNeed[]>(() => {
     if (selectedPlatforms.length === 0) {
-      return COVER_ASPECTS.map((aspect) => ({ aspect, required: false, platformLabels: [] }));
+      return COVER_ASPECTS.map((aspect) => ({
+        aspect,
+        required: false,
+        platformLabels: [],
+      }));
     }
     return COVER_ASPECTS.flatMap((aspect) => {
-      const using = selectedPlatforms.filter((p) => graphicCoverAspects(p).includes(aspect));
+      const using = selectedPlatforms.filter((p) =>
+        graphicCoverAspects(p).includes(aspect),
+      );
       if (using.length === 0) {
         return [];
       }
@@ -298,9 +344,12 @@ export function useGraphicComposer(editId: string | null) {
     [drafts],
   );
 
-  const setDraft = useCallback((accountId: string, draft: ArticleOverrideDraft) => {
-    setDrafts((prev) => ({ ...prev, [accountId]: draft }));
-  }, []);
+  const setDraft = useCallback(
+    (accountId: string, draft: ArticleOverrideDraft) => {
+      setDrafts((prev) => ({ ...prev, [accountId]: draft }));
+    },
+    [],
+  );
 
   const applyPatch = useCallback(
     (accountIds: string[], patch: Partial<ArticleOverrideDraft>) => {
@@ -336,16 +385,35 @@ export function useGraphicComposer(editId: string | null) {
       if (account.status !== 'active') {
         continue;
       }
-      const issues = getGraphicAccountDraftIssues(getDraft(account.id), account.platform, body);
+      const issues = getGraphicAccountDraftIssues(
+        getDraft(account.id),
+        account.platform,
+        body,
+        title,
+      );
       if (issues.length > 0) {
         map.set(account.id, issues);
       }
     }
     return map;
-  }, [entries, getDraft, body]);
+  }, [entries, getDraft, body, title]);
+
+  const missingCommonCoverAspects = useMemo(() => {
+    const missing = new Set<CoverKind>();
+    for (const { account } of activeEntries) {
+      for (const aspect of missingRequiredGraphicCovers(
+        getDraft(account.id),
+        covers,
+        account.platform,
+      )) {
+        missing.add(aspect);
+      }
+    }
+    return [...missing];
+  }, [activeEntries, getDraft, covers]);
 
   const bodyLength = graphicBodyPlainLength(body);
-  const titleLength = title.trim().length;
+  const titleLength = countArticleAccountTitleCharacters(title);
 
   const checks = useMemo<GraphicCheck[]>(() => {
     const list: GraphicCheck[] = [];
@@ -376,38 +444,46 @@ export function useGraphicComposer(editId: string | null) {
     list.push({
       id: 'images',
       label: '配图',
-      ok: mediaPaths.length > 0 && pathWarning?.tone !== 'error',
+      ok:
+        mediaPaths.length > 0 &&
+        mediaPaths.length <= imageMax &&
+        pathWarning?.tone !== 'error',
       detail:
         mediaPaths.length === 0
           ? '请至少选择一张图片'
-          : pathWarning?.tone === 'error'
-            ? '有图片找不到了'
-            : `${mediaPaths.length} 张`,
+          : mediaPaths.length > imageMax
+            ? `最多 ${imageMax} 张图片`
+            : pathWarning?.tone === 'error'
+              ? '有图片找不到了'
+              : `${mediaPaths.length} 张`,
     });
-    const missing = new Set<CoverKind>();
-    for (const { account } of activeEntries) {
-      for (const aspect of missingRequiredGraphicCovers(getDraft(account.id), covers, account.platform)) {
-        missing.add(aspect);
-      }
-    }
-    // 未选账号时无从判断比例要求，只要设过任一通用封面即视为完成
-    const anyCommonCover = COVER_ASPECTS.some((aspect) => coverSlotReady(covers[aspect]));
-    const coverOk = activeEntries.length === 0 ? anyCommonCover : missing.size === 0;
+    const coverOk = missingCommonCoverAspects.length === 0;
     list.push({
       id: 'cover',
       label: '封面',
       ok: coverOk,
-      detail: coverOk
-        ? '已设置'
-        : missing.size > 0
-          ? `缺少${[...missing].map((a) => (a === 'portrait' ? '竖版' : '横版')).join('、')}封面`
-          : '未设置',
+      detail:
+        activeEntries.length === 0
+          ? '选定账号后设置'
+          : coverOk
+            ? activeEntries.some(
+                ({ account }) =>
+                  getGraphicPlatformFields(account.platform).cover.required,
+              )
+              ? '已设置'
+              : '无需单独设置'
+            : missingCommonCoverAspects.length > 0
+              ? `缺少${missingCommonCoverAspects.map((a) => (a === 'portrait' ? '竖版' : '横版')).join('、')}封面`
+              : '未设置',
     });
     list.push({
       id: 'accounts',
       label: '分发账号',
       ok: activeEntries.length > 0,
-      detail: activeEntries.length > 0 ? `${activeEntries.length} 个账号` : '尚未选择',
+      detail:
+        activeEntries.length > 0
+          ? `${activeEntries.length} 个账号`
+          : '尚未选择',
     });
     if (activeEntries.length > 0) {
       const firstIssue = [...accountIssues.keys()][0];
@@ -415,7 +491,10 @@ export function useGraphicComposer(editId: string | null) {
         id: 'accountConfig',
         label: '账号设置',
         ok: accountIssues.size === 0,
-        detail: accountIssues.size === 0 ? '无问题' : `${accountIssues.size} 个账号需调整`,
+        detail:
+          accountIssues.size === 0
+            ? '无问题'
+            : `${accountIssues.size} 个账号需调整`,
         accountId: firstIssue,
       });
     }
@@ -425,11 +504,11 @@ export function useGraphicComposer(editId: string | null) {
     titleMax,
     bodyLength,
     bodyLimits,
+    imageMax,
     mediaPaths.length,
     pathWarning,
     activeEntries,
-    getDraft,
-    covers,
+    missingCommonCoverAspects,
     accountIssues,
   ]);
 
@@ -445,10 +524,22 @@ export function useGraphicComposer(editId: string | null) {
       return checks.find((c) => c.id === 'accountConfig') ?? null;
     }
     return null;
-  }, [titleLength, titleMax, bodyLength, bodyLimits.max, accountIssues, checks]);
+  }, [
+    titleLength,
+    titleMax,
+    bodyLength,
+    bodyLimits.max,
+    imageMax,
+    accountIssues,
+    checks,
+  ]);
 
   const openCoverEditor = useCallback(
-    (aspect: CoverKind, scope: CoverScope = 'common', sourceOverride?: string) => {
+    (
+      aspect: CoverKind,
+      scope: CoverScope = 'common',
+      sourceOverride?: string,
+    ) => {
       let initialSource: string | null = sourceOverride ?? null;
       if (!initialSource) {
         const common = covers[aspect];
@@ -456,7 +547,8 @@ export function useGraphicComposer(editId: string | null) {
           initialSource = common.sourceUrl || common.previewUrl || null;
         } else {
           const own = getDraft(scope.accountId).covers[aspect];
-          initialSource = own.sourceUrl || own.previewUrl || common.previewUrl || null;
+          initialSource =
+            own.sourceUrl || own.previewUrl || common.previewUrl || null;
         }
       }
       setCoverEditor({ open: true, aspect, scope, initialSource });
@@ -484,7 +576,10 @@ export function useGraphicComposer(editId: string | null) {
           const draft = prev[scope.accountId] ?? emptyArticleDraft();
           return {
             ...prev,
-            [scope.accountId]: { ...draft, covers: { ...draft.covers, [aspect]: slot } },
+            [scope.accountId]: {
+              ...draft,
+              covers: { ...draft.covers, [aspect]: slot },
+            },
           };
         });
       }
@@ -493,10 +588,11 @@ export function useGraphicComposer(editId: string | null) {
   );
 
   const firstImagePath = mediaPaths[0] ?? null;
+  const firstImagePreview = useLocalImagePreview(firstImagePath);
 
   /** 用正文首图作为缺失的通用封面（优先必需且未设置的比例） */
   const applyFirstImageAsCover = useCallback(() => {
-    if (!firstImagePath) {
+    if (!firstImagePreview) {
       return;
     }
     const target =
@@ -504,108 +600,148 @@ export function useGraphicComposer(editId: string | null) {
       coverNeeds.find((n) => !coverSlotReady(covers[n.aspect])) ??
       coverNeeds[0];
     if (target) {
-      openCoverEditor(target.aspect, 'common', localPathToFileUrl(firstImagePath));
+      openCoverEditor(target.aspect, 'common', firstImagePreview);
     }
-  }, [firstImagePath, coverNeeds, covers, openCoverEditor]);
+  }, [firstImagePreview, coverNeeds, covers, openCoverEditor]);
 
-  // 校验提示在问题被修正后自动消失；请求失败的提示保留到下次保存
-  useEffect(() => {
-    if (!blockingCheck || blockingCheck.id !== validationError?.id) {
-      setValidationError(null);
-    }
-  }, [blockingCheck, validationError?.id]);
-
-  /** 保存草稿；被硬性问题拦下时返回对应检查项，由页面负责聚焦 */
-  const save = useCallback(async (): Promise<GraphicCheck | null> => {
-    if (blockingCheck) {
-      setValidationError({
-        id: blockingCheck.id,
-        text:
-          blockingCheck.id === 'accountConfig'
-            ? '有账号设置需要调整'
-            : `${blockingCheck.label}${blockingCheck.detail}`,
-      });
-      return blockingCheck;
-    }
-    setSaving(true);
-    setError('');
-    const payload = {
-      title: title.trim(),
-      body: body.trim(),
-      mediaPaths,
-      tags: [],
-      visibility: 'public' as const,
-      allowDownload: true,
-      targets: entries.map(({ account }) => ({
-        platformAccountId: account.id,
-        overrides: graphicDraftToOverrides(getDraft(account.id), account.platform),
-      })),
-      ...(contentStatus === 'published' ? {} : { status: 'draft' as ContentStatus }),
-    };
-    try {
-      let saved: ContentItem;
-      if (ownedContentId) {
-        saved = await updateContent(ownedContentId, payload);
-      } else {
-        saved = await createContent({ type: 'graphic', ...payload });
-        setCreatedContentId(saved.id);
+  /** 保存或发布；被检查项拦下时由页面负责聚焦。 */
+  const save = useCallback(
+    async (publish = false): Promise<GraphicCheck | null> => {
+      if (submitInFlight.current) {
+        return null;
       }
-      for (const aspect of COVER_ASPECTS) {
-        const blob = covers[aspect].blob;
-        if (blob) {
-          saved = await uploadContentCover(saved.id, aspect, blob, `cover-${aspect}.jpg`);
-        }
+      if (loading || loadFailed) {
+        setError('图文未完整加载，请重新打开后再保存');
+        return null;
       }
-      setCovers((prev) => ({
-        portrait: prev.portrait.blob ? { ...prev.portrait, blob: null, saved: true } : prev.portrait,
-        landscape: prev.landscape.blob
-          ? { ...prev.landscape, blob: null, saved: true }
-          : prev.landscape,
-      }));
-      // Target 每次保存都会重建，账号封面需整体重传
-      for (const target of saved.targets) {
-        const draft = drafts[target.platformAccountId];
-        if (!draft) {
-          continue;
+      const blocked = publish
+        ? checks.find((check) => !check.ok)
+        : blockingCheck;
+      if (blocked) {
+        toast.add({
+          type: 'error',
+          title:
+            blocked.id === 'accountConfig'
+              ? '有账号设置需要调整'
+              : `${blocked.label}${blocked.detail}`,
+        });
+        return blocked;
+      }
+      submitInFlight.current = true;
+      setSaving(true);
+      setPublishing(publish);
+      setError('');
+      const payload = {
+        title: normalizeArticleTitle(title),
+        body: body.trim(),
+        mediaPaths,
+        tags: [],
+        visibility: 'public' as const,
+        allowDownload: true,
+        targets: entries.map(({ account }) => ({
+          platformAccountId: account.id,
+          overrides: graphicDraftToOverrides(
+            getDraft(account.id),
+            account.platform,
+          ),
+        })),
+        ...(contentStatus === 'published'
+          ? {}
+          : { status: 'draft' as ContentStatus }),
+      };
+      try {
+        let saved: ContentItem;
+        if (ownedContentId) {
+          saved = await updateContent(ownedContentId, payload);
+        } else {
+          saved = await createContent({ type: 'graphic', ...payload });
+          setCreatedContentId(saved.id);
         }
-        const aspects = isGraphicSupportedPlatform(target.platform)
-          ? graphicCoverAspects(target.platform)
-          : [];
-        for (const aspect of aspects) {
-          const blob = draft.covers[aspect].blob;
+        for (const aspect of COVER_ASPECTS) {
+          const blob = covers[aspect].blob;
           if (blob) {
-            await uploadContentCover(saved.id, aspect, blob, `cover-${aspect}.jpg`, target.id);
+            saved = await uploadContentCover(
+              saved.id,
+              aspect,
+              blob,
+              `cover-${aspect}.jpg`,
+            );
           }
         }
+        setCovers((prev) => ({
+          portrait: prev.portrait.blob
+            ? { ...prev.portrait, blob: null, saved: true }
+            : prev.portrait,
+          landscape: prev.landscape.blob
+            ? { ...prev.landscape, blob: null, saved: true }
+            : prev.landscape,
+        }));
+        // Target 每次保存都会重建，账号封面需整体重传
+        for (const target of saved.targets) {
+          const draft = drafts[target.platformAccountId];
+          if (!draft) {
+            continue;
+          }
+          const aspects = isGraphicSupportedPlatform(target.platform)
+            ? graphicCoverAspects(target.platform)
+            : [];
+          for (const aspect of aspects) {
+            const blob = draft.covers[aspect].blob;
+            if (blob) {
+              await uploadContentCover(
+                saved.id,
+                aspect,
+                blob,
+                `cover-${aspect}.jpg`,
+                target.id,
+              );
+            }
+          }
+        }
+        setContentStatus(saved.status);
+        if (publish) {
+          await submitDistribution(saved.id);
+        }
+        toast.add({
+          type: 'success',
+          title: publish ? '已开始分发' : '已保存',
+        });
+        void navigate('/contents');
+        return null;
+      } catch (err) {
+        setError(
+          describeCaughtError(err, publish ? '发布失败，请重试' : '保存失败'),
+        );
+        return null;
+      } finally {
+        submitInFlight.current = false;
+        setSaving(false);
+        setPublishing(false);
       }
-      setContentStatus(saved.status);
-      toast.add({ type: 'success', title: '已保存' });
-      void navigate('/contents');
-      return null;
-    } catch (err) {
-      setError(describeCaughtError(err, '保存失败'));
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    blockingCheck,
-    title,
-    body,
-    mediaPaths,
-    entries,
-    getDraft,
-    contentStatus,
-    ownedContentId,
-    covers,
-    drafts,
-    navigate,
-  ]);
+    },
+    [
+      blockingCheck,
+      checks,
+      loading,
+      loadFailed,
+      title,
+      body,
+      mediaPaths,
+      entries,
+      getDraft,
+      contentStatus,
+      ownedContentId,
+      covers,
+      drafts,
+      navigate,
+    ],
+  );
 
   return {
     loading,
     saving,
-    error: validationError?.text || error,
+    publishing,
+    error,
     catalog,
     accounts,
     selected,
@@ -629,11 +765,13 @@ export function useGraphicComposer(editId: string | null) {
     pathWarning,
     covers,
     coverNeeds,
+    missingCommonCoverAspects,
     coverEditor,
     openCoverEditor,
     closeCoverEditor,
     onCoverSaved,
     firstImagePath,
+    firstImagePreview,
     applyFirstImageAsCover,
     checks,
     blockingCheck,
@@ -651,7 +789,9 @@ async function loadTargetCover(
   trackUrl: (url: string) => string,
 ): Promise<CoverSlot> {
   try {
-    const previewUrl = trackUrl(await fetchCoverObjectUrl(contentId, aspect, targetId));
+    const previewUrl = trackUrl(
+      await fetchCoverObjectUrl(contentId, aspect, targetId),
+    );
     const blob = await (await fetch(previewUrl)).blob();
     return { blob, previewUrl, sourceUrl: '', saved: false };
   } catch {

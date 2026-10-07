@@ -1,25 +1,27 @@
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Field, FieldLabel, FieldTitle } from '@/components/ui/field';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+} from "@/components/ui/dialog";
+import { Field, FieldLabel, FieldTitle } from "@/components/ui/field";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   DOUYIN_AUTHOR_DECLARATIONS,
   type DouyinAuthorDeclaration,
-} from '@shared/douyin-graphic-settings';
+} from "@shared/douyin-graphic-settings";
 
 export function DouyinDeclarationField({
   accountId,
-  value = 'none',
+  value = "none",
   disabled,
   onChange,
+  options = DOUYIN_AUTHOR_DECLARATIONS,
 }: {
+  options?: readonly { value: DouyinAuthorDeclaration; label: string }[];
   accountId: string;
   value?: DouyinAuthorDeclaration;
   disabled?: boolean;
@@ -27,9 +29,7 @@ export function DouyinDeclarationField({
 }) {
   const [open, setOpen] = useState(false);
   const id = `graphic-${accountId}-declaration`;
-  const current =
-    DOUYIN_AUTHOR_DECLARATIONS.find((item) => item.value === value) ??
-    DOUYIN_AUTHOR_DECLARATIONS[0];
+  const current = options.find((item) => item.value === value) ?? options[0];
   return (
     <Field data-disabled={disabled || undefined}>
       <FieldLabel htmlFor={id} className="font-normal">
@@ -68,16 +68,14 @@ export function DouyinDeclarationField({
               className="w-full"
               disabled={disabled}
               onValueChange={(values) => {
-                const next = DOUYIN_AUTHOR_DECLARATIONS.find(
-                  (item) => item.value === values[0],
-                );
+                const next = options.find((item) => item.value === values[0]);
                 if (next) {
                   onChange(next.value);
                   setOpen(false);
                 }
               }}
             >
-              {DOUYIN_AUTHOR_DECLARATIONS.map((option) => (
+              {options.map((option) => (
                 <ToggleGroupItem
                   key={option.value}
                   value={option.value}
