@@ -16,7 +16,7 @@ export const ARTICLE_SUPPORTED_PLATFORMS = [
   'douyin',
 ] as const satisfies readonly PlatformId[];
 
-/** 图文：多图 + 文案分离（抖音图文 / 小红书 / 视频号） */
+/** 图文：多图 + 文案分离（抖音 / 头条 / 小红书 / 视频号） */
 export const GRAPHIC_SUPPORTED_PLATFORMS = [
   'douyin',
   'toutiao',

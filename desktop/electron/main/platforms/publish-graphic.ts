@@ -40,6 +40,11 @@ export async function runPlatformGraphicPublish(
       await import('./publish-douyin-graphic');
     return runDouyinGraphicPublish(options);
   }
+  if (payload.platform === 'channels') {
+    const { runChannelsGraphicPublish } =
+      await import('./publish-channels-graphic');
+    return runChannelsGraphicPublish(options);
+  }
   const platform = payload.platform;
   const base = {
     requestId: payload.requestId,

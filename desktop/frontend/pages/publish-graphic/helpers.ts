@@ -10,6 +10,7 @@ import {
 import {
   effectiveCover,
   coverSlotReady,
+  emptyArticleDraft,
   localInputToIso,
   parseTags,
   type ArticleOverrideDraft,
@@ -68,6 +69,18 @@ export function getGraphicAccountDraftIssues(
   }
   if (platform === 'toutiao' && draft.authorDeclaration === 'marketing') {
     issues.push('自主声明不可用');
+  }
+  if (platform === 'channels') {
+    const title = draft.title.trim() || commonTitle.trim();
+    const tags = parseTags(draft.tagsText);
+    const parts = [title, commonBody.trim()].filter(Boolean).join('\n');
+    const topicSuffix = tags.map((tag) => `#${tag}`).join(' ');
+    const description = [parts, topicSuffix]
+      .filter(Boolean)
+      .join(parts && topicSuffix ? ' ' : '');
+    if (description.length > spec.bodyPlainMax) {
+      issues.push('标题、文案与话题合计超长');
+    }
   }
   if (platform === 'douyin') {
     if (
@@ -142,6 +155,17 @@ export function graphicDraftToOverrides(
     result.authorDeclaration = draft.authorDeclaration ?? 'none';
   }
   return result;
+}
+
+/** 图文账号空草稿；视频号默认仅自己可见，便于试发。 */
+export function emptyGraphicAccountDraft(
+  platform?: PlatformId,
+): ArticleOverrideDraft {
+  const draft = emptyArticleDraft();
+  if (platform === 'channels') {
+    draft.visibility = 'private';
+  }
+  return draft;
 }
 
 export type { ArticleOverrideDraft, CoverPair };

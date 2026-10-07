@@ -38,7 +38,6 @@ import {
   checkLocalPathsReadable,
   coverSlotReady,
   draftFromTarget,
-  emptyArticleDraft,
   emptyCoverPair,
   looksUnstableLocalPath,
   type ArticleOverrideDraft,
@@ -46,6 +45,7 @@ import {
   type CoverSlot,
 } from '../publish-article/helpers';
 import {
+  emptyGraphicAccountDraft,
   getGraphicAccountDraftIssues,
   graphicDraftToOverrides,
   graphicBodyPlainLength,
@@ -339,9 +339,17 @@ export function useGraphicComposer(editId: string | null) {
     });
   }, [selectedPlatforms, platformLabel]);
 
+  const draftPlatformByAccountId = useCallback(
+    (accountId: string) =>
+      entries.find((entry) => entry.account.id === accountId)?.account.platform,
+    [entries],
+  );
+
   const getDraft = useCallback(
-    (accountId: string) => drafts[accountId] ?? emptyArticleDraft(),
-    [drafts],
+    (accountId: string) =>
+      drafts[accountId] ??
+      emptyGraphicAccountDraft(draftPlatformByAccountId(accountId)),
+    [draftPlatformByAccountId, drafts],
   );
 
   const setDraft = useCallback(
@@ -356,12 +364,16 @@ export function useGraphicComposer(editId: string | null) {
       setDrafts((prev) => {
         const next = { ...prev };
         for (const id of accountIds) {
-          next[id] = { ...(prev[id] ?? emptyArticleDraft()), ...patch };
+          next[id] = {
+            ...(prev[id] ??
+              emptyGraphicAccountDraft(draftPlatformByAccountId(id))),
+            ...patch,
+          };
         }
         return next;
       });
     },
-    [],
+    [draftPlatformByAccountId],
   );
 
   const removeAccounts = useCallback((accountIds: string[]) => {
@@ -573,7 +585,9 @@ export function useGraphicComposer(editId: string | null) {
         setCovers((prev) => ({ ...prev, [aspect]: slot }));
       } else {
         setDrafts((prev) => {
-          const draft = prev[scope.accountId] ?? emptyArticleDraft();
+          const draft =
+            prev[scope.accountId] ??
+            emptyGraphicAccountDraft(draftPlatformByAccountId(scope.accountId));
           return {
             ...prev,
             [scope.accountId]: {
@@ -584,7 +598,7 @@ export function useGraphicComposer(editId: string | null) {
         });
       }
     },
-    [coverEditor, trackUrl],
+    [coverEditor, draftPlatformByAccountId, trackUrl],
   );
 
   const firstImagePath = mediaPaths[0] ?? null;

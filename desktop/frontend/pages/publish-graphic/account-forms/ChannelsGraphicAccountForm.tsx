@@ -1,12 +1,7 @@
-import {
-  graphicCoverAspects,
-  getGraphicPlatformFields,
-  isGraphicCoverRequired,
-} from '../graphic-platform-fields';
+import { FieldDescription } from '@/components/ui/field';
+import { getGraphicPlatformFields } from '../graphic-platform-fields';
 import {
   ArticleAccountFormLayout,
-  ArticleCoverOverrideField,
-  ArticleScheduleField,
   ArticleTagsField,
   ArticleTitleOverrideField,
   ArticleVisibilityField,
@@ -16,15 +11,13 @@ import {
 
 const spec = getGraphicPlatformFields('channels');
 
-/** 视频号图文：封面默认取配图，竖版可选；话题、可见性、定时 */
+/** 视频号图文：首图为封面；话题写入描述；默认可仅自己可见。 */
 export function ChannelsGraphicAccountForm({
   account,
   draft,
   commonTitle,
-  commonCovers,
   disabled,
   onDraftChange,
-  onEditCover,
 }: ArticlePlatformAccountFormProps) {
   const patch = draftPatcher(draft, onDraftChange);
 
@@ -42,20 +35,7 @@ export function ChannelsGraphicAccountForm({
               patch({ title });
             }}
           />
-          <ArticleCoverOverrideField
-            platform="channels"
-            draft={draft}
-            commonCovers={commonCovers}
-            disabled={disabled}
-            onEdit={onEditCover}
-            patch={patch}
-            aspects={graphicCoverAspects('channels')}
-            isRequired={(aspect) => isGraphicCoverRequired('channels', aspect)}
-          />
-        </>
-      }
-      publish={
-        <>
+          <FieldDescription>第一张配图作为封面。</FieldDescription>
           <ArticleTagsField
             tagsText={draft.tagsText}
             maxCount={spec.tags.maxCount}
@@ -64,25 +44,20 @@ export function ChannelsGraphicAccountForm({
               patch({ tagsText });
             }}
           />
+        </>
+      }
+      publish={
+        <>
           <ArticleVisibilityField
             accountId={account.id}
             value={draft.visibility}
-            options={spec.visibility ?? ['public']}
+            options={spec.visibility ?? ['private', 'public']}
             disabled={disabled}
             onChange={(visibility) => {
               patch({ visibility });
             }}
           />
-          <ArticleScheduleField
-            accountId={account.id}
-            scheduledLocal={draft.scheduledLocal}
-            minHours={spec.schedule!.minHours}
-            maxDays={spec.schedule!.maxDays}
-            disabled={disabled}
-            onChange={(scheduledLocal) => {
-              patch({ scheduledLocal });
-            }}
-          />
+          <FieldDescription>立即发布。试发建议选「仅自己可见」。</FieldDescription>
         </>
       }
     />
