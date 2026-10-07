@@ -1,0 +1,42 @@
+{
+  "contentId": "b4f3b279-32e2-4e91-88c3-9ef6e20a2f4b",
+  "targetId": "9e09ae3c-668f-4ef2-87d6-8a97f3342507",
+  "publishStatus": "succeeded",
+  "platformPostId": "6ac5d15f00000000140002c3",
+  "title": "绿意不用很多",
+  "body": "桌面不用一次收得很干净。\n先拿走空杯子和用不上的纸，给本子留出一点地方。绿植放在窗边，笔放在顺手的位置，坐下来就能开始写。\n留一点空，比把东西塞进收纳盒里更管用。",
+  "privacy": {
+    "type": 1
+  },
+  "imageCount": 2,
+  "imageUris": [
+    "spectrum/1040g34o3260s1li0ke105nr0cte08a1dsk9ki6o",
+    "spectrum/1040g34o3260s1m6j4e805nr0cte08a1df0t6qm0"
+  ],
+  "authorDeclarationSent": "ai_generated",
+  "labelMap": {
+    "audio_type": "0",
+    "c2c_idle_intent": "false",
+    "c2c_idle_task_id": "",
+    "c2c_idle_type": "",
+    "enable_co_produce": "true",
+    "has_3d": "false",
+    "latest_app": "1",
+    "note_edit_count": "0",
+    "plain_text": "false",
+    "privacy_type": "1",
+    "privateByUser": "true",
+    "sourceSubType": "",
+    "sourceType": "web",
+    "text_2_img": "0",
+    "user_declaration": "2"
+  },
+  "metadata": {
+    "birth_place": "CN",
+    "history_id": "138140241623803946",
+    "user_declaration": {
+      "origin": 2
+    }
+  },
+  "tagsInfo": ""
+}

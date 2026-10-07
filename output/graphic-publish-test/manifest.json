@@ -1,0 +1,17 @@
+{
+  "mode": "built-in image_gen",
+  "title": "桌上留一点绿",
+  "body": "桌上的东西不用一次收得很干净。\n\n先把空杯子和用不上的纸拿走，给本子留出一点地方。绿植放在窗边，笔放在顺手的位置，坐下来就能开始写。\n\n台面有一点空，人也跟着松快一点。",
+  "visibility": "private",
+  "accountName": "Midnight",
+  "images": [
+    {
+      "path": "desk-green-1.png",
+      "prompt": "Use case: illustration-story. Asset type: portrait social carousel image. A quiet desk corner by a window, small pothos in a plain cream ceramic pot, an unbranded notebook and pencil on a light wood desk, loosely painted editorial watercolor with visible paper texture, soft morning light, natural small imperfections, restrained green and warm gray, intimate ordinary composition, no people, no writing, no logos, no watermarks, no collage. Vertical 3:4 composition."
+    },
+    {
+      "path": "desk-green-2.png",
+      "prompt": "Use case: illustration-story. Asset type: portrait social carousel image, companion to a watercolor of a sunny desk and pothos. Primary request: an overhead watercolor view of an ordinary light wood desk with a closed plain cream notebook, one wooden pencil alongside it, the lower edge of a cream ceramic pothos pot and several green leaves entering the upper corner. Leave a comfortable empty patch of wood for working. Visible watercolor paper texture, softly imperfect edges, warm muted natural daylight, quiet editorial illustration, restrained green and warm gray. No people, no writing, no brand names, no watermark, no collage. Vertical 3:4."
+    }
+  ]
+}

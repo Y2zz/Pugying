@@ -1,0 +1,37 @@
+{
+  "platformPostId": "7693773543242304768",
+  "description": "桌上留一点绿。桌上的东西不用一次收得很干净。 \n先把空杯子和用不上的纸拿走，给本子留出一点地方。绿植放在窗边，笔放在顺手的位置，坐下来就能开始写。 \n台面有一点空，人也跟着松快一点。",
+  "textExtra": [
+    {
+      "caption_end": 0,
+      "caption_start": 0,
+      "end": 6,
+      "hashtag_id": 0,
+      "hashtag_name": "",
+      "start": 0,
+      "type": 7
+    },
+    {
+      "caption_end": 0,
+      "caption_start": 0,
+      "end": 7,
+      "hashtag_id": 0,
+      "hashtag_name": "",
+      "start": 6,
+      "type": 8
+    }
+  ],
+  "imageCount": 2,
+  "imageUris": [
+    "tos-cn-i-dy/1d44cbd342a540f7b436e8715683bb06",
+    "tos-cn-i-dy/d4160ae93a0d4887b142952383fce5af"
+  ],
+  "visibilityType": 1,
+  "status": 141,
+  "declaration": "{\"choose_value\":\"aigc\"}",
+  "cover": {
+    "uri": "tos-cn-i-dy/792e4253b40f429983e5022236cdc621",
+    "width": 540,
+    "height": 720
+  }
+}

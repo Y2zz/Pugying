@@ -1,0 +1,24 @@
+{
+  "contentId": "d61b1999-3d52-40d2-9f5b-91aac638cb76",
+  "targetId": "b3754b11-c734-4104-adfc-ab5735af04bb",
+  "publishStatus": "succeeded",
+  "platformPostId": "1878366610401288",
+  "errorCode": null,
+  "errorMessage": null,
+  "readbackCode": 7254,
+  "readbackNote": "编辑回读返回 7254，未将空字段视为已保存作品内容；改由平台管理页和公开作品页核对。",
+  "platformUrl": "https://www.toutiao.com/w/1878366610401288/",
+  "verifiedVia": "platform_public_page_and_creator_manager",
+  "verifiedImageCount": 2,
+  "verifiedAccountName": "洲谋天下",
+  "verifiedTitle": "给桌面留一点空",
+  "declarationCorrection": {
+    "submitted": true,
+    "type": "ai_generated",
+    "bodySuffix": "配图由 AI 生成。",
+    "platformStatus": "公开作品页已显示修改后的文案与 AI 声明",
+    "note": "官方微头条设置组件要求 extra.info_source 为 JSON 字符串，已修正发布适配器；平台页面编辑回读不恢复声明控件的选中状态。",
+    "publicPageVerified": true,
+    "publicLabel": "作品声明：内容由AI生成"
+  }
+}
