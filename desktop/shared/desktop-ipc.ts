@@ -11,6 +11,8 @@ export const DESKTOP_IPC = {
   /** 读取头条文章编辑器的当前账号赞赏额度 */
   getToutiaoRewardPrivilege: "desktop:get-toutiao-reward-privilege",
   getBilibiliVideoOptions: "desktop:get-bilibili-video-options",
+  /** 按账号搜索抖音官方话题候选项 */
+  searchDouyinTopics: "desktop:search-douyin-topics",
   /** renderer → main */
   message: "desktop:message",
   /** main → renderer（hello / progress / result / closed） */

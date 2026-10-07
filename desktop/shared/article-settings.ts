@@ -1,4 +1,4 @@
-/** 文章账号独有设置；资源类字段通过独立素材/平台选择器处理。 */
+/** 文章账号独有设置；话题等资源引用在 Target overrides.topicRefs，不混入本结构。 */
 export interface ArticleAccountSettings {
   summary?: string;
   coverMode?: "single" | "triple" | "none";

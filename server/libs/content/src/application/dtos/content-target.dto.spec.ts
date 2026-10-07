@@ -44,6 +44,24 @@ describe('文章账号设置校验', () => {
   });
 });
 
+describe('平台话题资源', () => {
+  it('accepts topic refs with platform ids', async () => {
+    const dto = plainToInstance(TargetOverridesDto, {
+      topicRefs: [{ id: '1234', name: '日常' }],
+      tags: ['日常'],
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+  it.each([
+    [{ id: 'abc', name: '日常' }],
+    [{ id: '123', name: 'bad tag' }],
+    [{ id: '123', name: '' }],
+  ])('rejects invalid topic refs %j', async (topicRefs) => {
+    const dto = plainToInstance(TargetOverridesDto, { topicRefs });
+    expect((await validate(dto)).some((error) => error.property === 'topicRefs')).toBe(true);
+  });
+});
+
 describe('Bilibili video settings', () => {
   it('accepts numeric platform configuration and source', async () => {
     const dto = plainToInstance(TargetOverridesDto, {

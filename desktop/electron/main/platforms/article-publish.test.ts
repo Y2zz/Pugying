@@ -31,6 +31,12 @@ function fixture(platform: string) {
                 platform === 'toutiao' ? { pgc_id: ID } : { dyn_id_str: ID },
             };
       }
+      if (path.includes('challengesug')) {
+        return {
+          status_code: 0,
+          sug_list: [{ cha_name: '测试', cid: '9876' }],
+        };
+      }
       if (path.includes('strategy')) {
         return {
           err_no: 0,
@@ -103,9 +109,11 @@ it('submits Douyin article Markdown with uploaded URIs, visibility, summary and 
     ok: true,
     platformPostId: ID,
   });
-  expect(request).toHaveBeenCalledOnce();
-  const [path, body] = request.mock.calls[0] as [string, any];
-  expect(path).toBe('/web/api/media/aweme/create_v2/');
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(createCall[0]).toBe('/web/api/media/aweme/create_v2/');
+  const body = createCall[1];
   expect(body.item.common).toMatchObject({
     media_type: 43,
     long_article_version: '1',
@@ -132,9 +140,30 @@ it('submits Douyin article Markdown with uploaded URIs, visibility, summary and 
     end: 8,
     caption_start: 0,
     caption_end: 3,
+    hashtag_id: '9876',
+    hashtag_name: '测试',
   });
   expect(body.item.cover.poster).toBe('uri-cover.png');
   expect(JSON.stringify(body)).not.toMatch(/file:|data-local|private-cookie/);
+  expect(api.dispose).toHaveBeenCalledOnce();
+});
+
+it('uses saved Douyin topic resource ids without searching again', async () => {
+  const { api, request, options } = fixture('douyin');
+  options.payload.articleSettings = { summary: '摘要' };
+  options.payload.topicRefs = [{ id: '555', name: '绑定话题' }];
+  options.payload.visibility = 'private';
+  expect(await runDouyinArticlePublish(options)).toMatchObject({ ok: true });
+  expect(
+    request.mock.calls.some(([path]) => String(path).includes('challengesug')),
+  ).toBe(false);
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(JSON.parse(createCall[1].item.common.text_extra)[1]).toMatchObject({
+    hashtag_id: '555',
+    hashtag_name: '绑定话题',
+  });
   expect(api.dispose).toHaveBeenCalledOnce();
 });
 

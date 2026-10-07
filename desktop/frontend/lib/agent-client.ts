@@ -114,6 +114,7 @@ export interface PlatformPublishStartInput {
   title: string;
   body?: string;
   tags?: string[];
+  topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
   bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
@@ -159,6 +160,10 @@ export type PugyingDesktopBridge = {
   ) => Promise<
     import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
   >;
+  searchDouyinTopics?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
   postMessage: (message: unknown) => void;
   onMessage: (callback: (message: unknown) => void) => () => void;
   getToutiaoRewardPrivilege?: (
@@ -544,6 +549,7 @@ class AgentClient {
           title: input.title,
           body: input.body,
           tags: input.tags,
+          topicRefs: input.topicRefs,
           authorDeclaration: input.authorDeclaration,
           articleSettings: input.articleSettings,
           bilibiliVideoSettings: input.bilibiliVideoSettings,

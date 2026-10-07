@@ -1,4 +1,8 @@
 import { articleSettingsForPlatform } from '../../domain/article-settings';
+import {
+  normalizePlatformResourceRefs,
+  topicNames,
+} from '../../domain/platform-resource';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { isAbsolute } from 'path';
 import { isAuthorDeclaration } from '../../domain/author-declaration';
@@ -428,9 +432,16 @@ export class ContentService {
     if (overrides.body?.trim()) {
       result.body = overrides.body.trim();
     }
-    const tags = this.normalizeList(overrides.tags);
-    if (tags.length > 0) {
-      result.tags = tags;
+    const topicRefs = normalizePlatformResourceRefs(overrides.topicRefs);
+    if (topicRefs.length > 0) {
+      // 有平台标识时以 topicRefs 为准，并同步名称到 tags 供旧校验/摘要使用
+      result.topicRefs = topicRefs;
+      result.tags = topicNames(topicRefs);
+    } else {
+      const tags = this.normalizeList(overrides.tags);
+      if (tags.length > 0) {
+        result.tags = tags;
+      }
     }
     if (overrides.scheduledAt) {
       const date = new Date(overrides.scheduledAt);

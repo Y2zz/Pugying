@@ -80,6 +80,8 @@ export interface ContentTargetOverrides {
   title?: string;
   body?: string;
   tags?: string[];
+  /** 平台话题资源（含标识）；有值时优先于纯文本 tags */
+  topicRefs?: import('./platform-resource').PlatformResourceRef[];
   scheduledAt?: string;
   visibility?: ContentVisibility;
   allowDownload?: boolean;

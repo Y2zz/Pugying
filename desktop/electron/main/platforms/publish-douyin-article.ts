@@ -1,9 +1,17 @@
 import { articleSettingsForPlatform } from '../../../shared/article-settings';
 import {
+  normalizePlatformResourceRefs,
+  parseDouyinTopicSuggestions,
+  topicNames,
+  topicRefsFromNames,
+  type PlatformResourceRef,
+} from '../../../shared/platform-resource';
+import {
   ArticleApiError,
   articlePostId,
   assertArticleResponse,
   runArticleApiPublish,
+  type ArticleApiSession,
   type ArticlePublishOptions,
 } from './article-api';
 import {
@@ -13,6 +21,40 @@ import {
   uploadArticleImages,
   uploadedImage,
 } from './article-content';
+
+/** 优先使用选择器保存的标识；未绑定名称再按官方搜索补齐。 */
+async function resolveArticleTopics(
+  api: ArticleApiSession,
+  payload: ArticlePublishOptions['payload'],
+): Promise<PlatformResourceRef[]> {
+  const saved = normalizePlatformResourceRefs(payload.topicRefs);
+  const fromTags = topicRefsFromNames(payload.tags ?? []);
+  const seed =
+    saved.length > 0
+      ? saved
+      : fromTags;
+  const resolved: PlatformResourceRef[] = [];
+  for (const item of seed) {
+    if (item.id !== '0') {
+      resolved.push(item);
+      continue;
+    }
+    const query = new URLSearchParams({
+      keyword: item.name,
+      source: 'challenge_create',
+      aid: '2906',
+    });
+    const response = await api.request(
+      `/aweme/v1/search/challengesug/?${query}`,
+    );
+    assertArticleResponse(response, 'douyin');
+    const match = parseDouyinTopicSuggestions(response).find(
+      (candidate) => candidate.name === item.name,
+    );
+    resolved.push(match ?? item);
+  }
+  return normalizePlatformResourceRefs(resolved, 5);
+}
 
 export function runDouyinArticlePublish(options: ArticlePublishOptions) {
   return runArticleApiPublish('douyin', options, async (api, emit) => {
@@ -34,13 +76,8 @@ export function runDouyinArticlePublish(options: ArticlePublishOptions) {
         '抖音文章正文需为 100～20,000 字，标题和摘要最多 30 字',
       );
     }
-    const tags = [
-      ...new Set(
-        (payload.tags ?? [])
-          .map((tag) => tag.trim().replace(/^#+/, ''))
-          .filter(Boolean),
-      ),
-    ];
+    const topics = await resolveArticleTopics(api, payload);
+    const tags = topicNames(topics);
     if (
       tags.length > 5 ||
       tags.some((tag) => /\s|#/.test(tag)) ||
@@ -64,7 +101,7 @@ export function runDouyinArticlePublish(options: ArticlePublishOptions) {
     const cover = uploadedImage(images, payload.coverPath);
     let start = Array.from(title).length + 1;
     let captionStart = 0;
-    const textExtra = tags.length
+    const textExtra = topics.length
       ? [
           {
             start: 0,
@@ -73,15 +110,15 @@ export function runDouyinArticlePublish(options: ArticlePublishOptions) {
             hashtag_name: '',
             type: 7,
           },
-          ...tags.map((tag) => {
-            const size = Array.from(tag).length + 1;
+          ...topics.map((topic) => {
+            const size = Array.from(topic.name).length + 1;
             const entry = {
               start,
               end: start + size,
               caption_start: captionStart,
               caption_end: captionStart + size,
-              hashtag_id: 0,
-              hashtag_name: tag,
+              hashtag_id: topic.id === '0' ? 0 : topic.id,
+              hashtag_name: topic.name,
               type: 1,
             };
             start += size + 1;
