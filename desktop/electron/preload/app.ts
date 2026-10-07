@@ -1,29 +1,43 @@
 /**
  * 业务主窗 preload：仅暴露 pugyingDesktop，绝不挂 chromeShell。
  */
-import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { DESKTOP_IPC } from '@shared/desktop-ipc';
+import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { DESKTOP_IPC } from "@shared/desktop-ipc";
 import type {
   DesktopWindowChromeInfo,
   TitleBarOverlayTheme,
-} from '@shared/window-chrome';
+} from "@shared/window-chrome";
 
 const pugyingDesktop = {
   available: true as const,
-  getDistributionSnapshot: (): Promise<import('@shared/distribution').DistributionSnapshot> => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),
+  getBilibiliVideoOptions: (
+    accountId: string,
+  ): Promise<
+    import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
+  > => ipcRenderer.invoke(DESKTOP_IPC.getBilibiliVideoOptions, accountId),
+  getDistributionSnapshot: (): Promise<
+    import("@shared/distribution").DistributionSnapshot
+  > => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),
   onDistributionChanged: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on(DESKTOP_IPC.distributionChanged, handler);
-    return () => { ipcRenderer.removeListener(DESKTOP_IPC.distributionChanged, handler); };
+    return () => {
+      ipcRenderer.removeListener(DESKTOP_IPC.distributionChanged, handler);
+    };
   },
-  submitDistribution: (input: import('@shared/distribution').DistributionSubmission): Promise<import('@shared/distribution').DistributionSubmissionResult> =>
+  submitDistribution: (
+    input: import("@shared/distribution").DistributionSubmission,
+  ): Promise<import("@shared/distribution").DistributionSubmissionResult> =>
     ipcRenderer.invoke(DESKTOP_IPC.submitDistribution, input),
   getDistributionConcurrency: (): Promise<number> =>
     ipcRenderer.invoke(DESKTOP_IPC.getDistributionConcurrency),
   setDistributionConcurrency: (value: number): Promise<number> =>
     ipcRenderer.invoke(DESKTOP_IPC.setDistributionConcurrency, value),
-  getToutiaoRewardPrivilege: (accountId: string): Promise<import('@shared/toutiao-article-privileges').ToutiaoRewardPrivilege | null> =>
-    ipcRenderer.invoke(DESKTOP_IPC.getToutiaoRewardPrivilege, accountId),
+  getToutiaoRewardPrivilege: (
+    accountId: string,
+  ): Promise<
+    import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
+  > => ipcRenderer.invoke(DESKTOP_IPC.getToutiaoRewardPrivilege, accountId),
   postMessage: (message: unknown) => {
     ipcRenderer.send(DESKTOP_IPC.message, message);
   },
@@ -63,25 +77,31 @@ const pugyingDesktop = {
       absPath,
     ) as Promise<boolean>,
   readLocalImageDataUrl: (absPath: string): Promise<string | null> =>
+    ipcRenderer.invoke(DESKTOP_IPC.readLocalImageDataUrl, absPath) as Promise<
+      string | null
+    >,
+  saveArticleImage: (
+    dataUrl: string,
+    sourcePath: string,
+  ): Promise<string | null> =>
     ipcRenderer.invoke(
-      DESKTOP_IPC.readLocalImageDataUrl,
-      absPath,
+      DESKTOP_IPC.saveArticleImage,
+      dataUrl,
+      sourcePath,
     ) as Promise<string | null>,
-  saveArticleImage: (dataUrl: string, sourcePath: string): Promise<string | null> =>
-    ipcRenderer.invoke(DESKTOP_IPC.saveArticleImage, dataUrl, sourcePath) as Promise<string | null>,
   /**
    * Electron 32+ 移除了 File.path；选片与拖拽均须经 webUtils 取绝对路径。
    * 须在 preload 内调用，并把 File 从 renderer 传入。
    */
   getPathForFile: (file: File): string => {
     try {
-      return webUtils.getPathForFile(file)?.trim() || '';
+      return webUtils.getPathForFile(file)?.trim() || "";
     } catch {
-      return '';
+      return "";
     }
   },
 };
 
 export type PugyingDesktopBridge = typeof pugyingDesktop;
 
-contextBridge.exposeInMainWorld('pugyingDesktop', pugyingDesktop);
+contextBridge.exposeInMainWorld("pugyingDesktop", pugyingDesktop);

@@ -32,6 +32,7 @@ export interface PlatformPublishStartPayload {
   body?: string;
   tags?: string[];
   articleSettings?: import("../../shared/article-settings").ArticleAccountSettings;
+  bilibiliVideoSettings?: import("../../shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("../../shared/douyin-graphic-settings").DouyinAuthorDeclaration;
   visibility?: string;
   /** ISO time; when set, submit as platform schedule (not local cron). */

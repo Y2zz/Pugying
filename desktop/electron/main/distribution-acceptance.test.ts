@@ -12,6 +12,35 @@ vi.mock("./server-process", () => ({
   getLocalApiToken: () => "acceptance-local-token",
 }));
 
+const videoAdapter = vi.hoisted(() => ({
+  gate: undefined as Promise<void> | undefined,
+}));
+
+// 仅测试边界替换平台适配器；生产代码不提供模拟发布开关。
+vi.mock("./platforms/publish-douyin-http", () => ({
+  runDouyinHttpPublish: vi.fn(async ({ payload, signal, onProgress }) => {
+    const identity = {
+      requestId: payload.requestId,
+      targetId: payload.targetId,
+      platform: payload.platform,
+    };
+    await videoAdapter.gate;
+    for (const phase of ["accepted", "uploading", "submitting", "done"]) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      if (signal.cancelled) {
+        return { ...identity, ok: false, errorCode: "cancelled" };
+      }
+      onProgress({ ...identity, phase });
+    }
+    return {
+      ...identity,
+      ok: true,
+      platformPostId: "123",
+      platformUrl: "https://www.douyin.com/video/123",
+    };
+  }),
+}));
+
 type Target = {
   id: string;
   platformAccountId: string;
@@ -32,7 +61,6 @@ describe.skipIf(process.env.PUGYING_RUN_DISTRIBUTION_ACCEPTANCE !== "1")(
     let apiUrl: string;
     let accounts: string[];
     let service: typeof import("./distribution-service");
-    const oldStub = process.env.PUGYING_PUBLISH_STUB;
     const oldDirectory = process.env.PUGYING_ACCEPTANCE_DATA_DIR;
     const oldUrl = process.env.PUGYING_ACCEPTANCE_API_URL;
     const dispatchIds = new Set<string>();
@@ -109,7 +137,6 @@ describe.skipIf(process.env.PUGYING_RUN_DISTRIBUTION_ACCEPTANCE !== "1")(
         "stub media, never uploaded",
       );
       process.env.PUGYING_ACCEPTANCE_DATA_DIR = directory;
-      process.env.PUGYING_PUBLISH_STUB = "1";
       const port = await new Promise<number>((done, reject) => {
         const listener = createServer();
         listener.on("error", reject);
@@ -207,7 +234,6 @@ describe.skipIf(process.env.PUGYING_RUN_DISTRIBUTION_ACCEPTANCE !== "1")(
         await rm(directory, { recursive: true, force: true });
       }
       for (const [key, value] of [
-        ["PUGYING_PUBLISH_STUB", oldStub],
         ["PUGYING_ACCEPTANCE_DATA_DIR", oldDirectory],
         ["PUGYING_ACCEPTANCE_API_URL", oldUrl],
       ]) {
@@ -249,20 +275,31 @@ describe.skipIf(process.env.PUGYING_RUN_DISTRIBUTION_ACCEPTANCE !== "1")(
     it('observes cross-work active and waiting tasks through the real read API and recovers their latest results after reload', async () => {
       await service.updateDistributionConcurrency(1);
       const first = await createWork([accounts[0], accounts[1], accounts[2]]);
-      const second = await createWork([accounts[0], accounts[3]]);
-      await service.submitDistribution({ contentId: first.id });
-      await service.submitDistribution({ contentId: second.id });
-      await waitForWork(first.id, (work) => work.targets.some((target) => target.publishStatus === 'running'));
-      const live = service.getDistributionSnapshot();
-      expect(live.tasks.some((task) => task.state === 'waiting' && task.waitingReason === 'account')).toBe(true);
-      expect(live.tasks.some((task) => task.state === 'waiting' && task.waitingReason === 'capacity')).toBe(true);
-      const waiting = await api<{ items: Array<{ contentId: string; accountName: string }>; counts: { active: number; waiting: number } }>('/contents/distribution?view=waiting&pageSize=100');
-      expect(new Set(waiting.items.map((item) => item.contentId))).toEqual(new Set([first.id, second.id]));
-      expect(waiting.counts.active).toBe(1);
-      expect(waiting.counts.waiting).toBe(4);
-      expect(waiting.items.every((item) => item.accountName.startsWith('验收账号'))).toBe(true);
-      expect(JSON.stringify(waiting)).not.toContain('cookies');
-      expect(JSON.stringify(waiting)).not.toContain('credentialCipher');
+      let second!: Work;
+      let release!: () => void;
+      videoAdapter.gate = new Promise<void>((done) => { release = done; });
+      try {
+        await service.submitDistribution({ contentId: first.id });
+        await waitForWork(first.id, (work) => work.targets.some((target) => target.publishStatus === 'running'));
+        // API 返回的 Target 顺序不固定；使用实际占用的账号验证串行等待。
+        const running = service.getDistributionSnapshot().tasks.find((task) => task.contentId === first.id && task.state === 'running');
+        expect(running).toBeDefined();
+        second = await createWork([running!.accountId, accounts[3]]);
+        await service.submitDistribution({ contentId: second.id });
+        const live = service.getDistributionSnapshot();
+        expect(live.tasks.some((task) => task.state === 'waiting' && task.waitingReason === 'account')).toBe(true);
+        expect(live.tasks.some((task) => task.state === 'waiting' && task.waitingReason === 'capacity')).toBe(true);
+        const waiting = await api<{ items: Array<{ contentId: string; accountName: string }>; counts: { active: number; waiting: number } }>('/contents/distribution?view=waiting&pageSize=100');
+        expect(new Set(waiting.items.map((item) => item.contentId))).toEqual(new Set([first.id, second.id]));
+        expect(waiting.counts.active).toBe(1);
+        expect(waiting.counts.waiting).toBe(4);
+        expect(waiting.items.every((item) => item.accountName.startsWith('验收账号'))).toBe(true);
+        expect(JSON.stringify(waiting)).not.toContain('cookies');
+        expect(JSON.stringify(waiting)).not.toContain('credentialCipher');
+      } finally {
+        videoAdapter.gate = undefined;
+        release();
+      }
       await waitForWork(second.id, (work) => work.targets.every((target) => target.publishStatus === 'succeeded'));
       await waitForWork(first.id, (work) => work.targets.every((target) => target.publishStatus === 'succeeded'));
       const complete = await api<{ items: Array<{ contentId: string; platformUrl: string }>; counts: { active: number; waiting: number } }>('/contents/distribution?view=completed&pageSize=100');

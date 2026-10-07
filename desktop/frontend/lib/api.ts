@@ -204,6 +204,7 @@ export interface ContentTargetOverrides {
   visibility?: ContentVisibility;
   allowDownload?: boolean;
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
+  bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
   /** 地点（如小红书笔记） */
   location?: string;
@@ -298,6 +299,7 @@ export interface PublishDispatch {
   body?: string;
   tags?: string[];
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
+  bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
   visibility: string;
   scheduledAt?: string;
@@ -357,8 +359,14 @@ export async function fetchContent(id: string): Promise<ContentItem> {
   return apiFetch<ContentItem>(`/contents/${id}`);
 }
 
-export async function fetchDistributionPage(view: import('@shared/distribution').DistributionView = 'active', page = 1): Promise<import('@shared/distribution').DistributionPage> {
-  return apiFetch(`/contents/distribution?view=${view}&page=${page}&pageSize=20`, { signal: AbortSignal.timeout(10000) });
+export async function fetchDistributionPage(
+  view: import("@shared/distribution").DistributionView = "active",
+  page = 1,
+): Promise<import("@shared/distribution").DistributionPage> {
+  return apiFetch(
+    `/contents/distribution?view=${view}&page=${page}&pageSize=20`,
+    { signal: AbortSignal.timeout(10000) },
+  );
 }
 
 export async function createContent(

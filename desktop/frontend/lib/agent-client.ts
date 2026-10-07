@@ -115,6 +115,7 @@ export interface PlatformPublishStartInput {
   body?: string;
   tags?: string[];
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
+  bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
   visibility?: string;
   scheduledAt?: string;
@@ -143,7 +144,9 @@ export interface PlatformPublishResult {
 
 /** 业务窗 preload 注入的桥（与授权壳 chromeShell 隔离） */
 export type PugyingDesktopBridge = {
-  getDistributionSnapshot?: () => Promise<import('@shared/distribution').DistributionSnapshot>;
+  getDistributionSnapshot?: () => Promise<
+    import("@shared/distribution").DistributionSnapshot
+  >;
   onDistributionChanged?: (callback: () => void) => () => void;
   submitDistribution?: (
     input: import("@shared/distribution").DistributionSubmission,
@@ -151,6 +154,11 @@ export type PugyingDesktopBridge = {
   getDistributionConcurrency?: () => Promise<number>;
   setDistributionConcurrency?: (value: number) => Promise<number>;
   available: true;
+  getBilibiliVideoOptions?: (
+    accountId: string,
+  ) => Promise<
+    import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
+  >;
   postMessage: (message: unknown) => void;
   onMessage: (callback: (message: unknown) => void) => () => void;
   getToutiaoRewardPrivilege?: (
@@ -538,6 +546,7 @@ class AgentClient {
           tags: input.tags,
           authorDeclaration: input.authorDeclaration,
           articleSettings: input.articleSettings,
+          bilibiliVideoSettings: input.bilibiliVideoSettings,
           visibility: input.visibility,
           scheduledAt: input.scheduledAt,
           allowDownload: input.allowDownload,
