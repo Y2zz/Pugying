@@ -89,6 +89,9 @@ it("发布图文直接使用公共名单，切换后写入图文账号并传递�
     entries: accounts.map((account) => ({ account, platformLabel: "抖音" })),
     checks: [],
     covers: emptyCoverPair(),
+    coverNeeds: [
+      { aspect: "portrait", required: true, platformLabels: ["抖音"] },
+    ],
     getDraft: emptyArticleDraft,
     setDraft,
     title: "通用图文标题",

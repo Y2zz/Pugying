@@ -13,6 +13,7 @@ import { MemoryRouter } from "react-router-dom";
 import {
   createContent,
   fetchPlatformAccounts,
+  uploadContentCover,
   type PlatformAccountItem,
 } from "@/lib/api";
 import { toast } from "@/components/AppToaster";
@@ -176,6 +177,44 @@ it("点击配图检查项时聚焦添加槽位，添加后清除错误", async (
     screen.queryByRole("button", { name: /配图.*请至少选择一张图片/ }),
   ).toBeNull();
 });
+
+it.each(["toutiao", "xiaohongshu"] as const)(
+  "仅选择 %s 图文账号时隐藏单独封面区，并允许直接发布",
+  async (platform) => {
+    vi.mocked(fetchPlatformAccounts).mockResolvedValue([
+      {
+        id: "a",
+        displayName: "图文账号",
+        platform,
+        status: "active",
+      } as PlatformAccountItem,
+    ]);
+    const title = await openPage();
+    expect(
+      screen.queryByRole("heading", { name: "封面", exact: true }),
+    ).toBeNull();
+    fireEvent.change(title, { target: { value: "图文标题" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "文案" }), {
+      target: { value: "图文文案" },
+    });
+    fireEvent.change(screen.getByLabelText("添加图片"), {
+      target: {
+        files: [new File(["image"], "image.png", { type: "image/png" })],
+      },
+    });
+    await screen.findByText("分发到 1 个账号 · 已就绪");
+    fireEvent.click(screen.getByRole("button", { name: "发布图文" }));
+    await waitFor(() =>
+      expect(submitDistribution).toHaveBeenCalledExactlyOnceWith("draft"),
+    );
+    expect(createContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targets: [expect.objectContaining({ platformAccountId: "a" })],
+      }),
+    );
+    expect(uploadContentCover).not.toHaveBeenCalled();
+  },
+);
 
 it("封面缺失时点击检查项会标红并聚焦对应槽位", async () => {
   vi.mocked(fetchPlatformAccounts).mockResolvedValue([
