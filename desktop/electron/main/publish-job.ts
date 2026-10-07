@@ -116,11 +116,13 @@ export function startPublishJob(options: {
     ) &&
     !(
       contentType === "graphic" &&
-      ["toutiao", "xiaohongshu"].includes(payload.platform)
+      ["toutiao", "xiaohongshu", "channels"].includes(payload.platform)
     ) &&
     !(
       contentType === "video" &&
-      ["xiaohongshu", "toutiao", "bilibili"].includes(payload.platform)
+      ["xiaohongshu", "toutiao", "bilibili", "channels"].includes(
+        payload.platform,
+      )
     )
   ) {
     return { error: "unsupported_platform" };
@@ -173,45 +175,55 @@ export function startPublishJob(options: {
                   signal,
                 }),
             )
-        : payload.platform === "xiaohongshu"
+        : payload.platform === "channels"
           ? () =>
-              import("./platforms/publish-xiaohongshu-video").then(
-                ({ runXiaohongshuVideoPublish }) =>
-                  runXiaohongshuVideoPublish({
+              import("./platforms/publish-channels-video").then(
+                ({ runChannelsVideoPublish }) =>
+                  runChannelsVideoPublish({
                     payload,
                     onProgress: options.onProgress,
                     signal,
                   }),
               )
-          : payload.platform === "toutiao"
+          : payload.platform === "xiaohongshu"
             ? () =>
-                import("./platforms/publish-toutiao-video").then(
-                  ({ runToutiaoVideoPublish }) =>
-                    runToutiaoVideoPublish({
+                import("./platforms/publish-xiaohongshu-video").then(
+                  ({ runXiaohongshuVideoPublish }) =>
+                    runXiaohongshuVideoPublish({
                       payload,
                       onProgress: options.onProgress,
                       signal,
                     }),
                 )
-            : payload.platform === "bilibili"
+            : payload.platform === "toutiao"
               ? () =>
-                  import("./platforms/publish-bilibili-video").then(
-                    ({ runBilibiliVideoPublish }) =>
-                      runBilibiliVideoPublish({
+                  import("./platforms/publish-toutiao-video").then(
+                    ({ runToutiaoVideoPublish }) =>
+                      runToutiaoVideoPublish({
                         payload,
                         onProgress: options.onProgress,
                         signal,
                       }),
                   )
-              : () =>
-                  import("./platforms/publish-douyin-http").then(
-                    ({ runDouyinHttpPublish }) =>
-                      runDouyinHttpPublish({
-                        payload,
-                        onProgress: options.onProgress,
-                        signal,
-                      }),
-                  );
+              : payload.platform === "bilibili"
+                ? () =>
+                    import("./platforms/publish-bilibili-video").then(
+                      ({ runBilibiliVideoPublish }) =>
+                        runBilibiliVideoPublish({
+                          payload,
+                          onProgress: options.onProgress,
+                          signal,
+                        }),
+                    )
+                : () =>
+                    import("./platforms/publish-douyin-http").then(
+                      ({ runDouyinHttpPublish }) =>
+                        runDouyinHttpPublish({
+                          payload,
+                          onProgress: options.onProgress,
+                          signal,
+                        }),
+                    );
 
   void runAdapter()
     .then((result) => {

@@ -1,0 +1,14 @@
+{
+  "contentId": "9c65a644-92a5-4d97-8d1d-97386c289583",
+  "targetId": "897c3546-d5ff-4279-83c5-dc4f185923a3",
+  "targetStatus": "succeeded",
+  "exportId": "export/UzFfBgAAxICGAAIiFgOgk8zT4DCaf_FI0nJBEJ9I6Ks0iZN4hQ",
+  "platformPostIdStored": "export/UzFfBgAAxI2GLC8SAwOgk8zT4DCalzMZRUWFYffUlLEWphBuLg",
+  "platformUrl": "https://channels.weixin.qq.com/platform/post/list",
+  "overridesVisibility": "private",
+  "platformVisibleType": 3,
+  "platformMediaType": 4,
+  "body": "桌面适配器私密验证 22:26:11 #勿删测 #蒲公英",
+  "verifiedAt": "2026-10-07T14:46:24.573Z",
+  "notes": "Target succeeded; post_list matched by description (mediaType=4, visibleType=3). Stored platformPostId differed from list exportId after create-without-exportId poll."
+}

@@ -176,7 +176,7 @@ export interface OverrideDraft {
   partition: string;
 }
 
-export function emptyDraft(): OverrideDraft {
+export function emptyDraft(platform?: string): OverrideDraft {
   return {
     title: "",
     body: "",
@@ -192,7 +192,8 @@ export function emptyDraft(): OverrideDraft {
     coverLandscapeSourceFrameTime: null,
     tagsText: "",
     scheduledLocal: "",
-    visibility: "public",
+    // 视频号试发默认仅自己可见，与图文一致
+    visibility: platform === "channels" ? "private" : "public",
     allowDownload: true,
     authorDeclaration: "none",
     location: "",
@@ -590,6 +591,32 @@ export function getAccountDraftIssues(
     if (!["public", "private"].includes(draft.visibility)) {
       issues.push("请重新选择可见范围");
     }
+  }
+  if (platform === "channels") {
+    const title = (draft.title.trim() || commonTitle).trim();
+    if (title.length < 6 || title.length > 16) {
+      issues.push("标题需为 6 至 16 字");
+    }
+    if (!["public", "private"].includes(draft.visibility)) {
+      issues.push("请重新选择可见范围");
+    }
+    if ((draft.authorDeclaration ?? "none") !== "none") {
+      issues.push("请重新选择自主声明");
+    }
+    if (draft.scheduledLocal.trim()) {
+      issues.push("暂不支持定时发布");
+    }
+    const tags = parseTags(draft.tagsText);
+    const topicSuffix = tags.map((tag) => `#${tag}`).join(" ");
+    const description = [draft.body.trim() || commonBody, topicSuffix]
+      .filter(Boolean)
+      .join(
+        (draft.body.trim() || commonBody) && topicSuffix ? " " : "",
+      );
+    if (description.length > BODY_MAX) {
+      issues.push("简介与话题合计超过 1000 字");
+    }
+    return issues;
   }
   if (draft.scheduledLocal.trim()) {
     const iso = localInputToIso(draft.scheduledLocal);

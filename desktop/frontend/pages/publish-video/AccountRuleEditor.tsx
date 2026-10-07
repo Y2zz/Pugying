@@ -7,6 +7,7 @@ import {
 import { DateTimePicker } from "@/components/DateTimePicker";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -129,28 +130,44 @@ export function AccountOverrideForm({
   const bilibili = account.platform === "bilibili";
   const toutiao = account.platform === "toutiao";
   const xiaohongshu = account.platform === "xiaohongshu";
-  const titleMax = xiaohongshu ? 20 : TITLE_MAX;
+  const channels = account.platform === "channels";
+  const titleMax = channels ? 16 : xiaohongshu ? 20 : TITLE_MAX;
   const minHours = toutiao || bilibili ? 1 / 60 : xiaohongshu ? 1 : 2;
   const maxDays = toutiao || bilibili ? undefined : 14;
   const scheduleEnabled = Boolean(draft.scheduledLocal.trim());
   const scheduleError = scheduleEnabled
-    ? validateSchedule(localInputToIso(draft.scheduledLocal), account.platform)
+    ? channels
+      ? "视频号短视频暂不支持定时发布"
+      : validateSchedule(localInputToIso(draft.scheduledLocal), account.platform)
     : null;
 
   const patch = (partial: Partial<OverrideDraft>) => {
     onDraftChange({ ...draft, ...partial });
   };
 
-  const titleError =
-    (draft.title.trim() || commonTitle).length > titleMax
+  const resolvedTitle = draft.title.trim() || commonTitle;
+  const titleError = channels
+    ? resolvedTitle.length > 0 &&
+      (resolvedTitle.length < 6 || resolvedTitle.length > 16)
+      ? "标题需为 6 至 16 字"
+      : ""
+    : resolvedTitle.length > titleMax
       ? `标题最多 ${titleMax} 字`
       : "";
   const tags = parseTags(draft.tagsText);
   const bodyError =
     (bilibili
       ? (draft.body.trim() || commonBody).length
-      : composeDouyinGraphicDescription(draft.body.trim() || commonBody, tags)
-          .length) > BODY_MAX
+      : channels
+        ? (() => {
+            const topicSuffix = tags.map((tag) => `#${tag}`).join(" ");
+            const text = draft.body.trim() || commonBody;
+            return [text, topicSuffix]
+              .filter(Boolean)
+              .join(text && topicSuffix ? " " : "").length;
+          })()
+        : composeDouyinGraphicDescription(draft.body.trim() || commonBody, tags)
+            .length) > BODY_MAX
       ? `简介与话题合计最多 ${BODY_MAX} 字`
       : "";
 
@@ -283,7 +300,7 @@ export function AccountOverrideForm({
                 patch({ bilibiliVideoSettings })
               }
             />
-          ) : (
+          ) : channels ? null : (
             <DouyinDeclarationField
               options={
                 xiaohongshu
@@ -314,7 +331,7 @@ export function AccountOverrideForm({
             label="谁可以看"
             value={draft.visibility}
             options={
-              xiaohongshu || toutiao || bilibili
+              xiaohongshu || toutiao || bilibili || channels
                 ? VISIBILITY_OPTIONS.filter(
                     (option) => option.value !== "friends",
                   )
@@ -325,7 +342,7 @@ export function AccountOverrideForm({
               patch({ visibility: value as OverrideDraft["visibility"] });
             }}
           />
-          {!xiaohongshu && !toutiao && !bilibili && (
+          {!xiaohongshu && !toutiao && !bilibili && !channels && (
             <ArticleRadioField
               id={`ov-${account.id}-download`}
               label="保存权限"
@@ -340,56 +357,64 @@ export function AccountOverrideForm({
               }}
             />
           )}
-          <ArticleRadioField
-            id={`ov-${account.id}-publish-time`}
-            label="发布时间"
-            value={scheduleEnabled ? "scheduled" : "now"}
-            disabled={disabled}
-            options={[
-              { value: "now", label: "立即发布" },
-              { value: "scheduled", label: "定时发布" },
-            ]}
-            onChange={(value) => {
-              patch({
-                scheduledLocal:
-                  value === "now"
-                    ? ""
-                    : formatLocalDateTime(
-                        getDateTimeWindow({ minHours, maxDays }, Date.now())
-                          .min!,
-                      ),
-              });
-            }}
-          />
-          {scheduleEnabled ? (
-            <Field data-invalid={Boolean(scheduleError) || undefined}>
-              <FieldLabel
-                className="sr-only"
-                htmlFor={`ov-${account.id}-schedule`}
-              >
-                定时发布时间
-              </FieldLabel>
-              <DateTimePicker
-                id={`ov-${account.id}-schedule`}
-                aria-invalid={Boolean(scheduleError) || undefined}
-                aria-describedby={
-                  scheduleError ? `ov-${account.id}-schedule-error` : undefined
-                }
-                minHours={minHours}
-                maxDays={maxDays}
+          {channels ? (
+            <FieldDescription>立即发布。试发建议选「仅自己可见」。</FieldDescription>
+          ) : (
+            <>
+              <ArticleRadioField
+                id={`ov-${account.id}-publish-time`}
+                label="发布时间"
+                value={scheduleEnabled ? "scheduled" : "now"}
                 disabled={disabled}
-                value={draft.scheduledLocal}
+                options={[
+                  { value: "now", label: "立即发布" },
+                  { value: "scheduled", label: "定时发布" },
+                ]}
                 onChange={(value) => {
-                  patch({ scheduledLocal: value });
+                  patch({
+                    scheduledLocal:
+                      value === "now"
+                        ? ""
+                        : formatLocalDateTime(
+                            getDateTimeWindow({ minHours, maxDays }, Date.now())
+                              .min!,
+                          ),
+                  });
                 }}
               />
-              {scheduleError ? (
-                <FieldError id={`ov-${account.id}-schedule-error`}>
-                  {scheduleError}
-                </FieldError>
+              {scheduleEnabled ? (
+                <Field data-invalid={Boolean(scheduleError) || undefined}>
+                  <FieldLabel
+                    className="sr-only"
+                    htmlFor={`ov-${account.id}-schedule`}
+                  >
+                    定时发布时间
+                  </FieldLabel>
+                  <DateTimePicker
+                    id={`ov-${account.id}-schedule`}
+                    aria-invalid={Boolean(scheduleError) || undefined}
+                    aria-describedby={
+                      scheduleError
+                        ? `ov-${account.id}-schedule-error`
+                        : undefined
+                    }
+                    minHours={minHours}
+                    maxDays={maxDays}
+                    disabled={disabled}
+                    value={draft.scheduledLocal}
+                    onChange={(value) => {
+                      patch({ scheduledLocal: value });
+                    }}
+                  />
+                  {scheduleError ? (
+                    <FieldError id={`ov-${account.id}-schedule-error`}>
+                      {scheduleError}
+                    </FieldError>
+                  ) : null}
+                </Field>
               ) : null}
-            </Field>
-          ) : null}
+            </>
+          )}
         </FieldGroup>
       </FieldSet>
     </FieldGroup>

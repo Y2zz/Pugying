@@ -41,6 +41,8 @@ export function DistributionAccountEditor({
   className?: string;
 }) {
   const { draft, disabled, onDraftChange } = formProps;
+  const defaultVisibility =
+    account?.platform === "channels" ? "private" : "public";
   const customized =
     optionalOverrideCount(draft) > 0 ||
     Boolean(
@@ -49,8 +51,8 @@ export function DistributionAccountEditor({
       draft.location ||
       draft.partition,
     ) ||
-    draft.visibility !== "public" ||
-    !draft.allowDownload ||
+    draft.visibility !== defaultVisibility ||
+    (account?.platform !== "channels" && !draft.allowDownload) ||
     Boolean(draft.authorDeclaration && draft.authorDeclaration !== "none");
   return (
     <DistributionAccountEditorFrame
@@ -63,7 +65,7 @@ export function DistributionAccountEditor({
       dataSlot="video-account-editor"
       onReset={() => {
         revokeDraftBlobUrls(draft);
-        onDraftChange(emptyDraft());
+        onDraftChange(emptyDraft(account?.platform));
       }}
     >
       {account ? (

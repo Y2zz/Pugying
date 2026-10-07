@@ -273,11 +273,15 @@ export default function PublishVideo() {
         }
         setCatalog(
           platforms.filter((p) =>
-            ["douyin", "xiaohongshu", "toutiao", "bilibili"].includes(p.id),
+            ["douyin", "xiaohongshu", "toutiao", "bilibili", "channels"].includes(
+              p.id,
+            ),
           ),
         );
         const videoAccounts = accountList.filter((a) =>
-          ["douyin", "xiaohongshu", "toutiao", "bilibili"].includes(a.platform),
+          ["douyin", "xiaohongshu", "toutiao", "bilibili", "channels"].includes(
+            a.platform,
+          ),
         );
         setAccounts(videoAccounts);
 
@@ -361,7 +365,13 @@ export default function PublishVideo() {
           };
           for (const target of item.targets) {
             if (
-              !["douyin", "xiaohongshu", "toutiao", "bilibili"].includes(
+              ![
+                "douyin",
+                "xiaohongshu",
+                "toutiao",
+                "bilibili",
+                "channels",
+              ].includes(
                 target.platform,
               )
             ) {
@@ -465,8 +475,10 @@ export default function PublishVideo() {
     [grouped, selected],
   );
 
-  const getDraft = (accountId: string): OverrideDraft =>
-    drafts[accountId] ?? emptyDraft();
+  const getDraft = (accountId: string): OverrideDraft => {
+    const platform = accounts.find((item) => item.id === accountId)?.platform;
+    return drafts[accountId] ?? emptyDraft(platform);
+  };
 
   const buildTargets = (): ContentTargetInput[] =>
     selectedAccounts.map(({ account }) => ({

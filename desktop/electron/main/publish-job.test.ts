@@ -50,6 +50,26 @@ vi.mock("./platforms/publish-douyin-graphic", () => ({
   })),
 }));
 
+vi.mock("./platforms/publish-channels-graphic", () => ({
+  runChannelsGraphicPublish: vi.fn(async ({ payload }) => ({
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    ok: true,
+    platformPostId: "export/channels-123",
+    platform: payload.platform,
+  })),
+}));
+
+vi.mock("./platforms/publish-channels-video", () => ({
+  runChannelsVideoPublish: vi.fn(async ({ payload }) => ({
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    ok: true,
+    platformPostId: "export/channels-video-123",
+    platform: payload.platform,
+  })),
+}));
+
 vi.mock("./platforms/publish-douyin-article", () => ({
   runDouyinArticlePublish: vi.fn(async ({ payload }) => ({
     requestId: payload.requestId,
@@ -168,13 +188,51 @@ describe("publish-job real adapter routing", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("rejects unsupported platforms", () => {
-    const started = startPublishJob({
-      payload: basePayload({ platform: "channels" }),
-      onProgress: () => undefined,
-      onResult: () => undefined,
+  it("accepts Channels graphic publish jobs", async () => {
+    const result = await new Promise<{ ok: boolean; platformPostId?: string }>(
+      (resolve) => {
+        const started = startPublishJob({
+          payload: basePayload({
+            platform: "channels",
+            contentType: "graphic",
+            mediaPaths: ["/tmp/a.png"],
+            mediaPath: undefined,
+          }),
+          onProgress: () => undefined,
+          onResult: (r) => {
+            resolve(r);
+          },
+        });
+        expect(started).toEqual({ ok: true });
+      },
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      platformPostId: "export/channels-123",
     });
-    expect(started).toEqual({ error: "unsupported_platform" });
+  });
+
+  it("accepts Channels video publish jobs", async () => {
+    const result = await new Promise<{ ok: boolean; platformPostId?: string }>(
+      (resolve) => {
+        const started = startPublishJob({
+          payload: basePayload({
+            platform: "channels",
+            contentType: "video",
+            title: "短视频对接探测",
+          }),
+          onProgress: () => undefined,
+          onResult: (r) => {
+            resolve(r);
+          },
+        });
+        expect(started).toEqual({ ok: true });
+      },
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      platformPostId: "export/channels-video-123",
+    });
   });
 
   it("prevents overlapping jobs on the same account and emits success", async () => {
