@@ -1,0 +1,16 @@
+{
+  "contentId": "8758be59-5125-4959-b6e3-812dc265f3e6",
+  "targetId": "8eb2fdfd-1129-4ddd-bb23-30bbbcf670b5",
+  "publishStatus": "succeeded",
+  "errorCode": null,
+  "platformPostId": "7693865835932189225",
+  "platformUrl": "https://www.toutiao.com/video/7693865835932189225/",
+  "verified": {
+    "account": "洲谋天下",
+    "platform": "toutiao",
+    "title": "视频接口测试",
+    "visibility": "private",
+    "authorDeclaration": "ai_generated",
+    "note": "object 上传（非 VOD STS）后投稿成功；VOD STS 会返回 21028 视频provider非法。"
+  }
+}

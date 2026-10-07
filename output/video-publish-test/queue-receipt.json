@@ -1,0 +1,21 @@
+{
+  "contentId": "982c1397-9779-48e9-b953-efdd2b6cdc0b",
+  "targetId": "769fa662-f646-4d5d-a35e-d062955f81cc",
+  "publishStatus": "succeeded",
+  "errorCode": null,
+  "platformPostId": "7693814736445508899",
+  "platformUrl": "https://www.douyin.com/video/7693814736445508899",
+  "verified": {
+    "account": "Midnight",
+    "title": "视频接口测试",
+    "duration": 2,
+    "width": 640,
+    "height": 360,
+    "visibility": "private",
+    "allowDownload": false,
+    "evidence": [
+      "private-published.png",
+      "private-permissions.png"
+    ]
+  }
+}

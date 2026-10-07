@@ -1,0 +1,19 @@
+{
+  "contentId": "686213df-a4d9-4d54-b347-9c92316903b0",
+  "targetId": "b1269b5c-23ff-4a6f-a8e2-0479d1480e27",
+  "publishStatus": "succeeded",
+  "errorCode": null,
+  "platformPostId": "BV1RYHk6KERt",
+  "platformUrl": "https://www.bilibili.com/video/BV1RYHk6KERt/",
+  "verified": {
+    "account": "Arma666",
+    "platform": "bilibili",
+    "title": "视频接口测试",
+    "visibility": "private",
+    "partitionId": 21,
+    "copyright": 1,
+    "creationStatementId": 1,
+    "tags": ["接口测试"],
+    "note": "stdSlice（模块 64533）上传成功后，投稿补齐 web_os/dynamic/space_hidden/watermark，安全整数 cid 按数字提交；此前 33601 UPOS 对 ugcfx/bup 会 400，缺 web_os 会 21001 参数错误。已在浏览器完成短信验证并重新授权。"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "contentId": "982f4b95-4810-4c95-b31f-b2434b8c5987",
+  "targetId": "bf5f6626-877f-4e80-ad07-50130f3104b0",
+  "publishStatus": "succeeded",
+  "errorCode": null,
+  "platformPostId": "6ac618b40000000018006e45",
+  "platformUrl": "https://www.xiaohongshu.com/explore/6ac618b40000000018006e45",
+  "verified": {
+    "account": "Midnight",
+    "platform": "xiaohongshu",
+    "title": "视频接口测试",
+    "visibility": "private",
+    "authorDeclaration": "ai_generated",
+    "cover": "platform-first-frame",
+    "note": "Rotation 规范化为整数后投稿成功；视频笔记封面使用官方首帧。"
+  }
+}
