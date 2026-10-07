@@ -1,149 +1,275 @@
-import { promises as fs } from 'fs';
+import {
+  composeDouyinGraphicDescription,
+  isDouyinAuthorDeclaration,
+  type DouyinAuthorDeclaration,
+} from '../../../shared/douyin-graphic-settings';
 import type {
   PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
   PlatformPublishStartPayload,
 } from '../publish-protocol';
-import { DouyinHttpClient, DouyinHttpError } from './douyin-http-client';
+import {
+  ArticleApiError,
+  articlePostId,
+  articleRecord,
+  assertArticleActive,
+  assertArticleResponse,
+} from './article-api';
+import { articleSchedule } from './article-content';
+import type { CookiePublishSessionOptions } from './article-api-session';
+import type { VideoApiSession } from './video-api';
 
-type ProgressFn = (progress: PlatformPublishProgressPayload) => void;
-
-export interface DouyinHttpMediaFiles {
-  videoPath: string;
-  coverPath: string;
-  coverLandscapePath: string;
-}
-
-export interface DouyinHttpPipelineResult {
-  platformPostId?: string;
-  platformUrl?: string;
-}
-
-/**
- * 抓包对齐后的映射模块实现此接口。创作者中心后台 HTTP 不是开放平台官方契约，
- * endpoint、载荷和签名都易变，必须以用户自有已授权账号的实际网络请求为准。
- */
-export interface DouyinHttpPublishPipeline {
-  publish(options: {
-    payload: PlatformPublishStartPayload;
-    media: DouyinHttpMediaFiles;
-    client: DouyinHttpClient;
-    signal: { cancelled: boolean };
-    onProgress: ProgressFn;
-  }): Promise<DouyinHttpPipelineResult>;
-}
-
-export const DOUYIN_HTTP_NOT_CONFIGURED = 'HTTP_PIPELINE_NOT_CONFIGURED';
-
-/**
- * HTTP 发布：校验本机视频/封面路径后交给映射流水线。
- * 未注入流水线时明确失败，绝不把“尚未配置”当作发布成功。
- */
-export async function runDouyinHttpPublish(options: {
+export interface VideoPublishOptions {
   payload: PlatformPublishStartPayload;
-  onProgress: ProgressFn;
+  onProgress: (progress: PlatformPublishProgressPayload) => void;
   signal: { cancelled: boolean };
-  pipeline?: DouyinHttpPublishPipeline;
-}): Promise<PlatformPublishResultPayload> {
-  const { payload, onProgress, signal, pipeline } = options;
+  createSession?: (
+    platform: 'douyin',
+    options: CookiePublishSessionOptions,
+  ) => Promise<VideoApiSession>;
+}
+
+const DECLARATIONS: Record<Exclude<DouyinAuthorDeclaration, 'none'>, string> = {
+  ai_generated: 'aigc',
+  personal_opinion: 'personal_opinion',
+  reposted: 'from_net_v3',
+  marketing: 'marketing',
+  fictional: 'only_fun_new',
+};
+
+/** 2026-10-07 官方视频编辑器：标题以空格连接简介，话题分别保存全文/简介偏移。 */
+async function videoCaption(
+  api: VideoApiSession,
+  title: string,
+  caption: string,
+) {
+  const extra: Record<string, unknown>[] = [];
+  const challenges: string[] = [];
+  for (const match of caption.matchAll(/#[^\s#]+/g)) {
+    const name = match[0].slice(1);
+    const query = new URLSearchParams({
+      keyword: name,
+      source: 'challenge_create',
+      aid: '2906',
+    });
+    const response = await api.request(
+      `/aweme/v1/search/challengesug/?${query}`,
+    );
+    assertArticleResponse(response, 'douyin');
+    const suggestions = Array.isArray(response.sug_list)
+      ? response.sug_list
+      : [];
+    const suggestion = suggestions
+      .map(articleRecord)
+      .find((item) => item.cha_name === name);
+    const id = suggestion?.cid;
+    const hashtagId =
+      typeof id === 'string' && /^\d+$/.test(id)
+        ? id
+        : typeof id === 'number' && Number.isSafeInteger(id) && id > 0
+          ? String(id)
+          : '0';
+    if (hashtagId !== '0') {
+      challenges.push(hashtagId);
+    }
+    extra.push({
+      start: title.length + 1 + match.index,
+      end: title.length + 1 + match.index + match[0].length,
+      caption_start: match.index,
+      caption_end: match.index + match[0].length,
+      hashtag_id: hashtagId,
+      hashtag_name: name,
+      type: 1,
+    });
+  }
+  return {
+    text: `${title} ${caption}`,
+    caption,
+    item_title: title,
+    text_extra: JSON.stringify(extra),
+    challenges: JSON.stringify(challenges),
+    mentions: '[]',
+    activity: '[]',
+    hashtag_source: extra.map(() => 'search').join('/'),
+  };
+}
+
+/** 真实视频上传及 create_v2 提交，无网页填表、模拟回执或自动重复提交。 */
+export async function runDouyinHttpPublish(
+  options: VideoPublishOptions,
+): Promise<PlatformPublishResultPayload> {
+  const { payload, signal, onProgress } = options;
   const base = {
     requestId: payload.requestId,
     targetId: payload.targetId,
-    platform: payload.platform,
+    platform: 'douyin',
   };
   const emit = (
     phase: PlatformPublishProgressPayload['phase'],
-    message?: string,
+    message: string,
   ) => {
-    if (!signal.cancelled) {
-      onProgress({ ...base, phase, message });
-    }
+    assertArticleActive(signal);
+    onProgress({ ...base, phase, message });
   };
-
-  emit('accepted', '已进入抖音 HTTP 发布策略');
-  if (!pipeline) {
-    return fail(
-      base,
-      DOUYIN_HTTP_NOT_CONFIGURED,
-      '抖音 HTTP 发布流水线尚未配置；请先按自有账号抓包结果补齐接口映射',
-    );
-  }
-
+  let api: VideoApiSession | undefined;
+  let submitted = false;
   try {
-    if (signal.cancelled) {
-      return fail(base, 'cancelled', '已取消');
-    }
-
-    emit('fetching_media', '校验本机视频与封面文件');
-    const videoPath = payload.mediaPath?.trim() ?? '';
-    const coverPath = payload.coverPath?.trim() ?? '';
-    const coverLandscapePath = payload.coverLandscapePath?.trim() ?? '';
-    if (!videoPath) {
-      return fail(base, 'invalid_payload', '请先选择视频文件');
-    }
-    const media: DouyinHttpMediaFiles = {
-      videoPath,
-      coverPath,
-      coverLandscapePath,
-    };
-    await Promise.all([
-      assertReadable(media.videoPath),
-      ...(media.coverPath ? [assertReadable(media.coverPath)] : []),
-      ...(media.coverLandscapePath
-        ? [assertReadable(media.coverLandscapePath)]
-        : []),
-    ]);
-
-    if (signal.cancelled) {
-      return fail(base, 'cancelled', '已取消');
-    }
-
-    emit('opening_creator', '连接创作者中心后台 HTTP（Cookie 会话）');
-    const result = await pipeline.publish({
-      payload,
-      media,
-      client: new DouyinHttpClient(payload.cookies),
-      signal,
-      onProgress,
-    });
-    if (signal.cancelled) {
-      return fail(base, 'cancelled', '已取消');
-    }
-
-    emit('done', '发布完成');
-    return { ...base, ok: true, ...result };
-  } catch (error) {
-    if (error instanceof DouyinHttpError) {
-      return fail(base, error.code, error.message);
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    if (signal.cancelled || message === 'cancelled') {
-      return fail(base, 'cancelled', '已取消');
-    }
-    if (message.startsWith('MEDIA_MISSING:')) {
-      return fail(
-        base,
-        'MEDIA_MISSING',
-        message.replace(/^MEDIA_MISSING:\s*/, '') ||
-          '源文件不可用，请重新选择视频或封面',
+    emit('accepted', '准备发布视频');
+    const title = payload.title.trim();
+    const tags = [
+      ...new Set(
+        (payload.tags ?? [])
+          .map((tag) => tag.trim().replace(/^#+/, ''))
+          .filter(Boolean),
+      ),
+    ];
+    const caption = composeDouyinGraphicDescription(payload.body ?? '', tags);
+    const declaration = payload.authorDeclaration ?? 'none';
+    const visibility = (
+      { public: 0, private: 1, friends: 2 } as Record<string, number>
+    )[payload.visibility ?? 'public'];
+    if (
+      payload.platform !== 'douyin' ||
+      !title ||
+      title.length > 30 ||
+      caption.length > 1000 ||
+      !payload.mediaPath?.trim() ||
+      visibility === undefined ||
+      !isDouyinAuthorDeclaration(declaration) ||
+      tags.length > 5 ||
+      tags.some((tag) => /\s|#/.test(tag))
+    ) {
+      throw new ArticleApiError(
+        'invalid_payload',
+        '请检查视频、标题、简介和发布设置',
       );
     }
-    return fail(base, 'PUBLISH_FAILED', message);
-  }
-}
-
-function fail(
-  base: { requestId: string; targetId: string; platform: string },
-  errorCode: string,
-  error: string,
-): PlatformPublishResultPayload {
-  return { ...base, ok: false, errorCode, error };
-}
-
-async function assertReadable(filePath: string): Promise<void> {
-  try {
-    await fs.access(filePath);
-  } catch {
-    throw new Error(`MEDIA_MISSING: 源文件不可用，请重新选择：${filePath}`);
+    const timing = articleSchedule(payload.scheduledAt);
+    const checkSchedule = () => {
+      if (
+        timing !== undefined &&
+        (timing * 1000 < Date.now() + 2 * 3600000 ||
+          timing * 1000 > Date.now() + 14 * 86400000)
+      ) {
+        throw new ArticleApiError(
+          'invalid_payload',
+          '发布时间需在 2 小时至 14 天内',
+        );
+      }
+    };
+    checkSchedule();
+    emit('opening_creator', '连接发布平台');
+    const factory =
+      options.createSession ??
+      (await import('./article-api-session')).createArticleApiSession;
+    api = await factory('douyin', options);
+    const metadata = await videoCaption(api, title, caption);
+    emit('uploading', '上传视频');
+    const video = await api.uploadVideo(payload.mediaPath);
+    if (
+      !video.vid ||
+      !(
+        video.duration > 0 &&
+        video.duration <= 3600 &&
+        video.width > 0 &&
+        video.height > 0
+      ) ||
+      !video.coverUri
+    ) {
+      throw new ArticleApiError(
+        'VIDEO_UNSUPPORTED',
+        '未能确认视频信息，请检查视频后重试',
+      );
+    }
+    const cover: Record<string, unknown> = {
+      poster: video.coverUri,
+      poster_delay: 0,
+    };
+    if (payload.coverPath?.trim()) {
+      emit('uploading', '上传竖版封面');
+      const image = await api.uploadImage(payload.coverPath);
+      delete cover.poster;
+      Object.assign(cover, {
+        upload_poster: image.uri,
+        custom_cover_image_width: image.width,
+        custom_cover_image_height: image.height,
+      });
+    }
+    if (payload.coverLandscapePath?.trim()) {
+      emit('uploading', '上传横版封面');
+      const image = await api.uploadImage(payload.coverLandscapePath);
+      if (payload.coverPath?.trim()) {
+        Object.assign(cover, {
+          horizontal_custom_cover_image_uri: image.uri,
+          horizontal_custom_cover_image_width: image.width,
+          horizontal_custom_cover_image_height: image.height,
+          horizontal_cover_tsp: 0,
+        });
+      } else {
+        Object.assign(cover, {
+          poster: image.uri,
+          custom_cover_image_width: image.width,
+          custom_cover_image_height: image.height,
+        });
+      }
+    }
+    checkSchedule();
+    emit('submitting', '提交视频');
+    submitted = true;
+    const response = await api.request('/web/api/media/aweme/create_v2/', {
+      item: {
+        common: {
+          media_type: 4,
+          video_id: video.vid,
+          creation_id: payload.requestId,
+          ...metadata,
+          visibility_type: visibility,
+          download: payload.allowDownload === false ? 0 : 1,
+          timing: timing ?? 0,
+        },
+        cover,
+        assistant: { is_preview: 0, is_post_assistant: 0 },
+        ...(declaration === 'none'
+          ? {}
+          : {
+              declare: {
+                user_declare_info: JSON.stringify({
+                  choose_value: DECLARATIONS[declaration],
+                }),
+              },
+            }),
+      },
+    });
+    assertArticleResponse(response, 'douyin', true);
+    const platformPostId = articlePostId(response.item_id);
+    try {
+      onProgress({ ...base, phase: 'done', message: '视频已提交' });
+    } catch {
+      // 进度窗口关闭不能丢失已经确认的作品回执。
+    }
+    return {
+      ...base,
+      ok: true,
+      platformPostId,
+      platformUrl: `https://www.douyin.com/video/${platformPostId}`,
+    };
+  } catch (error) {
+    const known = error instanceof ArticleApiError;
+    return {
+      ...base,
+      ok: false,
+      errorCode: known
+        ? error.code
+        : submitted
+          ? 'PUBLISH_RESULT_UNKNOWN'
+          : 'PUBLISH_FAILED',
+      error: known
+        ? error.message
+        : submitted
+          ? '尚未确认发布结果，请先到平台查看'
+          : '视频发布未成功，请稍后重试',
+    };
+  } finally {
+    await api?.dispose().catch(() => {});
   }
 }
