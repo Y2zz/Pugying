@@ -33,8 +33,8 @@ npm run package:dir   # 仅目录包
 
 依赖本机已安装 Docker。默认镜像：
 
-- Linux：`electronuserland/builder:22-05.26`
-- Windows：`electronuserland/builder:22-wine-05.26`（可用环境变量覆盖）
+- Linux：`electronuserland/builder:24-05.26`
+- Windows：`electronuserland/builder:24-wine-05.26`（可用环境变量覆盖）
 
 ```bash
 cd desktop
@@ -57,8 +57,8 @@ npm run docker:package:win     # → desktop/release/win-unpacked/（见原生�
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `PUGYING_DOCKER_LINUX_IMAGE` | `electronuserland/builder:22-05.26` | Linux 构建镜像 |
-| `PUGYING_DOCKER_WINE_IMAGE` | `electronuserland/builder:22-wine-05.26` | Windows（Wine）构建镜像 |
+| `PUGYING_DOCKER_LINUX_IMAGE` | `electronuserland/builder:24-05.26` | Linux 构建镜像 |
+| `PUGYING_DOCKER_WINE_IMAGE` | `electronuserland/builder:24-wine-05.26` | Windows（Wine）构建镜像 |
 | `PUGYING_DOCKER_PLATFORM` | `linux/amd64` | `docker run --platform` |
 | `PUGYING_ELECTRON_CACHE` | `~/.cache/electron` | Electron 下载缓存 |
 | `PUGYING_ELECTRON_BUILDER_CACHE` | `~/.cache/electron-builder` | electron-builder 缓存 |

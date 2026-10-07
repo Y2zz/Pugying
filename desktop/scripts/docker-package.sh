@@ -20,8 +20,9 @@ DESKTOP_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${DESKTOP_ROOT}/.." && pwd)"
 
 # 固定 tag，避免 latest 漂移；需要时可覆盖 PUGYING_DOCKER_LINUX_IMAGE / PUGYING_DOCKER_WINE_IMAGE
-LINUX_IMAGE="${PUGYING_DOCKER_LINUX_IMAGE:-electronuserland/builder:22-05.26}"
-WINE_IMAGE="${PUGYING_DOCKER_WINE_IMAGE:-electronuserland/builder:22-wine-05.26}"
+# Node 24 系（与仓库约定的 24.x 对齐；日期 tag 防漂移）
+LINUX_IMAGE="${PUGYING_DOCKER_LINUX_IMAGE:-electronuserland/builder:24-05.26}"
+WINE_IMAGE="${PUGYING_DOCKER_WINE_IMAGE:-electronuserland/builder:24-wine-05.26}"
 DOCKER_PLATFORM="${PUGYING_DOCKER_PLATFORM:-linux/amd64}"
 
 CACHE_ELECTRON="${PUGYING_ELECTRON_CACHE:-${HOME}/.cache/electron}"
