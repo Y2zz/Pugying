@@ -12,6 +12,9 @@ import {
 } from './server-process';
 import { createTray, destroyTray } from './tray';
 import { recoverInterruptedDistributions, stopDistributions } from './distribution-service';
+import { registerPublishMediaScheme } from './platforms/publish-media-protocol';
+
+registerPublishMediaScheme();
 
 /** 清理已完成，允许 before-quit 放行真正的退出 */
 let allowQuit = false;
