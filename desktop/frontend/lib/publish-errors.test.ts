@@ -22,6 +22,17 @@ describe('describePublishError', () => {
   it('falls back to message or generic', () => {
     expect(describePublishError('UNKNOWN', '自定义')).toBe('自定义');
     expect(describePublishError(null)).toBe('发布失败');
+    expect(describePublishError('UNKNOWN')).toBe('发布失败');
+  });
+
+  it('keeps adapter and pipeline codes restrained', () => {
+    expect(describePublishError('ADAPTER_UI_CHANGED')).not.toMatch(
+      /DOM|HTTP|抓包|选择器/i,
+    );
+    expect(describePublishError('ADAPTER_PARTIAL')).toContain('打开的窗口');
+    expect(describePublishError('HTTP_PIPELINE_NOT_CONFIGURED')).toBe(
+      '暂时无法自动发布，请稍后重试',
+    );
   });
 });
 

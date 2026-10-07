@@ -38,11 +38,11 @@ export function describePublishError(
       // MEDIA_UNREACHABLE 为旧码别名，文案与 MEDIA_MISSING 一致
       return '找不到本机视频、图片或封面文件，请确认文件未被移动或删除后再重试';
     case 'ADAPTER_UI_CHANGED':
-      return '抖音创作者页结构有变，未能自动定位控件；已打开窗口时可手动完成，或稍后更新应用';
+      return '未能自动完成，请在打开的窗口里确认并发布';
     case 'ADAPTER_PARTIAL':
-      return '已尽量自动填写，请在打开的抖音窗口确认封面并点击发布；完成后可在内容列表查看或重试';
+      return '未能自动完成，请在打开的窗口里确认发布结果';
     case 'HTTP_PIPELINE_NOT_CONFIGURED':
-      return '尚未配置抖音 HTTP 发布映射，请改用 DOM 模式或先完成抓包对齐';
+      return '暂时无法自动发布，请稍后重试';
     case 'HTTP_TIMEOUT':
     case 'HTTP_REQUEST_FAILED':
       return fallback?.trim() || '暂时无法连接发布平台，请稍后重试';
@@ -71,7 +71,8 @@ export function describePublishError(
     case 'unsupported_platform':
       return '该平台暂不支持此类内容发布';
     default:
-      return fallback?.trim() || errorCode || '发布失败';
+      // 未知码不把内部字面量甩给用户；有 fallback 才展示
+      return fallback?.trim() || '发布失败';
   }
 }
 
