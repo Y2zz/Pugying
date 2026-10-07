@@ -43,3 +43,22 @@ describe('文章账号设置校验', () => {
     expect((await validate(dto)).some((error) => error.property === 'articleSettings')).toBe(true);
   });
 });
+
+describe('Bilibili video settings', () => {
+  it('accepts numeric platform configuration and source', async () => {
+    const dto = plainToInstance(TargetOverridesDto, {
+      bilibiliVideoSettings: { partitionId: 21, copyright: 2, source: 'original source', creationStatementId: 123 },
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+  it.each([
+    { partitionId: '21', copyright: 1 },
+    { partitionId: -1, copyright: 1 },
+    { partitionId: 21, copyright: 3 },
+    { partitionId: 21, copyright: 1, creationStatementId: -1 },
+    { partitionId: 21, copyright: 2, source: 123 },
+  ])('rejects invalid video settings %j', async (bilibiliVideoSettings) => {
+    const dto = plainToInstance(TargetOverridesDto, { bilibiliVideoSettings });
+    expect((await validate(dto)).some((error) => error.property === 'bilibiliVideoSettings')).toBe(true);
+  });
+});

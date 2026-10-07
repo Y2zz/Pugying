@@ -10,13 +10,7 @@ export type ContentType = (typeof CONTENT_TYPES)[number];
 export const ARTICLE_PLATFORMS = ['toutiao', 'bilibili', 'douyin'] as const;
 export const GRAPHIC_PLATFORMS = ['douyin', 'toutiao', 'xiaohongshu', 'channels'] as const;
 /** 短视频：当前开放全部已接入平台 */
-export const VIDEO_PLATFORMS = [
-  'douyin',
-  'toutiao',
-  'channels',
-  'bilibili',
-  'xiaohongshu',
-] as const;
+export const VIDEO_PLATFORMS = ['douyin', 'toutiao', 'channels', 'bilibili', 'xiaohongshu'] as const;
 
 export type ArticlePlatform = (typeof ARTICLE_PLATFORMS)[number];
 export type GraphicPlatform = (typeof GRAPHIC_PLATFORMS)[number];
@@ -27,14 +21,7 @@ export const CONTENT_STATUSES = ['draft', 'published'] as const;
 /** 草稿 / 已发布（内容级；分发成败看 Target.publishStatus） */
 export type ContentStatus = (typeof CONTENT_STATUSES)[number];
 
-export const TARGET_PUBLISH_STATUSES = [
-  'idle',
-  'queued',
-  'running',
-  'succeeded',
-  'failed',
-  'cancelled',
-] as const;
+export const TARGET_PUBLISH_STATUSES = ['idle', 'queued', 'running', 'succeeded', 'failed', 'cancelled'] as const;
 
 /** 单个分发目标的发布运行态 */
 export type TargetPublishStatus = (typeof TARGET_PUBLISH_STATUSES)[number];
@@ -52,22 +39,16 @@ export function isContentStatus(value: string): value is ContentStatus {
   return (CONTENT_STATUSES as readonly string[]).includes(value);
 }
 
-export function isContentVisibility(
-  value: string,
-): value is ContentVisibility {
+export function isContentVisibility(value: string): value is ContentVisibility {
   return (CONTENT_VISIBILITIES as readonly string[]).includes(value);
 }
 
-export function isTargetPublishStatus(
-  value: string,
-): value is TargetPublishStatus {
+export function isTargetPublishStatus(value: string): value is TargetPublishStatus {
   return (TARGET_PUBLISH_STATUSES as readonly string[]).includes(value);
 }
 
 /** 某内容类型允许绑定的平台 id 列表 */
-export function platformsForContentType(
-  type: ContentType,
-): readonly string[] {
+export function platformsForContentType(type: ContentType): readonly string[] {
   switch (type) {
     case 'article':
       return ARTICLE_PLATFORMS;
@@ -78,10 +59,7 @@ export function platformsForContentType(
   }
 }
 
-export function isPlatformAllowedForContentType(
-  type: ContentType,
-  platform: string,
-): boolean {
+export function isPlatformAllowedForContentType(type: ContentType, platform: string): boolean {
   return platformsForContentType(type).includes(platform);
 }
 
@@ -94,6 +72,7 @@ export interface ContentTargetOverrides {
   visibility?: ContentVisibility;
   allowDownload?: boolean;
   articleSettings?: import('./article-settings').ArticleAccountSettings;
+  bilibiliVideoSettings?: import('./bilibili-video-settings').BilibiliVideoSettings;
   authorDeclaration?: import('./author-declaration').AuthorDeclaration;
   /** 地点（如小红书图文） */
   location?: string;

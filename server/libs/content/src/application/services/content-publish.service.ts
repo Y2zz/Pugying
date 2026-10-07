@@ -1,3 +1,4 @@
+import { videoPublishIssue } from '../../domain/video-publish-rules';
 import { graphicPublishIssue } from '../../domain/graphic-publish-rules';
 import { formatArticleBodyForPlatform } from '../../domain/article-body-format';
 import { articlePublishIssue } from '../../domain/article-publish-rules';
@@ -26,7 +27,7 @@ function supportsPublish(contentType: Content['type'], platform: string): boolea
     ? ARTICLE_PUBLISH_PLATFORMS.has(platform)
     : contentType === 'graphic'
       ? GRAPHIC_PUBLISH_PLATFORMS.has(platform)
-      : platform === 'douyin';
+      : ['douyin', 'xiaohongshu', 'toutiao', 'bilibili'].includes(platform);
 }
 
 export interface PublishCookie {
@@ -60,6 +61,7 @@ export interface PublishDispatch {
   body?: string;
   tags?: string[];
   articleSettings?: import('../../domain/article-settings').ArticleAccountSettings;
+  bilibiliVideoSettings?: import('../../domain/bilibili-video-settings').BilibiliVideoSettings;
   authorDeclaration?: import('../../domain/author-declaration').AuthorDeclaration;
   visibility: string;
   scheduledAt?: string;
@@ -298,6 +300,22 @@ export class ContentPublishService {
         throw new BadRequestException(issue);
       }
     }
+    if (!isArticle && !isGraphic) {
+      const issue = videoPublishIssue({
+        platform: target.platform,
+        title: overrides.title?.trim() || content.title,
+        body: overrides.body?.trim() || content.body || '',
+        videoCount: mediaPaths.length,
+        tags: overrides.tags ?? content.tags,
+        visibility: overrides.visibility ?? content.visibility,
+        scheduledAt: scheduled,
+        authorDeclaration: overrides.authorDeclaration,
+        bilibiliVideoSettings: overrides.bilibiliVideoSettings,
+      });
+      if (issue) {
+        throw new BadRequestException(issue);
+      }
+    }
     // 图文必须有轮播图；视频必须有文件；文章插图可空
     if (!isArticle && mediaPaths.length === 0) {
       throw new BadRequestException(isGraphic ? '缺少图片本地路径' : '缺少视频本地路径');
@@ -340,6 +358,10 @@ export class ContentPublishService {
       if (!isDouyinArticle && !noArticleCover && !landscape && (target.platform !== 'bilibili' || settings?.customCover === true)) {
         throw new BadRequestException('缺少横版封面');
       }
+    }
+
+    if (!isArticle && !isGraphic && ['toutiao', 'bilibili'].includes(target.platform) && !portrait && !landscape) {
+      throw new BadRequestException('请设置视频封面');
     }
 
     const primaryCover = isGraphic && target.platform !== 'douyin' ? null : isArticle && !isDouyinArticle ? landscape : portrait;
@@ -392,7 +414,8 @@ export class ContentPublishService {
         : overrides.body?.trim() || content.body || undefined,
       tags: overrides.tags ?? content.tags,
       articleSettings: isArticle ? overrides.articleSettings : undefined,
-      authorDeclaration: isGraphic || (!isArticle && target.platform === 'douyin') ? (overrides.authorDeclaration ?? 'none') : undefined,
+      bilibiliVideoSettings: !isArticle && !isGraphic && target.platform === 'bilibili' ? overrides.bilibiliVideoSettings : undefined,
+      authorDeclaration: isGraphic || !isArticle ? (overrides.authorDeclaration ?? 'none') : undefined,
       visibility: overrides.visibility ?? content.visibility,
       scheduledAt: scheduled,
       allowDownload: overrides.allowDownload ?? content.allowDownload,

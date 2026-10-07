@@ -226,6 +226,71 @@ describe('ContentPublishService', () => {
       });
     });
 
+    it('dispatches private Bilibili video with platform settings intact', async () => {
+      const content = createVideo({ title: 'video test', tags: ['test'] });
+      const settings = { partitionId: 21, copyright: 1 as const, creationStatementId: 1 };
+      const target = createTarget({ platform: 'bilibili', overrides: { visibility: 'private', bilibiliVideoSettings: settings } });
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'bilibili' }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const { dispatches } = await service.publish(CONTENT_ID);
+      expect(dispatches[0]).toMatchObject({ platform: 'bilibili', contentType: 'video', visibility: 'private', bilibiliVideoSettings: settings });
+      expect(dispatches[0].coverLandscapePath).not.toBe('');
+      expect(target.publishStatus).toBe('queued');
+    });
+
+    it('dispatches a private Toutiao video with a horizontal cover and AI declaration', async () => {
+      const content = createVideo({ title: '视频接口测试', body: '测试视频', tags: [] });
+      const target = createTarget({ platform: 'toutiao', overrides: { visibility: 'private', authorDeclaration: 'ai_generated' } });
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'toutiao' }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const { dispatches } = await service.publish(CONTENT_ID);
+      expect(dispatches[0]).toMatchObject({ platform: 'toutiao', contentType: 'video', visibility: 'private', authorDeclaration: 'ai_generated' });
+      expect(dispatches[0].coverLandscapePath).not.toBe('');
+      expect(target.publishStatus).toBe('queued');
+    });
+
+    it('rejects Toutiao video without a cover before queueing', async () => {
+      const content = createVideo({ title: '视频接口测试', tags: [], coverMime: null, coverData: null, coverLandscapeMime: null, coverLandscapeData: null });
+      const target = createTarget({ platform: 'toutiao' });
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'toutiao' }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      await expect(service.publish(CONTENT_ID)).rejects.toThrow('请设置视频封面');
+      expect(targets.saveMany).not.toHaveBeenCalled();
+    });
+
+    it('dispatches a private Xiaohongshu video and retains its AI declaration', async () => {
+      const content = createVideo({
+        title: '视频接口测试',
+        body: '测试视频',
+        tags: [],
+        coverMime: null,
+        coverData: null,
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
+      });
+      const target = createTarget({ platform: 'xiaohongshu', overrides: { visibility: 'private', authorDeclaration: 'ai_generated' } });
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'xiaohongshu' }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const { dispatches } = await service.publish(CONTENT_ID);
+      expect(dispatches).toHaveLength(1);
+      expect(dispatches[0]).toMatchObject({
+        platform: 'xiaohongshu',
+        contentType: 'video',
+        visibility: 'private',
+        authorDeclaration: 'ai_generated',
+        coverPath: '',
+      });
+      expect(target.publishStatus).toBe('queued');
+    });
+
     it('queues all three article platforms through the public publish entry', async () => {
       const content = createVideo({ type: 'article', body: '<p>文章正文</p>', mediaPaths: [] });
       const rows = ['douyin', 'toutiao', 'bilibili'].map((platform, index) =>

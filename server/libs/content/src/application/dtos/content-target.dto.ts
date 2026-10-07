@@ -1,4 +1,5 @@
 import { ArticleAccountSettingsDto } from './article-account-settings.dto';
+import { BilibiliVideoSettingsDto } from './bilibili-video-settings.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { CONTENT_VISIBILITIES } from '../../domain/content-types';
@@ -7,6 +8,11 @@ import { Type } from 'class-transformer';
 
 /** 针对单个账号的差异字段；封面差异走独立 BLOB 接口，不在此 DTO */
 export class TargetOverridesDto {
+  @ApiPropertyOptional({ type: BilibiliVideoSettingsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BilibiliVideoSettingsDto)
+  bilibiliVideoSettings?: BilibiliVideoSettingsDto;
   @ApiPropertyOptional({ type: ArticleAccountSettingsDto })
   @IsOptional()
   @ValidateNested()

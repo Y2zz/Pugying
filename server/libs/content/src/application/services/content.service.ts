@@ -399,6 +399,29 @@ export class ContentService {
     if (contentType === 'article' && overrides.articleSettings) {
       result.articleSettings = articleSettingsForPlatform(overrides.articleSettings, platform);
     }
+    // B 站视频分区/版权等仅在视频目标上保留，避免被 sanitize 静默丢弃。
+    if (
+      contentType === 'video' &&
+      platform === 'bilibili' &&
+      overrides.bilibiliVideoSettings &&
+      Number.isSafeInteger(overrides.bilibiliVideoSettings.partitionId) &&
+      [1, 2].includes(overrides.bilibiliVideoSettings.copyright)
+    ) {
+      result.bilibiliVideoSettings = {
+        partitionId: overrides.bilibiliVideoSettings.partitionId,
+        copyright: overrides.bilibiliVideoSettings.copyright,
+        ...(overrides.bilibiliVideoSettings.source?.trim()
+          ? { source: overrides.bilibiliVideoSettings.source.trim() }
+          : {}),
+        ...(Number.isSafeInteger(overrides.bilibiliVideoSettings.creationStatementId) &&
+        (overrides.bilibiliVideoSettings.creationStatementId as number) > 0
+          ? {
+              creationStatementId: overrides.bilibiliVideoSettings
+                .creationStatementId,
+            }
+          : {}),
+      };
+    }
     if (overrides.title?.trim()) {
       result.title = overrides.title.trim();
     }
