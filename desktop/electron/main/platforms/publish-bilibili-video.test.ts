@@ -64,8 +64,9 @@ it("publishes uploaded identity with private visibility and returns the official
     "/x/vu/web/add/v3",
     expect.objectContaining({
       is_only_self: 1,
+      web_os: expect.any(Number),
       videos: [
-        { filename: "native-file", title: "test", desc: "", cid: "456" },
+        { filename: "native-file", title: "test", desc: "", cid: 456 },
       ],
     }),
   );

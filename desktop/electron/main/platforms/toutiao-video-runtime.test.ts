@@ -35,18 +35,19 @@ function fixture(micro = false) {
   return { window, callbacks, factory, uploader, ready };
 }
 
-it('uses the official video factory and its STS mode, preserving the upload receipt', async () => {
+it('uses the official video factory in object upload mode, preserving the upload receipt', async () => {
   const { window, callbacks, factory, uploader, ready } = fixture();
   expect(ready).toBe(true);
   const file = { name: 'video.mp4' };
   const upload = window.__pugyingToutiaoVideoUpload(file);
   await vi.waitFor(() => expect(uploader.start).toHaveBeenCalledOnce());
+  // 第五参数 false：object 上传；STS(true) 会触发投稿 21028。
   expect(factory).toHaveBeenCalledWith(
     file,
     'video',
     undefined,
     undefined,
-    true,
+    false,
   );
   expect(uploader.start).toHaveBeenCalledOnce();
   callbacks.progress({ percent: 62 });
