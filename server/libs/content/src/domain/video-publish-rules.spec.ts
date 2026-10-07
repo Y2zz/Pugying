@@ -40,6 +40,24 @@ it('uses Toutiao visibility and declaration constraints independently of Douyin'
   expect(videoPublishIssue({ ...toutiao, scheduledAt: new Date(now - 1000).toISOString() }, now)).not.toBeNull();
 });
 
+it('Channels requires a 6-16 title, public/private visibility and no schedule', () => {
+  const channels = {
+    platform: 'channels',
+    title: '短视频对接探测',
+    body: '仅自己可见试发',
+    videoCount: 1,
+    tags: ['蒲公英'],
+    visibility: 'private',
+  };
+  expect(videoPublishIssue(channels, now)).toBeNull();
+  expect(videoPublishIssue({ ...channels, title: '短' }, now)).toBe('标题需为 6 至 16 字');
+  expect(videoPublishIssue({ ...channels, visibility: 'friends' }, now)).toBe('请重新选择可见范围');
+  expect(videoPublishIssue({ ...channels, authorDeclaration: 'ai_generated' }, now)).toBe('请重新选择自主声明');
+  expect(
+    videoPublishIssue({ ...channels, scheduledAt: new Date(now + 7200000).toISOString() }, now),
+  ).toBe('视频号短视频暂不支持定时发布');
+});
+
 it('Bilibili requires a leaf partition, tags and a source for reprints', () => {
   const input = {
     platform: 'bilibili',

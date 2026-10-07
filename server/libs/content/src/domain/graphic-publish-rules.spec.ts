@@ -26,3 +26,33 @@ it('rejects a schedule the platform cannot apply', () => {
 it('validates caption plus tags on Douyin', () => {
   expect(graphicPublishIssue({ ...base, platform: 'douyin', body: '字'.repeat(999), tags: ['日常'] })).toContain('1000');
 });
+it('allows private Channels graphics with optional title and topic tags', () => {
+  expect(
+    graphicPublishIssue({
+      ...base,
+      platform: 'channels',
+      title: '',
+      tags: ['蒲公英'],
+      visibility: 'private',
+      authorDeclaration: 'none',
+    }),
+  ).toBeNull();
+  expect(
+    graphicPublishIssue({
+      ...base,
+      platform: 'channels',
+      title: '字'.repeat(31),
+      visibility: 'private',
+      authorDeclaration: 'none',
+    }),
+  ).toContain('30');
+  expect(
+    graphicPublishIssue({
+      ...base,
+      platform: 'channels',
+      visibility: 'private',
+      authorDeclaration: 'none',
+      scheduledAt: new Date(Date.now() + 2 * 3600000).toISOString(),
+    }),
+  ).toContain('定时');
+});

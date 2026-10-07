@@ -40,6 +40,37 @@ export function videoPublishIssue(
     }
     return null;
   }
+  if (input.platform === 'channels') {
+    const title = input.title.trim();
+    // 短标题对应平台 shortTitle，实发核对约 6～16 字
+    if (title.length < 6 || title.length > 16) {
+      return '标题需为 6 至 16 字';
+    }
+    if (input.videoCount !== 1) {
+      return '请选择一个视频';
+    }
+    const tags = [...new Set(input.tags.map((tag) => tag.trim().replace(/^#+/, '')).filter(Boolean))];
+    if (tags.length > 10 || tags.some((tag) => /\s|#/.test(tag))) {
+      return '话题最多 10 个';
+    }
+    const topicSuffix = tags.map((tag) => `#${tag}`).join(' ');
+    const description = [input.body.trim(), topicSuffix]
+      .filter(Boolean)
+      .join(input.body.trim() && topicSuffix ? ' ' : '');
+    if (description.length > 1000) {
+      return '简介与话题合计最多 1000 字';
+    }
+    if (!['public', 'private'].includes(input.visibility)) {
+      return '请重新选择可见范围';
+    }
+    if ((input.authorDeclaration ?? 'none') !== 'none') {
+      return '请重新选择自主声明';
+    }
+    if (input.scheduledAt) {
+      return '视频号短视频暂不支持定时发布';
+    }
+    return null;
+  }
   const toutiao = input.platform === 'toutiao';
   const xiaohongshu = input.platform === 'xiaohongshu';
   const titleMax = xiaohongshu ? 20 : 30;

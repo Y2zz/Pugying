@@ -8,9 +8,21 @@ export type ContentType = (typeof CONTENT_TYPES)[number];
  * 创建 Target 时按 Content.type 校验，禁止跨形态挂错平台。
  */
 export const ARTICLE_PLATFORMS = ['toutiao', 'bilibili', 'douyin'] as const;
-export const GRAPHIC_PLATFORMS = ['douyin', 'toutiao', 'xiaohongshu', 'channels'] as const;
-/** 短视频：当前开放全部已接入平台 */
-export const VIDEO_PLATFORMS = ['douyin', 'toutiao', 'channels', 'bilibili', 'xiaohongshu'] as const;
+/** 图文可挂平台（含已接入真实发布的视频号图文） */
+export const GRAPHIC_PLATFORMS = [
+  'douyin',
+  'toutiao',
+  'xiaohongshu',
+  'channels',
+] as const;
+/** 短视频可挂平台；与生产队列已接入范围一致，视频号短视频待接入 */
+export const VIDEO_PLATFORMS = [
+  'douyin',
+  'toutiao',
+  'bilibili',
+  'xiaohongshu',
+  'channels',
+] as const;
 
 export type ArticlePlatform = (typeof ARTICLE_PLATFORMS)[number];
 export type GraphicPlatform = (typeof GRAPHIC_PLATFORMS)[number];

@@ -18,7 +18,12 @@ import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
 import { PublishErrorCodes } from '@pugying/content/domain/publish-error-codes';
 
-const GRAPHIC_PUBLISH_PLATFORMS = new Set(['douyin', 'toutiao', 'xiaohongshu']);
+const GRAPHIC_PUBLISH_PLATFORMS = new Set([
+  'douyin',
+  'toutiao',
+  'xiaohongshu',
+  'channels',
+]);
 
 const ARTICLE_PUBLISH_PLATFORMS = new Set(['douyin', 'toutiao', 'bilibili']);
 
@@ -27,7 +32,9 @@ function supportsPublish(contentType: Content['type'], platform: string): boolea
     ? ARTICLE_PUBLISH_PLATFORMS.has(platform)
     : contentType === 'graphic'
       ? GRAPHIC_PUBLISH_PLATFORMS.has(platform)
-      : ['douyin', 'xiaohongshu', 'toutiao', 'bilibili'].includes(platform);
+      : ['douyin', 'xiaohongshu', 'toutiao', 'bilibili', 'channels'].includes(
+          platform,
+        );
 }
 
 export interface PublishCookie {
@@ -114,7 +121,7 @@ export class ContentPublishService {
       }
       throw new BadRequestException(
         content.type === 'graphic'
-          ? '请绑定可用的抖音、头条或小红书账号后再发布图文'
+          ? '请绑定可用的抖音、头条、小红书或视频号账号后再发布图文'
           : content.type === 'article'
             ? '请绑定可用的文章发布账号后再试'
             : '暂时仅支持抖音短视频发布；请绑定可用的抖音账号后再试',
