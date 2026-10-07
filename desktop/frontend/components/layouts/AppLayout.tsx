@@ -7,13 +7,14 @@ import { ResponsiveSidebarProvider } from '@/components/layouts/ResponsiveSideba
 import { ProductUpdateProvider } from '@/components/ProductUpdateDialog';
 import type { ReactNode } from 'react';
 import { useCreatorWindowSync } from '@/hooks/use-creator-window-sync';
+import { DistributionProvider } from '@/components/publishing/DistributionProvider';
 
 /** 侧栏固定视口；主内容在 SidebarInset（main）内滚动。Windows 顶栏单独成行。 */
 export function AppLayout({ children }: { children?: ReactNode }) {
   // Creator-center windows outlive page navigation; sync cookies app-wide.
   useCreatorWindowSync();
   return (
-    <ProductUpdateProvider>
+    <DistributionProvider><ProductUpdateProvider>
       <div className="flex h-svh flex-col overflow-hidden">
         <DesktopTitleBar />
         <ResponsiveSidebarProvider className="h-auto min-h-0 flex-1">
@@ -23,6 +24,6 @@ export function AppLayout({ children }: { children?: ReactNode }) {
           </SidebarInset>
         </ResponsiveSidebarProvider>
       </div>
-    </ProductUpdateProvider>
+    </ProductUpdateProvider></DistributionProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Clapperboard,
@@ -209,7 +209,8 @@ export default function Contents() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContentItem | null>(null);
-  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [detailsId, setDetailsId] = useState<string | null>(searchParams.get('contentId'));
   const [detailsItem, setDetailsItem] = useState<ContentItem | null>(null);
   const [detailsError, setDetailsError] = useState("");
   const [accounts, setAccounts] = useState<PlatformAccountItem[] | null>(null);

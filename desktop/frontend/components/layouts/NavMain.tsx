@@ -10,12 +10,15 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuBadge,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
 
 type NavMainItem = {
+  badge?: number;
+  tooltip?: string;
   title: string;
   url: string;
   icon: LucideIcon;
@@ -68,7 +71,8 @@ function NavMainItem({ item }: { item: NavMainItem }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        tooltip={item.title}
+        tooltip={item.tooltip ?? item.title}
+        aria-label={item.tooltip ?? item.title}
         isActive={active}
         render={hasSubItems ? undefined : <NavLink to={item.url} end={item.end} />}
         onClick={
@@ -82,6 +86,7 @@ function NavMainItem({ item }: { item: NavMainItem }) {
         <item.icon />
         <span>{item.title}</span>
       </SidebarMenuButton>
+      {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
       {hasSubItems ? (
         <>
           <SidebarMenuAction

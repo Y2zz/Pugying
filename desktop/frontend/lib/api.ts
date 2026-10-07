@@ -357,6 +357,10 @@ export async function fetchContent(id: string): Promise<ContentItem> {
   return apiFetch<ContentItem>(`/contents/${id}`);
 }
 
+export async function fetchDistributionPage(view: import('@shared/distribution').DistributionView = 'active', page = 1): Promise<import('@shared/distribution').DistributionPage> {
+  return apiFetch(`/contents/distribution?view=${view}&page=${page}&pageSize=20`, { signal: AbortSignal.timeout(10000) });
+}
+
 export async function createContent(
   body: CreateContentBody,
 ): Promise<ContentItem> {

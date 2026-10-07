@@ -31,6 +31,17 @@ const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
   startPublish: vi.fn(),
 }));
+
+it('opens work details directly from the unified distribution queue', async () => {
+  current = work([target('daily', 'failed')]);
+  mocks.fetchContents.mockResolvedValue(page(current));
+  mocks.fetchContent.mockResolvedValue(current);
+  mocks.fetchPlatformAccounts.mockResolvedValue([]);
+  render(<MemoryRouter initialEntries={['/contents?contentId=work']}><Contents /></MemoryRouter>);
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByText('周末记录')).toBeTruthy();
+  expect(mocks.fetchContent).toHaveBeenCalledWith('work');
+});
 vi.mock("@/lib/api", () => ({ ...mocks }));
 vi.mock("@/lib/distribution", () => ({
   submitDistribution: mocks.submitDistribution,

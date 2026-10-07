@@ -102,7 +102,7 @@ export function summarizeContent(item: ContentItem) {
   };
 }
 
-export function contentTargetMessage(target: ContentTargetItem): string {
+export function contentTargetMessage(target: Pick<ContentTargetItem, 'publishStatus' | 'errorCode' | 'errorMessage'>): string {
   if (target.publishStatus === "cancelled") {
     return "发布已取消，可重新发布";
   }

@@ -126,6 +126,8 @@ describe('AppLayout (SSR)', () => {
 
     expect(html).toContain('Dashboard');
     expect(html).toContain('作品管理');
+    expect(html).toContain('分发队列');
+    expect(html).toContain('href="/distribution"');
     expect(html).toContain('媒体账号');
   });
 
