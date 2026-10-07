@@ -17,8 +17,18 @@ import {
   BILIBILI_ARTICLE_RUNTIME,
   DOUYIN_ARTICLE_RUNTIME,
   TOUTIAO_ARTICLE_RUNTIME,
+  TOUTIAO_GRAPHIC_RUNTIME,
+  XIAOHONGSHU_GRAPHIC_RUNTIME,
 } from './article-platform-runtime';
 import { signBilibiliQuery } from './bilibili-wbi';
+
+export type CookiePublishPlatform = ArticlePlatform | 'xiaohongshu';
+
+/** 图文与文章共用平台 Cookie、图片上传和签名传输，不依赖文章正文。 */
+export type CookiePublishSessionOptions = Pick<
+  ArticlePublishOptions,
+  'payload' | 'onProgress' | 'signal'
+>;
 
 const CONFIG = {
   douyin: {
@@ -26,7 +36,11 @@ const CONFIG = {
     domain: 'douyin.com',
     url: 'https://creator.douyin.com/creator-micro/content/post/article?enter_from=publish_page&media_type=article&type=new',
     runtime: DOUYIN_ARTICLE_RUNTIME,
-    paths: ['/web/api/media/aweme/create_v2/', '/web/api/media/user/info/'],
+    paths: [
+      '/web/api/media/aweme/create_v2/',
+      '/web/api/media/user/info/',
+      '/web/api/media/item/info/',
+    ],
   },
   toutiao: {
     host: 'mp.toutiao.com',
@@ -34,10 +48,19 @@ const CONFIG = {
     url: 'https://mp.toutiao.com/profile_v4/graphic/publish',
     runtime: TOUTIAO_ARTICLE_RUNTIME,
     paths: [
+      '/mp/agw/article/wtt',
+      '/mp/agw/article/wtt/edit',
       '/mp/agw/article/new',
       '/mp/agw/article/publish',
       '/mp/agw/diversity/publish/strategy/v1/check/',
     ],
+  },
+  xiaohongshu: {
+    host: 'creator.xiaohongshu.com',
+    domain: 'xiaohongshu.com',
+    url: 'https://creator.xiaohongshu.com/publish/publish?source=official&target=image',
+    runtime: XIAOHONGSHU_GRAPHIC_RUNTIME,
+    paths: ['/web_api/sns/v2/note', '/web_api/sns/capa/postgw/note/detail'],
   },
   bilibili: {
     host: 'member.bilibili.com',
@@ -84,8 +107,8 @@ class CookieArticleApiSession implements ArticleApiSession {
   private verificationAttempted = false;
 
   constructor(
-    private readonly platform: ArticlePlatform,
-    private readonly options: ArticlePublishOptions,
+    private readonly platform: CookiePublishPlatform,
+    private readonly options: CookiePublishSessionOptions,
     private readonly isolated: Session,
     private readonly window: BrowserWindow,
   ) {
@@ -149,7 +172,18 @@ class CookieArticleApiSession implements ArticleApiSession {
       this.window.webContents.once('dom-ready', () => resolve()),
     );
     await this.bounded(
-      Promise.race([this.window.loadURL(config.url), domReady]),
+      Promise.race([
+        this.window.loadURL(
+          this.platform === 'douyin' &&
+            this.options.payload.contentType === 'graphic'
+            ? 'https://creator.douyin.com/creator-micro/content/post/image'
+            : this.platform === 'toutiao' &&
+                this.options.payload.contentType === 'graphic'
+              ? 'https://mp.toutiao.com/profile_v4/weitoutiao/publish'
+              : config.url,
+        ),
+        domReady,
+      ]),
       30000,
     );
     const deadline = Date.now() + 45000;
@@ -166,7 +200,12 @@ class CookieArticleApiSession implements ArticleApiSession {
         throw new ArticleApiError('AUTH_EXPIRED', '账号登录已失效，请重新授权');
       }
       const ready = await this.bounded(
-        this.window.webContents.mainFrame.executeJavaScript(config.runtime),
+        this.window.webContents.mainFrame.executeJavaScript(
+          this.platform === 'toutiao' &&
+            this.options.payload.contentType === 'graphic'
+            ? TOUTIAO_GRAPHIC_RUNTIME
+            : config.runtime,
+        ),
         5000,
       );
       if (ready === 'AUTH_EXPIRED') {
@@ -179,7 +218,7 @@ class CookieArticleApiSession implements ArticleApiSession {
     }
     throw new ArticleApiError(
       'ARTICLE_API_CHANGED',
-      '暂时无法连接文章发布功能，请稍后重试',
+      '暂时无法连接发布功能，请稍后重试',
     );
   }
 
@@ -254,13 +293,19 @@ class CookieArticleApiSession implements ArticleApiSession {
       if (response?.code === 'ARTICLE_API_CHANGED') {
         throw new ArticleApiError(
           'ARTICLE_API_CHANGED',
-          '暂时无法连接文章发布功能，请稍后重试',
+          '暂时无法连接发布功能，请稍后重试',
         );
       }
       if (
-        ['AUTH_EXPIRED', '-101', '401', '1003', '2001'].includes(
-          response?.code || '',
-        )
+        [
+          'AUTH_EXPIRED',
+          '-101',
+          '401',
+          '1003',
+          '2001',
+          '-100',
+          '-10001',
+        ].includes(response?.code || '')
       ) {
         throw new ArticleApiError('AUTH_EXPIRED', '账号登录已失效，请重新授权');
       }
@@ -329,9 +374,24 @@ class CookieArticleApiSession implements ArticleApiSession {
     const url = new URL(path, `https://${CONFIG[this.platform].host}`);
     if (
       url.origin !== `https://${CONFIG[this.platform].host}` ||
-      !(CONFIG[this.platform].paths as readonly string[]).includes(url.pathname)
+      !(CONFIG[this.platform].paths as readonly string[]).includes(
+        url.pathname,
+      ) ||
+      (url.pathname === '/web_api/sns/capa/postgw/note/detail' &&
+        (data !== undefined ||
+          url.searchParams.size !== 2 ||
+          !/^[a-f0-9]{24}$/.test(url.searchParams.get('note_id') ?? '') ||
+          url.searchParams.get('source') !== 'web')) ||
+      (url.pathname === '/mp/agw/article/wtt/edit' &&
+        (data !== undefined ||
+          url.searchParams.size !== 1 ||
+          !/^\d+$/.test(url.searchParams.get('id') ?? ''))) ||
+      (url.pathname === '/web/api/media/item/info/' &&
+        (data !== undefined ||
+          url.searchParams.size !== 1 ||
+          !/^\d+$/.test(url.searchParams.get('item_id') ?? '')))
     ) {
-      throw new ArticleApiError('invalid_payload', '文章发布请求不可用');
+      throw new ArticleApiError('invalid_payload', '发布请求不可用');
     }
     const submit = data !== undefined;
     if (this.platform === 'bilibili') {
@@ -427,22 +487,23 @@ class CookieArticleApiSession implements ArticleApiSession {
   async uploadImage(path: string): Promise<UploadedArticleImage> {
     assertArticleActive(this.options.signal);
     if (!isAbsolute(path)) {
-      throw new ArticleApiError('MEDIA_MISSING', '找不到文章图片，请重新选择');
+      throw new ArticleApiError('MEDIA_MISSING', '找不到图片，请重新选择');
     }
     const info = await stat(path).catch(() => null);
     if (!info?.isFile()) {
-      throw new ArticleApiError('MEDIA_MISSING', '找不到文章图片，请重新选择');
+      throw new ArticleApiError('MEDIA_MISSING', '找不到图片，请重新选择');
     }
     if (info.size > 20 * 1024 * 1024) {
       throw new ArticleApiError(
         'ARTICLE_IMAGE_UNSUPPORTED',
-        '文章图片不能超过 20MB',
+        '图片不能超过 20MB',
       );
     }
     const bytes = await readFile(path);
     const mime = imageMime(bytes);
     if (
-      (this.platform === 'douyin' && mime === 'image/gif') ||
+      (['douyin', 'xiaohongshu'].includes(this.platform) &&
+        mime === 'image/gif') ||
       (this.platform === 'toutiao' &&
         !['image/jpeg', 'image/png'].includes(mime))
     ) {
@@ -509,12 +570,12 @@ class CookieArticleApiSession implements ArticleApiSession {
 }
 
 export async function createArticleApiSession(
-  platform: ArticlePlatform,
-  options: ArticlePublishOptions,
+  platform: CookiePublishPlatform,
+  options: CookiePublishSessionOptions,
 ): Promise<ArticleApiSession> {
   assertArticleActive(options.signal);
   const isolated = session.fromPartition(
-    `article-api-${platform}-${randomUUID()}`,
+    `${options.payload.contentType === 'graphic' ? 'graphic' : 'article'}-api-${platform}-${randomUUID()}`,
   );
   isolated.setPermissionRequestHandler((_webContents, _permission, callback) =>
     callback(false),

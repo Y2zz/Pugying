@@ -6,6 +6,16 @@ import {
 } from './publish-job';
 import type { PlatformPublishStartPayload } from './publish-protocol';
 
+vi.mock('./platforms/publish-douyin-graphic', () => ({
+  runDouyinGraphicPublish: vi.fn(async ({ payload }) => ({
+    requestId: payload.requestId,
+    targetId: payload.targetId,
+    ok: true,
+    platformPostId: 'graphic-123',
+    platform: payload.platform,
+  })),
+}));
+
 vi.mock('./platforms/publish-douyin-article', () => ({
   runDouyinArticlePublish: vi.fn(async ({ payload }) => ({
     requestId: payload.requestId,
@@ -69,22 +79,25 @@ describe('publish-job stub', () => {
   });
 
   it('accepts graphic payload without landscape cover', async () => {
-    const result = await new Promise<{ ok: boolean }>((resolve) => {
-      const started = startPublishJob({
-        payload: basePayload({
-          contentType: 'graphic',
-          mediaPath: undefined,
-          mediaPaths: ['/tmp/pugying-test/a.jpg', '/tmp/pugying-test/b.jpg'],
-          coverLandscapePath: undefined,
-        }),
-        onProgress: () => undefined,
-        onResult: (r) => {
-          resolve(r);
-        },
-      });
-      expect(started).toEqual({ ok: true });
-    });
+    const result = await new Promise<{ ok: boolean; platformPostId?: string }>(
+      (resolve) => {
+        const started = startPublishJob({
+          payload: basePayload({
+            contentType: 'graphic',
+            mediaPath: undefined,
+            mediaPaths: ['/tmp/pugying-test/a.jpg', '/tmp/pugying-test/b.jpg'],
+            coverLandscapePath: undefined,
+          }),
+          onProgress: () => undefined,
+          onResult: (r) => {
+            resolve(r);
+          },
+        });
+        expect(started).toEqual({ ok: true });
+      },
+    );
     expect(result.ok).toBe(true);
+    expect(result.platformPostId).toBe('graphic-123');
   });
 
   it('rejects graphic payload without images', () => {

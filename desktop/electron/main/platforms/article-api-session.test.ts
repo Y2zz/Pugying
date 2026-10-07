@@ -92,6 +92,18 @@ beforeEach(() => {
   mock.execute.mockResolvedValue(true);
 });
 
+it('loads the graphic editor in an isolated Cookie session without requiring article nodes', async () => {
+  const input = options();
+  input.payload.contentType = 'graphic';
+  const { article: _article, ...transport } = input;
+  const api = await createArticleApiSession('douyin', transport);
+  expect(mock.windows[0].url).toBe(
+    'https://creator.douyin.com/creator-micro/content/post/image',
+  );
+  expect(mock.partitions[0]).toMatch(/^graphic-api-douyin-/);
+  await api.dispose();
+});
+
 it('recognizes a login page rendered at the original creator URL and disposes the session', async () => {
   mock.execute.mockResolvedValueOnce('AUTH_EXPIRED');
   await expect(
@@ -134,6 +146,27 @@ it('does not forward account cookies to arbitrary request URLs', async () => {
     code: 'invalid_payload',
   });
   expect(mock.execute).toHaveBeenCalledTimes(1);
+  await api.dispose();
+});
+
+it('allows receipt readback only for one explicit numeric item ID and never posts to the read endpoint', async () => {
+  const api = await createArticleApiSession('douyin', options());
+  mock.execute.mockResolvedValueOnce({
+    ok: true,
+    data: { status_code: 0, aweme: { aweme_id: '123' } },
+  });
+  await expect(
+    api.request('/web/api/media/item/info/?item_id=123'),
+  ).resolves.toMatchObject({ status_code: 0 });
+  await expect(api.request('/web/api/media/item/info/')).rejects.toMatchObject({
+    code: 'invalid_payload',
+  });
+  await expect(
+    api.request('/web/api/media/item/info/?item_id=123', {}),
+  ).rejects.toMatchObject({ code: 'invalid_payload' });
+  await expect(
+    api.request('/web/api/media/item/info/?item_id=123&item_id=456'),
+  ).rejects.toMatchObject({ code: 'invalid_payload' });
   await api.dispose();
 });
 

@@ -4,8 +4,105 @@ import {
   DOUYIN_ARTICLE_RUNTIME,
   TOUTIAO_ARTICLE_RUNTIME,
   BILIBILI_ARTICLE_RUNTIME,
+  TOUTIAO_GRAPHIC_RUNTIME,
+  XIAOHONGSHU_GRAPHIC_RUNTIME,
 } from './article-platform-runtime';
 import { signBilibiliQuery } from './bilibili-wbi';
+
+it('encodes micro posts as JSON text and preserves the exact large integer receipt', async () => {
+  const post = vi.fn(async (_path, _data, config) =>
+    config.transformResponse[0](
+      '{"code":0,"data":{"threadId":7693773543242304768}}',
+    ),
+  );
+  const window: any = { Garr: { network: { post, get: vi.fn() } } };
+  expect(
+    runInNewContext(TOUTIAO_GRAPHIC_RUNTIME, {
+      window,
+      location: { hostname: 'mp.toutiao.com' },
+    }),
+  ).toBe(true);
+  expect(
+    await window.__pugyingArticleApi.request('/mp/agw/article/wtt', {
+      content: '标题\n文案',
+      image_list: ['image/one'],
+    }),
+  ).toEqual({
+    code: 0,
+    data: { threadId: '7693773543242304768' },
+  });
+  expect(post.mock.calls[0][1]).toBe(
+    '{"content":"标题\\n文案","image_list":["image/one"]}',
+  );
+  expect(post.mock.calls[0][2].headers).toEqual({
+    'Content-Type': 'application/json; charset=utf-8',
+  });
+});
+
+it('distinguishes an explicit micro post rejection from timeout uncertainty', async () => {
+  const network = { post: vi.fn(), get: vi.fn() };
+  const window: any = { Garr: { network } };
+  runInNewContext(TOUTIAO_GRAPHIC_RUNTIME, {
+    window,
+    location: { hostname: 'mp.toutiao.com' },
+  });
+  network.post.mockRejectedValueOnce({ response: { status: 400 } });
+  expect(
+    await window.__pugyingArticleApi.request('/mp/agw/article/wtt', {}),
+  ).toEqual({ code: 400 });
+  const timeout = { response: { status: 408 } };
+  network.post.mockRejectedValueOnce(timeout);
+  await expect(
+    window.__pugyingArticleApi.request('/mp/agw/article/wtt', {}),
+  ).rejects.toBe(timeout);
+});
+
+it('uses the official Xiaohongshu API origin and separates business refusals from network uncertainty', async () => {
+  const client = {
+    get: vi.fn(),
+    post: vi
+      .fn()
+      .mockResolvedValue({
+        code: 'N/A',
+        success: true,
+        data: { id: '6ac5d15f00000000140002c3' },
+      }),
+  };
+  const modules = { 21069: { LV: client }, 69517: { d9: { post: vi.fn() } } };
+  const require = Object.assign((id: number) => modules[id], { m: modules });
+  const window: any = {
+    webpackChunkugc: { push: ([, , callback]: any[]) => callback(require) },
+  };
+  expect(
+    runInNewContext(XIAOHONGSHU_GRAPHIC_RUNTIME, {
+      window,
+      crypto: webcrypto,
+      location: { hostname: 'creator.xiaohongshu.com' },
+    }),
+  ).toBe(true);
+  expect(
+    await window.__pugyingArticleApi.request('/web_api/sns/v2/note', {
+      common: {},
+    }),
+  ).toMatchObject({ success: true });
+  expect(client.post).toHaveBeenCalledWith(
+    'https://edith.xiaohongshu.com/web_api/sns/v2/note',
+    { common: {} },
+    expect.objectContaining({ transform: false, extractData: false }),
+  );
+  client.post.mockRejectedValueOnce({
+    name: 'HTTPBizError',
+    data: { code: -9999 },
+  });
+  expect(
+    await window.__pugyingArticleApi.request('/web_api/sns/v2/note', {}),
+  ).toEqual({ code: -9999, success: false });
+  const networkError = new Error('network unavailable');
+  client.post.mockRejectedValueOnce(networkError);
+  await expect(
+    window.__pugyingArticleApi.request('/web_api/sns/v2/note', {}),
+  ).rejects.toBe(networkError);
+});
 
 it('recognizes Douyin login without relying on a URL redirect', async () => {
   expect(

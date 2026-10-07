@@ -61,7 +61,11 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
   }
 
   const contentType = resolveContentType(payload);
-  if (contentType === 'graphic' && !payload.coverPath?.trim()) {
+  if (
+    contentType === 'graphic' &&
+    payload.platform === 'douyin' &&
+    !payload.coverPath?.trim()
+  ) {
     return false;
   }
   if (contentType === 'graphic') {
@@ -84,7 +88,7 @@ function isValidPublishPayload(payload: PlatformPublishStartPayload): boolean {
 
 /**
  * Validates payload, enforces app concurrency and account isolation, then runs the adapter.
- * PUGYING_PUBLISH_STUB 仅用于短视频/图文测试；文章始终调用真实适配器。
+ * PUGYING_PUBLISH_STUB 仅用于短视频测试；文章和图文始终调用真实适配器。
  */
 export function startPublishJob(options: {
   payload: PlatformPublishStartPayload;
@@ -108,14 +112,20 @@ export function startPublishJob(options: {
   const contentType = resolveContentType(payload);
   if (
     payload.platform !== 'douyin' &&
-    (contentType !== 'article' ||
-      !['toutiao', 'bilibili'].includes(payload.platform))
+    !(
+      contentType === 'article' &&
+      ['toutiao', 'bilibili'].includes(payload.platform)
+    ) &&
+    !(
+      contentType === 'graphic' &&
+      ['toutiao', 'xiaohongshu'].includes(payload.platform)
+    )
   ) {
     return { error: 'unsupported_platform' };
   }
 
   const useStub =
-    process.env.PUGYING_PUBLISH_STUB === '1' && contentType !== 'article';
+    process.env.PUGYING_PUBLISH_STUB === '1' && contentType === 'video';
   const signal = { cancelled: false };
   const job: ActivePublish = {
     requestId: payload.requestId,
@@ -153,9 +163,9 @@ export function startPublishJob(options: {
   const runAdapter =
     contentType === 'graphic'
       ? () =>
-          import('./platforms/publish-douyin-graphic').then(
-            ({ runDouyinGraphicPublish }) =>
-              runDouyinGraphicPublish({
+          import('./platforms/publish-graphic').then(
+            ({ runPlatformGraphicPublish }) =>
+              runPlatformGraphicPublish({
                 payload,
                 onProgress: options.onProgress,
                 signal,
@@ -190,7 +200,7 @@ export function startPublishJob(options: {
       if (
         (job.cancelled || signal.cancelled) &&
         !(
-          contentType === 'article' &&
+          contentType !== 'video' &&
           (result.ok || result.errorCode === 'PUBLISH_RESULT_UNKNOWN')
         )
       ) {
@@ -214,9 +224,11 @@ export function startPublishJob(options: {
         error:
           contentType === 'article'
             ? '文章发布未成功，请检查正文和图片后重试'
-            : err instanceof Error
-              ? err.message
-              : String(err),
+            : contentType === 'graphic'
+              ? '图文发布未成功，请检查文案和图片后重试'
+              : err instanceof Error
+                ? err.message
+                : String(err),
         errorCode: job.cancelled ? 'cancelled' : 'PUBLISH_FAILED',
         platform: payload.platform,
       });

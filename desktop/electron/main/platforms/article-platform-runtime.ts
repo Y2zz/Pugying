@@ -190,3 +190,79 @@ export const BILIBILI_ARTICLE_RUNTIME = `(() => {
   };
   return true;
 })()`;
+
+/** 2026-10-07 小红书当前官方图文编辑器的请求客户端与图片上传 SDK。 */
+export const XIAOHONGSHU_GRAPHIC_RUNTIME = `(() => {
+  if (location.hostname !== 'creator.xiaohongshu.com') { return false; }
+  const chunks = window.webpackChunkugc;
+  if (!chunks) { return false; }
+  let require;
+  chunks.push([['pugying_graphic_' + crypto.randomUUID()], {}, runtime => { require = runtime; }]);
+  if (![21069, 69517].every(id => require?.m?.[id])) { return false; }
+  const client = require(21069).LV;
+  const uploader = require(69517).d9;
+  if (!client?.get || !client?.post || !uploader?.post) { return false; }
+  window.__pugyingArticleApi = {
+    async request(path, data) {
+      const config = { transform: false, extractData: false, timeout: 45000, withCredentials: true };
+      const url = 'https://edith.xiaohongshu.com' + path;
+      try {
+        if (data === undefined) { return await client.get(url, config); }
+        return await client.post(url, data, config);
+      } catch (error) {
+        // 官方客户端将明确的业务拒绝转换为异常，保留业务码用于区分未知结果。
+        if (error?.name === 'HTTPBizError' && typeof error.data?.code === 'number') {
+          return { code: error.data.code, success: false };
+        }
+        if (error?.name === 'HTTPServerError' && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
+          return { code: typeof error.data?.code === 'number' ? error.data.code : error.status, success: false };
+        }
+        throw error;
+      }
+    },
+    async upload(file) {
+      const bitmap = await createImageBitmap(file);
+      const width = bitmap.width, height = bitmap.height;
+      bitmap.close();
+      const result = await uploader.post({ Body: file });
+      if (result?.success !== true || !result.data?.Key) { throw { code: 'ARTICLE_API_CHANGED' }; }
+      const image = result.data;
+      // 官方上传回执中的预览地址，不从本机路径构造远程图片地址。
+      const url = image.headers?.['x-ros-preview-url'];
+      return { uri: image.Key, url, width, height, size: file.size / 1024 };
+    }
+  };
+  return true;
+})()`;
+
+/** 微头条使用官方客户端的 JSON 发布方法，不复用文章的表单编码。 */
+export const TOUTIAO_GRAPHIC_RUNTIME = `(() => {
+  if (location.hostname !== 'mp.toutiao.com' || !window.Garr?.network?.post) { return false; }
+  window.__pugyingArticleApi = {
+    async request(path, data) {
+      if (data === undefined) { return window.Garr.network.get(path); }
+      try { return await window.Garr.network.post(path, JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        transformResponse: [text => typeof text === 'string' && text ? JSON.parse(text, (key, value, context) =>
+          typeof value === 'number' && !Number.isSafeInteger(value) && context?.source ? context.source : value) : text]
+      }); } catch (error) {
+        const status = error?.response?.status;
+        if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+          return { code: status };
+        }
+        throw error;
+      }
+    },
+    async upload(file) {
+      const form = new FormData();
+      form.append('image', file);
+      const response = await window.Garr.network.post('/spice/image?upload_source=20020004&aid=1231&device_platform=web', form,
+        { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (response.code !== 0) { throw response; }
+      const image = response.data;
+      return { uri: image.origin_image_uri, url: image.origin_image_url,
+        width: image.image_width, height: image.image_height, size: file.size / 1024 };
+    }
+  };
+  return true;
+})()`;
