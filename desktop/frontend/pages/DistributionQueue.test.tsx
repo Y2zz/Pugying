@@ -220,6 +220,10 @@ it("requires platform verification before retrying an unknown receipt", async ()
   await waitFor(() =>
     expect(mocks.submit).toHaveBeenCalledExactlyOnceWith("work", "unknown"),
   );
+  // 确认后须关掉对话框（AlertDialogAction 不会自动 Close）
+  await waitFor(() => {
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
 });
 it("paginates across works without losing global counts and ignores stale responses after changing view", async () => {
   const delayed = Promise.withResolvers<DistributionPage>();

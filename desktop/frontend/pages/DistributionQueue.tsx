@@ -426,9 +426,13 @@ export default function DistributionQueue() {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (confirmation) {
-                  void retry(confirmation);
+                if (!confirmation) {
+                  return;
                 }
+                // AlertDialogAction 非 Close，须先清掉 confirmation，否则对话框会一直开着
+                const row = confirmation;
+                setConfirmation(null);
+                void retry(row);
               }}
             >
               确认重新发布
