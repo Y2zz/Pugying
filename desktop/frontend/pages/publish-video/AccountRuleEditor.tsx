@@ -1,5 +1,9 @@
+import { BilibiliVideoFields } from "./BilibiliVideoFields";
 import { useState, type RefObject } from "react";
-import { composeDouyinGraphicDescription } from "@shared/douyin-graphic-settings";
+import {
+  DOUYIN_AUTHOR_DECLARATIONS,
+  composeDouyinGraphicDescription,
+} from "@shared/douyin-graphic-settings";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import {
   Field,
@@ -122,9 +126,15 @@ export function AccountOverrideForm({
   /** 图文账号差异封面仅竖版 */
   portraitOnly?: boolean;
 }) {
+  const bilibili = account.platform === "bilibili";
+  const toutiao = account.platform === "toutiao";
+  const xiaohongshu = account.platform === "xiaohongshu";
+  const titleMax = xiaohongshu ? 20 : TITLE_MAX;
+  const minHours = toutiao || bilibili ? 1 / 60 : xiaohongshu ? 1 : 2;
+  const maxDays = toutiao || bilibili ? undefined : 14;
   const scheduleEnabled = Boolean(draft.scheduledLocal.trim());
   const scheduleError = scheduleEnabled
-    ? validateSchedule(localInputToIso(draft.scheduledLocal))
+    ? validateSchedule(localInputToIso(draft.scheduledLocal), account.platform)
     : null;
 
   const patch = (partial: Partial<OverrideDraft>) => {
@@ -132,13 +142,15 @@ export function AccountOverrideForm({
   };
 
   const titleError =
-    (draft.title.trim() || commonTitle).length > TITLE_MAX
-      ? `标题最多 ${TITLE_MAX} 字`
+    (draft.title.trim() || commonTitle).length > titleMax
+      ? `标题最多 ${titleMax} 字`
       : "";
   const tags = parseTags(draft.tagsText);
   const bodyError =
-    composeDouyinGraphicDescription(draft.body.trim() || commonBody, tags)
-      .length > BODY_MAX
+    (bilibili
+      ? (draft.body.trim() || commonBody).length
+      : composeDouyinGraphicDescription(draft.body.trim() || commonBody, tags)
+          .length) > BODY_MAX
       ? `简介与话题合计最多 ${BODY_MAX} 字`
       : "";
 
@@ -174,7 +186,7 @@ export function AccountOverrideForm({
               id={`ov-${account.id}-title`}
               validationMessage={titleError}
               placeholder={commonTitle.trim() || "沿用通用标题"}
-              max={TITLE_MAX}
+              max={titleMax}
               disabled={disabled}
               value={draft.title}
               onChange={(e) => {
@@ -244,30 +256,54 @@ export function AccountOverrideForm({
               }}
             />
           </Field>
-          <Field>
-            <FieldLabel
-              className="font-normal"
-              htmlFor={`ov-${account.id}-tags`}
-            >
-              话题
-            </FieldLabel>
-            <TagInput
-              id={`ov-${account.id}-tags`}
-              value={tags}
+          {((!xiaohongshu && !toutiao) || tags.length > 0) && (
+            <Field>
+              <FieldLabel
+                className="font-normal"
+                htmlFor={`ov-${account.id}-tags`}
+              >
+                话题
+              </FieldLabel>
+              <TagInput
+                id={`ov-${account.id}-tags`}
+                value={tags}
+                disabled={disabled}
+                onChange={(next) => {
+                  patch({ tagsText: next.join(" ") });
+                }}
+              />
+            </Field>
+          )}
+          {account.platform === "bilibili" ? (
+            <BilibiliVideoFields
+              accountId={account.id}
+              value={draft.bilibiliVideoSettings}
               disabled={disabled}
-              onChange={(next) => {
-                patch({ tagsText: next.join(" ") });
+              onChange={(bilibiliVideoSettings) =>
+                patch({ bilibiliVideoSettings })
+              }
+            />
+          ) : (
+            <DouyinDeclarationField
+              options={
+                xiaohongshu
+                  ? DOUYIN_AUTHOR_DECLARATIONS.filter(
+                      (option) => option.value !== "personal_opinion",
+                    )
+                  : toutiao
+                    ? DOUYIN_AUTHOR_DECLARATIONS.filter(
+                        (option) => option.value !== "marketing",
+                      )
+                    : DOUYIN_AUTHOR_DECLARATIONS
+              }
+              accountId={`video-${account.id}`}
+              value={draft.authorDeclaration}
+              disabled={disabled}
+              onChange={(authorDeclaration) => {
+                patch({ authorDeclaration });
               }}
             />
-          </Field>
-          <DouyinDeclarationField
-            accountId={`video-${account.id}`}
-            value={draft.authorDeclaration}
-            disabled={disabled}
-            onChange={(authorDeclaration) => {
-              patch({ authorDeclaration });
-            }}
-          />
+          )}
         </FieldGroup>
       </FieldSet>
       <FieldSet>
@@ -277,25 +313,33 @@ export function AccountOverrideForm({
             id={`ov-${account.id}-visibility`}
             label="谁可以看"
             value={draft.visibility}
-            options={VISIBILITY_OPTIONS}
+            options={
+              xiaohongshu || toutiao || bilibili
+                ? VISIBILITY_OPTIONS.filter(
+                    (option) => option.value !== "friends",
+                  )
+                : VISIBILITY_OPTIONS
+            }
             disabled={disabled}
             onChange={(value) => {
               patch({ visibility: value as OverrideDraft["visibility"] });
             }}
           />
-          <ArticleRadioField
-            id={`ov-${account.id}-download`}
-            label="保存权限"
-            value={draft.allowDownload ? "allow" : "deny"}
-            disabled={disabled}
-            options={[
-              { value: "allow", label: "允许" },
-              { value: "deny", label: "不允许" },
-            ]}
-            onChange={(value) => {
-              patch({ allowDownload: value === "allow" });
-            }}
-          />
+          {!xiaohongshu && !toutiao && !bilibili && (
+            <ArticleRadioField
+              id={`ov-${account.id}-download`}
+              label="保存权限"
+              value={draft.allowDownload ? "allow" : "deny"}
+              disabled={disabled}
+              options={[
+                { value: "allow", label: "允许" },
+                { value: "deny", label: "不允许" },
+              ]}
+              onChange={(value) => {
+                patch({ allowDownload: value === "allow" });
+              }}
+            />
+          )}
           <ArticleRadioField
             id={`ov-${account.id}-publish-time`}
             label="发布时间"
@@ -311,10 +355,8 @@ export function AccountOverrideForm({
                   value === "now"
                     ? ""
                     : formatLocalDateTime(
-                        getDateTimeWindow(
-                          { minHours: 2, maxDays: 14 },
-                          Date.now(),
-                        ).min!,
+                        getDateTimeWindow({ minHours, maxDays }, Date.now())
+                          .min!,
                       ),
               });
             }}
@@ -333,8 +375,8 @@ export function AccountOverrideForm({
                 aria-describedby={
                   scheduleError ? `ov-${account.id}-schedule-error` : undefined
                 }
-                minHours={2}
-                maxDays={14}
+                minHours={minHours}
+                maxDays={maxDays}
                 disabled={disabled}
                 value={draft.scheduledLocal}
                 onChange={(value) => {

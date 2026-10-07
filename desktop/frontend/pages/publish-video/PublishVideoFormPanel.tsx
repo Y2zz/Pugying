@@ -243,7 +243,12 @@ export function PublishVideoFormPanel({
                 </Badge>
               );
             }
-            const issues = getAccountDraftIssues(getDraft(account.id), body);
+            const issues = getAccountDraftIssues(
+              getDraft(account.id),
+              body,
+              account.platform,
+              title,
+            );
             return issues.length > 0 ? (
               <Badge variant="destructive">{issues[0]}</Badge>
             ) : (

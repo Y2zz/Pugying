@@ -271,11 +271,15 @@ export default function PublishVideo() {
         if (cancelled) {
           return;
         }
-        setCatalog(platforms.filter((p) => p.id === "douyin"));
-        const douyinAccounts = accountList.filter(
-          (a) => a.platform === "douyin",
+        setCatalog(
+          platforms.filter((p) =>
+            ["douyin", "xiaohongshu", "toutiao", "bilibili"].includes(p.id),
+          ),
         );
-        setAccounts(douyinAccounts);
+        const videoAccounts = accountList.filter((a) =>
+          ["douyin", "xiaohongshu", "toutiao", "bilibili"].includes(a.platform),
+        );
+        setAccounts(videoAccounts);
 
         if (editId) {
           const item = await fetchContent(editId);
@@ -356,7 +360,11 @@ export default function PublishVideo() {
             allowDownload: item.allowDownload,
           };
           for (const target of item.targets) {
-            if (target.platform !== "douyin") {
+            if (
+              !["douyin", "xiaohongshu", "toutiao", "bilibili"].includes(
+                target.platform,
+              )
+            ) {
               continue;
             }
             nextSelected[target.platformAccountId] = true;
@@ -401,7 +409,7 @@ export default function PublishVideo() {
           setDrafts(nextDrafts);
           setContentStatus(item.status);
         } else {
-          const active = douyinAccounts.filter((a) => a.status === "active");
+          const active = videoAccounts.filter((a) => a.status === "active");
           if (active.length === 1) {
             setSelected({ [active[0].id]: true });
           }
@@ -648,12 +656,17 @@ export default function PublishVideo() {
       return;
     }
     if (status === "published" && selectedAccounts.length === 0) {
-      setError("请至少选择一个抖音账号");
+      setError("请至少选择一个发布账号");
       focusBlock("accounts");
       return;
     }
     for (const { account } of selectedAccounts) {
-      const issues = getAccountDraftIssues(getDraft(account.id), body);
+      const issues = getAccountDraftIssues(
+        getDraft(account.id),
+        body,
+        account.platform,
+        title,
+      );
       if (issues.length > 0) {
         setError(`「${account.displayName}」${issues.join("、")}`);
         focusBlock("accountConfig", { accountId: account.id });
@@ -661,7 +674,7 @@ export default function PublishVideo() {
       }
       const iso = draftToOverrides(getDraft(account.id)).scheduledAt;
       if (iso) {
-        const scheduleError = validateSchedule(iso);
+        const scheduleError = validateSchedule(iso, account.platform);
         if (scheduleError) {
           setError(`「${account.displayName}」${scheduleError}`);
           setExpandedAccountId(account.id);
@@ -872,16 +885,22 @@ export default function PublishVideo() {
     if (!file) {
       return;
     }
-    const fileError = validateVideoFile(file);
+    const platforms = selectedAccounts.map(({ account }) => account.platform);
+    const fileError =
+      platforms
+        .map((platform) => validateVideoFile(file, undefined, platform))
+        .find(Boolean) ?? (platforms.length ? null : validateVideoFile(file));
     if (fileError) {
       setError(fileError);
       return;
     }
     try {
-      const durationError = validateVideoFile(
-        file,
-        await readVideoDuration(file),
-      );
+      const duration = await readVideoDuration(file);
+      const durationError =
+        platforms
+          .map((platform) => validateVideoFile(file, duration, platform))
+          .find(Boolean) ??
+        (platforms.length ? null : validateVideoFile(file, duration));
       if (durationError) {
         setError(durationError);
         return;
@@ -1049,7 +1068,7 @@ export default function PublishVideo() {
     });
   };
 
-  const activeDouyinSelected = selectedAccounts.filter(
+  const activeVideoSelected = selectedAccounts.filter(
     ({ account }) => account.status === "active",
   ).length;
 
@@ -1060,8 +1079,9 @@ export default function PublishVideo() {
         draft: getDraft(account.id),
       })),
       body,
+      title,
     );
-  }, [selectedAccounts, drafts, body]);
+  }, [selectedAccounts, drafts, body, title]);
 
   const checklistItems: PrecheckItem[] = [
     {
@@ -1088,17 +1108,17 @@ export default function PublishVideo() {
     {
       id: "accounts",
       label: "账号",
-      ok: activeDouyinSelected > 0,
+      ok: activeVideoSelected > 0,
       fix:
         accounts.length === 0 ? (
           <span>
             请先
             <Link to="/platform-accounts" className="mx-1 underline">
-              绑定抖音账号
+              绑定媒体账号
             </Link>
           </span>
         ) : (
-          "请勾选至少一个正常状态的抖音账号"
+          "请勾选至少一个正常状态的账号"
         ),
       env: accounts.length === 0,
       focusKind: "accounts",
@@ -1109,7 +1129,7 @@ export default function PublishVideo() {
         accountIssueSummary.issueCount > 0
           ? `账号配置 · ${accountIssueSummary.issueCount}`
           : "账号配置",
-      ok: activeDouyinSelected > 0 && accountIssueSummary.issueCount === 0,
+      ok: activeVideoSelected > 0 && accountIssueSummary.issueCount === 0,
       fix:
         accountIssueSummary.issueCount > 0
           ? "请修正账号发布配置（定时、字数等）"
