@@ -65,6 +65,8 @@ export interface AgentProfile {
   platformUserId?: string;
   nickname?: string;
   avatarUrl?: string;
+  /** 同一账号的其它平台侧标识（如视频号 uniqId） */
+  alternateUserIds?: string[];
 }
 
 export interface PlatformAuthResultPayload {

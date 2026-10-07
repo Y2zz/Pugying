@@ -1,5 +1,10 @@
-import { PlatformAccountService } from './platform-account.service';
+import { randomUUID } from 'crypto';
+import {
+  PlatformAccountService,
+  resolveCreatorOpenUrl,
+} from './platform-account.service';
 import { PlatformAccount } from '../../domain/entities/platform-account.entity';
+import { getPlatformCatalogItem } from '../../domain/platform-catalog';
 import { decryptCredentialPayload } from '../../infrastructure/credential-crypto';
 
 const cookies = [{ name: 'session', value: 'new-session' }];
@@ -92,4 +97,108 @@ describe('媒体账号授权与名称保护', () => {
     expect(result).toMatchObject({ displayName: '我的备注', platformNickname: '旧昵称' });
   });
 });
-import { randomUUID } from 'node:crypto';
+
+describe('resolveCreatorOpenUrl', () => {
+  const channels = getPlatformCatalogItem('channels');
+
+  it('uses channels homeUrl instead of login.html', () => {
+    expect(resolveCreatorOpenUrl('channels', channels, null)).toBe(
+      'https://channels.weixin.qq.com/platform',
+    );
+    expect(
+      resolveCreatorOpenUrl(
+        'channels',
+        channels,
+        'https://channels.weixin.qq.com/login.html',
+      ),
+    ).toBe('https://channels.weixin.qq.com/platform');
+  });
+
+  it('prefers a saved non-login channels finalUrl', () => {
+    expect(
+      resolveCreatorOpenUrl(
+        'channels',
+        channels,
+        'https://channels.weixin.qq.com/platform/post/list',
+      ),
+    ).toBe('https://channels.weixin.qq.com/platform/post/list');
+  });
+});
+
+describe('视频号身份纠偏', () => {
+  it('upgrades a bogus channels user id when the session profile is a real finderUsername', async () => {
+    const account = Object.assign(new PlatformAccount(), {
+      id: randomUUID(),
+      platform: 'channels',
+      displayName: 'eccommerce',
+      platformNickname: 'eccommerce',
+      platformUserId: 'eccommerce',
+      credentialCipher: 'old-credentials',
+      status: 'active',
+      lastAuthedAt: null,
+      avatarUrl: null,
+    });
+    const repository = {
+      findById: jest.fn(async () => account),
+      findByPlatformUser: jest.fn(async () => null),
+      save: jest.fn(async (value: PlatformAccount) => value),
+      create: jest.fn(),
+    };
+    const service = new PlatformAccountService(repository as never);
+    const finder =
+      'v2_060000231003b20faec8c7e6881bcbd4c706ed32b077cdde6d007a8e8000a308d0ca67b26db6@finder';
+    const result = await service.reauth(account.id, {
+      cookies,
+      profile: {
+        platformUserId: finder,
+        nickname: 'Y2zz',
+        avatarUrl: 'https://wx.qlogo.cn/finderhead/x',
+        alternateUserIds: ['spheq0OhhRpbaFb'],
+      },
+    });
+    expect(result).toMatchObject({
+      platformUserId: finder,
+      displayName: 'Y2zz',
+      platformNickname: 'Y2zz',
+      avatarUrl: 'https://wx.qlogo.cn/finderhead/x',
+      status: 'active',
+    });
+  });
+
+  it('accepts channels reauth when the stored id matches alternateUserIds', async () => {
+    const finder =
+      'v2_060000231003b20faec8c7e6881bcbd4c706ed32b077cdde6d007a8e8000a308d0ca67b26db6@finder';
+    const account = Object.assign(new PlatformAccount(), {
+      id: randomUUID(),
+      platform: 'channels',
+      displayName: '备注名',
+      platformNickname: '旧昵称',
+      platformUserId: 'spheq0OhhRpbaFb',
+      credentialCipher: 'old-credentials',
+      status: 'expired',
+      lastAuthedAt: null,
+      avatarUrl: null,
+    });
+    const repository = {
+      findById: jest.fn(async () => account),
+      findByPlatformUser: jest.fn(async () => null),
+      save: jest.fn(async (value: PlatformAccount) => value),
+      create: jest.fn(),
+    };
+    const service = new PlatformAccountService(repository as never);
+    const result = await service.reauth(account.id, {
+      cookies,
+      profile: {
+        platformUserId: finder,
+        nickname: 'Y2zz',
+        alternateUserIds: ['spheq0OhhRpbaFb'],
+      },
+    });
+    // 用户自定义显示名保留
+    expect(result).toMatchObject({
+      platformUserId: finder,
+      displayName: '备注名',
+      platformNickname: 'Y2zz',
+    });
+  });
+});

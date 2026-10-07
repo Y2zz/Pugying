@@ -86,6 +86,8 @@ export interface PlatformCatalogItem {
   id: PlatformId;
   displayName: string;
   loginUrl: string;
+  /** 创作者中心入口；缺省等同 loginUrl（视频号与登录页不同） */
+  homeUrl?: string;
 }
 
 export interface PlatformAccountItem {
@@ -107,6 +109,8 @@ export interface PlatformProfile {
   platformUserId?: string;
   nickname?: string;
   avatarUrl?: string;
+  /** 同一账号的其它平台侧标识（如视频号 uniqId） */
+  alternateUserIds?: string[];
 }
 
 export async function fetchPlatformCatalog(): Promise<PlatformCatalogItem[]> {

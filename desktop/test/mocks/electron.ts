@@ -87,6 +87,8 @@ class FakeWebContents extends EventEmitter {
 
   setWindowOpenHandler(_handler: unknown): void {}
 
+  setUserAgent(_userAgent: string): void {}
+
   executeJavaScript(_script: string, _userGesture?: boolean): Promise<unknown> {
     return Promise.resolve(undefined);
   }
@@ -254,11 +256,24 @@ class FakeCookies {
 
 class FakeWebRequest {
   onCompleted(_filter: unknown, _listener: unknown): void {}
+
+  onBeforeSendHeaders(_filter: unknown, _listener: unknown): void {}
 }
 
 class FakeSession {
   cookies = new FakeCookies();
   webRequest = new FakeWebRequest();
+  /** Default mirrors Electron's bundled Chromium + Electron tag for UA tests. */
+  private userAgent =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) pugying-desktop/0.0.2 Chrome/152.0.7977.130 Electron/44.5.1 Safari/537.36';
+
+  getUserAgent(): string {
+    return this.userAgent;
+  }
+
+  setUserAgent(userAgent: string, _acceptLanguages?: string): void {
+    this.userAgent = userAgent;
+  }
 
   clearCache(): Promise<void> {
     return Promise.resolve();
@@ -299,13 +314,29 @@ export const session = {
   },
 };
 
+type AppListener = (...args: unknown[]) => void;
+const appListeners = new Map<string, AppListener[]>();
+
 export const app = {
   isPackaged: false,
+  /** Mirrors Electron default; installChromeLikeUserAgent overwrites this. */
+  userAgentFallback:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) pugying-desktop/0.0.2 Chrome/152.0.7977.130 Electron/44.5.1 Safari/537.36',
   dock: {
     show(): Promise<void> {
       return Promise.resolve();
     },
     hide(): void {},
+  },
+  /** Matches the name/version Electron embeds in the default UA above. */
+  getName(): string {
+    return 'pugying-desktop';
+  },
+  getVersion(): string {
+    return '0.0.2';
+  },
+  getAppPath(): string {
+    return path.join(__dirname, '../..');
   },
   getPath(name: string): string {
     return path.join(os.tmpdir(), 'pugying-desktop-test', name);
@@ -313,7 +344,10 @@ export const app = {
   whenReady(): Promise<void> {
     return Promise.resolve();
   },
-  on(_event: string, _listener: unknown): typeof app {
+  on(event: string, listener: AppListener): typeof app {
+    const list = appListeners.get(event) ?? [];
+    list.push(listener);
+    appListeners.set(event, list);
     return app;
   },
   quit(): void {},

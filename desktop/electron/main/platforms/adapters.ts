@@ -17,6 +17,11 @@ export interface PlatformProfile {
   platformUserId?: string;
   nickname?: string;
   avatarUrl?: string;
+  /**
+   * 同一账号的其它平台侧标识（如视频号 uniqId）。
+   * 用于纠正误把 uniqId / 页面杂文存成 platformUserId 的旧数据。
+   */
+  alternateUserIds?: string[];
 }
 
 /**
@@ -28,12 +33,27 @@ export interface PlatformProfile {
 export interface ProfileSource {
   url: string;
   method?: 'GET' | 'POST';
-  /** JSON request body for POST sources */
-  body?: unknown;
+  /** JSON request body for POST sources；函数形式便于带动态 timestamp */
+  body?: unknown | (() => unknown);
   /** Dotted paths into the response, e.g. 'data.user.nickname', 'a.b[0]' */
   idPaths: string[];
   nicknamePaths: string[];
   avatarPaths: string[];
+  /** 辅助身份路径（如视频号号 uniqId），不写入 platformUserId */
+  alternateIdPaths?: string[];
+}
+
+/** 视频号助手 auth 接口共用请求体（timestamp 须每次现取） */
+function channelsAuthBody(): Record<string, unknown> {
+  return {
+    timestamp: String(Date.now()),
+    _log_finder_uin: '',
+    _log_finder_id: '',
+    rawKeyBuff: null,
+    pluginSessionId: null,
+    scene: 7,
+    reqScene: 7,
+  };
 }
 
 /** Last-resort DOM scrape against the logged-in page. */
@@ -46,6 +66,11 @@ export interface PlatformAdapter {
   id: PlatformId;
   displayName: string;
   loginUrl: string;
+  /**
+   * 创作者中心入口；缺省等同 loginUrl。
+   * 视频号授权用 login.html，打开后台必须用 /platform，否则有会话也停在扫码页。
+   */
+  homeUrl?: string;
   /** Domains used when collecting cookies */
   cookieDomains: string[];
   /**
@@ -58,6 +83,8 @@ export interface PlatformAdapter {
   profileScrape?: ProfileScrape;
   /** Cookie that already carries the user id (cheapest, most stable source) */
   userIdCookie?: string;
+  /** 拉取资料时的 Referer；缺省用 loginUrl */
+  profileReferer?: string;
 }
 
 function hasAnyCookie(cookies: CookieLike[], names: string[]): boolean {
@@ -162,38 +189,96 @@ export const PLATFORM_ADAPTERS: Record<PlatformId, PlatformAdapter> = {
   channels: {
     id: 'channels',
     displayName: '视频号',
-    loginUrl: 'https://channels.weixin.qq.com/',
-    cookieDomains: ['.weixin.qq.com', 'weixin.qq.com', 'channels.weixin.qq.com'],
-    // 探测门槛：视频号后台且非登录页 + 会话 cookie
+    // 授权扫码页；打开创作者中心必须用 homeUrl，login.html 有会话也会停在扫码
+    loginUrl: 'https://channels.weixin.qq.com/login.html',
+    homeUrl: 'https://channels.weixin.qq.com/platform',
+    profileReferer: 'https://channels.weixin.qq.com/platform',
+    cookieDomains: [
+      '.weixin.qq.com',
+      'weixin.qq.com',
+      'channels.weixin.qq.com',
+      '.channels.weixin.qq.com',
+    ],
+    // 探测门槛：已离开登录页 + 会话 cookie（sessionid 为权威信号）
     isAuthed: (cookies, url) => {
       const onChannels =
-        url.includes('channels.weixin.qq.com') && !url.includes('login');
+        url.includes('channels.weixin.qq.com') &&
+        !url.includes('login');
       return (
         onChannels &&
-        hasAnyCookie(cookies, ['sessionid', 'wxuin', 'data_ticket', 'slave_sid'])
+        hasAnyCookie(cookies, [
+          'sessionid',
+          'sessionid_ss',
+          '_finder_auth',
+          'wxuin',
+          'data_ticket',
+          'slave_sid',
+        ])
       );
     },
     profileSources: [
       {
-        url: 'https://channels.weixin.qq.com/micro/api/post/finder_get_user_info',
+        // 助手真实资料接口；旧 micro/api 路径已失效，会误把 uniqId 当昵称
+        url: 'https://channels.weixin.qq.com/cgi-bin/mmfinderassistant-bin/auth/auth_data',
         method: 'POST',
-        body: {},
+        body: channelsAuthBody,
         idPaths: [
           'data.finderUser.finderUsername',
-          'data.finderUser.uniqId',
+          'data.finderUser.username',
           'data.finderUsername',
         ],
-        nicknamePaths: ['data.finderUser.nickname', 'data.nickname'],
-        avatarPaths: ['data.finderUser.headImgUrl', 'data.headImgUrl'],
+        nicknamePaths: [
+          'data.finderUser.nickname',
+          'data.finderUser.nickName',
+          'data.nickname',
+        ],
+        avatarPaths: [
+          'data.finderUser.headImgUrl',
+          'data.finderUser.headUrl',
+          'data.headImgUrl',
+        ],
+        alternateIdPaths: [
+          'data.finderUser.uniqId',
+          'data.finderUser.finderUniqId',
+        ],
+      },
+      {
+        url: 'https://channels.weixin.qq.com/cgi-bin/mmfinderassistant-bin/auth/get_auth_info',
+        method: 'POST',
+        body: channelsAuthBody,
+        idPaths: [
+          'data.finderUser.finderUsername',
+          'data.finderUser.username',
+          'data.finderUsername',
+        ],
+        nicknamePaths: [
+          'data.finderUser.nickname',
+          'data.finderUser.nickName',
+          'data.nickname',
+        ],
+        avatarPaths: [
+          'data.finderUser.headImgUrl',
+          'data.finderUser.headUrl',
+          'data.headImgUrl',
+        ],
+        alternateIdPaths: [
+          'data.finderUser.uniqId',
+          'data.finderUser.finderUniqId',
+        ],
       },
     ],
     profileScrape: {
+      // 避免宽泛 [class*=nickname] 误抓到视频号号等非昵称文案
       nicknameSelectors: [
         '[class*="finder-nickname"]',
-        '[class*="nickname"]',
-        '[class*="account-name"]',
+        '[class*="account-info"] [class*="name"]',
+        '[class*="user-info"] [class*="nickname"]',
       ],
-      avatarSelectors: ['[class*="avatar"] img', 'img[class*="head-img"]'],
+      avatarSelectors: [
+        '[class*="finder-avatar"] img',
+        '[class*="account-info"] img',
+        'img[class*="head-img"]',
+      ],
     },
   },
   bilibili: {

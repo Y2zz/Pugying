@@ -106,6 +106,19 @@ export function hasLoggedInUserInfo(
   );
 }
 
+function mergeAlternateIds(
+  current: string[] | undefined,
+  incoming: string[] | undefined,
+): string[] | undefined {
+  const merged = [...(current ?? []), ...(incoming ?? [])]
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (merged.length === 0) {
+    return undefined;
+  }
+  return [...new Set(merged)];
+}
+
 function merge(
   target: PlatformProfile,
   source: PlatformProfile | null,
@@ -116,6 +129,10 @@ function merge(
   target.platformUserId = target.platformUserId ?? source.platformUserId;
   target.nickname = target.nickname ?? source.nickname;
   target.avatarUrl = target.avatarUrl ?? source.avatarUrl;
+  target.alternateUserIds = mergeAlternateIds(
+    target.alternateUserIds,
+    source.alternateUserIds,
+  );
   return target;
 }
 
@@ -290,18 +307,26 @@ async function fetchSource(
   }, REQUEST_TIMEOUT_MS);
   try {
     const method = source.method ?? 'GET';
+    const referer = adapter.profileReferer ?? adapter.loginUrl;
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain, */*',
-      Referer: adapter.loginUrl,
+      Referer: referer,
     };
+    try {
+      headers.Origin = new URL(referer).origin;
+    } catch {
+      // loginUrl 异常时不加 Origin
+    }
     if (method === 'POST') {
       headers['Content-Type'] = 'application/json';
     }
+    const rawBody =
+      typeof source.body === 'function' ? source.body() : source.body;
     // session.fetch (not net.fetch) so the partition's cookies are attached.
     const response = await authSession.fetch(source.url, {
       method,
       headers,
-      body: method === 'POST' ? JSON.stringify(source.body ?? {}) : undefined,
+      body: method === 'POST' ? JSON.stringify(rawBody ?? {}) : undefined,
       credentials: 'include',
       signal: controller.signal,
     });
@@ -309,10 +334,17 @@ async function fetchSource(
       return null;
     }
     const json: unknown = await response.json();
+    const alternateUserIds = (source.alternateIdPaths ?? [])
+      .map((path) => pickString(json, [path]))
+      .filter((value): value is string => Boolean(value));
     const profile: PlatformProfile = {
       platformUserId: pickString(json, source.idPaths),
       nickname: pickString(json, source.nicknamePaths),
       avatarUrl: normalizeUrl(pickString(json, source.avatarPaths)),
+      alternateUserIds:
+        alternateUserIds.length > 0
+          ? [...new Set(alternateUserIds)]
+          : undefined,
     };
     // Declared paths are just a fast path; if the shape drifted, sweep the
     // whole response for profile-looking fields before giving up.

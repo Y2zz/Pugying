@@ -7,6 +7,51 @@ import { decryptCredentialPayload, encryptCredentialPayload } from '@pugying/pla
 
 export type PlatformAccountPublic = Omit<PlatformAccount, 'credentialCipher'>;
 
+/** 视频号助手 finderUsername 形态：v2_…@finder */
+export function isChannelsFinderUsername(value: string): boolean {
+  const text = value.trim();
+  return text.startsWith('v2_') && text.includes('@finder');
+}
+
+/**
+ * 创作者中心打开地址：已保存的非登录页优先，否则 homeUrl，再退回 loginUrl。
+ * 视频号 login.html 即使 Cookie 有效也会停在扫码页。
+ */
+export function resolveCreatorOpenUrl(
+  platform: string,
+  catalog: PlatformCatalogItem | undefined,
+  finalUrl: string | null | undefined,
+): string {
+  const fallback = catalog?.homeUrl?.trim() || catalog?.loginUrl?.trim() || '';
+  const candidate = finalUrl?.trim() ?? '';
+  if (!candidate.startsWith('https://')) {
+    return fallback;
+  }
+  if (platform === 'channels') {
+    if (
+      candidate.includes('channels.weixin.qq.com') &&
+      !candidate.includes('login')
+    ) {
+      return candidate;
+    }
+    return fallback;
+  }
+  try {
+    const host = new URL(candidate).hostname;
+    const loginHost = catalog?.loginUrl
+      ? new URL(catalog.loginUrl).hostname
+      : '';
+    if (loginHost && (host === loginHost || host.endsWith(`.${loginHost.replace(/^www\./, '')}`))) {
+      if (!candidate.includes('login') && !candidate.includes('passport')) {
+        return candidate;
+      }
+    }
+  } catch {
+    // ignore malformed finalUrl
+  }
+  return fallback;
+}
+
 export interface StoredCookie {
   name: string;
   value: string;
@@ -121,7 +166,11 @@ export class PlatformAccountService {
     if (!platformUserId) {
       throw new BadRequestException('未能确认登录账号，请重新授权');
     }
-    if (account.platformUserId && account.platformUserId !== platformUserId) {
+    if (
+      account.platformUserId &&
+      account.platformUserId !== platformUserId &&
+      !this.isSamePlatformIdentity(account, platformUserId, dto)
+    ) {
       throw new BadRequestException('登录账号与原账号不同，请使用原账号重新授权');
     }
     if (!account.platformUserId) {
@@ -130,6 +179,10 @@ export class PlatformAccountService {
         throw new BadRequestException('该账号已添加，请在对应账号上重新授权');
       }
     }
+
+    const previousUserId = account.platformUserId;
+    const previousNickname = account.platformNickname;
+    const nickname = dto.profile?.nickname?.trim() || null;
 
     account.credentialCipher = encryptCredentialPayload(
       JSON.stringify({
@@ -143,10 +196,17 @@ export class PlatformAccountService {
     account.lastAuthedAt = new Date();
     if (dto.displayName?.trim()) {
       account.displayName = dto.displayName.trim();
+    } else if (
+      nickname &&
+      (account.displayName === previousUserId ||
+        (previousNickname && account.displayName === previousNickname))
+    ) {
+      // 本地名仍是误抓的平台 ID / 旧昵称占位时，换成本次真实昵称
+      account.displayName = nickname;
     }
     account.platformUserId = platformUserId;
-    if (dto.profile?.nickname?.trim()) {
-      account.platformNickname = dto.profile.nickname.trim();
+    if (nickname) {
+      account.platformNickname = nickname;
     }
     if (dto.profile?.avatarUrl?.trim()) {
       account.avatarUrl = dto.profile.avatarUrl.trim();
@@ -154,6 +214,36 @@ export class PlatformAccountService {
 
     const saved = await this.repository.save(account);
     return this.toPublic(saved);
+  }
+
+  /**
+   * 判断「库里旧 ID」与「本次资料 ID」是否同一账号。
+   * - alternateUserIds 命中（如旧存 uniqId、新为 finderUsername）
+   * - 视频号：旧 ID 不像 finderUsername，但本次会话已拉到合法 finderUsername（纠偏误抓）
+   */
+  private isSamePlatformIdentity(
+    account: PlatformAccount,
+    platformUserId: string,
+    dto: ReauthPlatformAccountDto,
+  ): boolean {
+    const stored = account.platformUserId?.trim();
+    if (!stored) {
+      return false;
+    }
+    const alts = (dto.profile?.alternateUserIds ?? [])
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (alts.includes(stored)) {
+      return true;
+    }
+    if (
+      account.platform === 'channels' &&
+      isChannelsFinderUsername(platformUserId) &&
+      !isChannelsFinderUsername(stored)
+    ) {
+      return true;
+    }
+    return false;
   }
 
   async rename(id: string, displayName: string): Promise<PlatformAccountPublic> {
@@ -204,11 +294,17 @@ export class PlatformAccountService {
     }
 
     const catalog = getPlatformCatalogItem(account.platform);
+    // 优先上次停留的后台页；否则用 homeUrl（视频号不可用 login.html，否则必现扫码页）
+    const openUrl = resolveCreatorOpenUrl(
+      account.platform,
+      catalog,
+      payload.finalUrl,
+    );
     return {
       accountId: account.id,
       platform: account.platform,
       displayName: account.displayName,
-      openUrl: catalog?.loginUrl ?? '',
+      openUrl,
       cookies: payload.cookies,
       finalUrl: payload.finalUrl ?? null,
     };

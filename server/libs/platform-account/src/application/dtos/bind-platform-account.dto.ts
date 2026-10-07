@@ -63,6 +63,15 @@ export class PlatformProfileDto {
   @IsOptional()
   @IsString()
   avatarUrl?: string;
+
+  @ApiPropertyOptional({
+    description: '同一账号的其它平台侧标识（如视频号 uniqId）',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  alternateUserIds?: string[];
 }
 
 export class BindPlatformAccountDto {

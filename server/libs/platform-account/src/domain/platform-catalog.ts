@@ -5,7 +5,13 @@ export type PlatformAccountStatus = 'active' | 'expired' | 'revoked';
 export interface PlatformCatalogItem {
   id: PlatformId;
   displayName: string;
+  /** 授权窗入口（未登录时的扫码/登录页） */
   loginUrl: string;
+  /**
+   * 创作者中心入口。缺省等同 loginUrl。
+   * 视频号 login.html 即便已有会话也会停在扫码页，打开必须用后台首页。
+   */
+  homeUrl?: string;
 }
 
 export const PLATFORM_CATALOG: PlatformCatalogItem[] = [
@@ -22,7 +28,8 @@ export const PLATFORM_CATALOG: PlatformCatalogItem[] = [
   {
     id: 'channels',
     displayName: '视频号',
-    loginUrl: 'https://channels.weixin.qq.com/',
+    loginUrl: 'https://channels.weixin.qq.com/login.html',
+    homeUrl: 'https://channels.weixin.qq.com/platform',
   },
   {
     id: 'bilibili',

@@ -1140,8 +1140,12 @@ export async function injectCookies(
     }
     try {
       await browseSession.cookies.set(details);
-    } catch {
-      // Skip cookies Chromium rejects; the rest still carry the login.
+    } catch (error) {
+      // 单条失败不阻断；关键会话 cookie 若被拒会导致「打开仍未登录」
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[pugying-desktop] cookie inject skipped ${cookie.name}@${domain}: ${reason}`,
+      );
     }
   }
 }
@@ -1196,7 +1200,9 @@ export async function startCreatorBrowser(options: {
   recordJsonEndpoints(browseSession, adapter.cookieDomains);
   await injectCookies(browseSession, options.cookies);
 
-  const openUrl = options.url?.trim() || adapter.loginUrl;
+  // 视频号等：调用方应传 homeUrl；缺省勿回落到 login.html
+  const openUrl =
+    options.url?.trim() || adapter.homeUrl || adapter.loginUrl;
   const accountLabel = options.displayName?.trim() || adapter.displayName;
 
   const window = new BrowserWindow({

@@ -40,8 +40,15 @@ describe('platform-catalog', () => {
       });
     });
 
+    it('gives channels a homeUrl distinct from the login page', () => {
+      const item = getPlatformCatalogItem('channels');
+      expect(item?.loginUrl).toContain('login.html');
+      expect(item?.homeUrl).toBe('https://channels.weixin.qq.com/platform');
+    });
+
     it('returns undefined for unknown ids', () => {
       expect(getPlatformCatalogItem('weibo' as unknown as PlatformId)).toBeUndefined();
     });
   });
 });
+

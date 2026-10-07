@@ -93,11 +93,32 @@ describe('isAuthed: toutiao', () => {
 describe('isAuthed: channels', () => {
   const adapter = PLATFORM_ADAPTERS.channels;
 
-  it('accepts wxuin on channels.weixin.qq.com', () => {
+  it('separates auth login page from creator home', () => {
+    expect(adapter.loginUrl).toBe(
+      'https://channels.weixin.qq.com/login.html',
+    );
+    expect(adapter.homeUrl).toBe(
+      'https://channels.weixin.qq.com/platform',
+    );
+    expect(adapter.profileSources?.[0]?.url).toContain(
+      'mmfinderassistant-bin/auth/auth_data',
+    );
+  });
+
+  it('accepts sessionid on the platform home', () => {
     expect(
       adapter.isAuthed(
-        cookies('wxuin'),
+        cookies('sessionid'),
         'https://channels.weixin.qq.com/platform',
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts _finder_auth as a session cookie', () => {
+    expect(
+      adapter.isAuthed(
+        cookies('_finder_auth'),
+        'https://channels.weixin.qq.com/platform/post/list',
       ),
     ).toBe(true);
   });
@@ -105,8 +126,8 @@ describe('isAuthed: channels', () => {
   it('rejects the login route', () => {
     expect(
       adapter.isAuthed(
-        cookies('wxuin'),
-        'https://channels.weixin.qq.com/login',
+        cookies('sessionid'),
+        'https://channels.weixin.qq.com/login.html',
       ),
     ).toBe(false);
   });
