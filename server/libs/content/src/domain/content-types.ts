@@ -8,7 +8,7 @@ export type ContentType = (typeof CONTENT_TYPES)[number];
  * 创建 Target 时按 Content.type 校验，禁止跨形态挂错平台。
  */
 export const ARTICLE_PLATFORMS = ['toutiao', 'bilibili', 'douyin'] as const;
-export const GRAPHIC_PLATFORMS = ['douyin', 'xiaohongshu', 'channels'] as const;
+export const GRAPHIC_PLATFORMS = ['douyin', 'toutiao', 'xiaohongshu', 'channels'] as const;
 /** 短视频：当前开放全部已接入平台 */
 export const VIDEO_PLATFORMS = [
   'douyin',

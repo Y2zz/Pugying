@@ -1,3 +1,4 @@
+import { graphicPublishIssue } from '../../domain/graphic-publish-rules';
 import { formatArticleBodyForPlatform } from '../../domain/article-body-format';
 import { articlePublishIssue } from '../../domain/article-publish-rules';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
@@ -16,10 +17,16 @@ import { Content } from '@pugying/content/domain/entities/content.entity';
 import { ContentTarget } from '@pugying/content/domain/entities/content-target.entity';
 import { PublishErrorCodes } from '@pugying/content/domain/publish-error-codes';
 
+const GRAPHIC_PUBLISH_PLATFORMS = new Set(['douyin', 'toutiao', 'xiaohongshu']);
+
 const ARTICLE_PUBLISH_PLATFORMS = new Set(['douyin', 'toutiao', 'bilibili']);
 
 function supportsPublish(contentType: Content['type'], platform: string): boolean {
-  return contentType === 'article' ? ARTICLE_PUBLISH_PLATFORMS.has(platform) : platform === 'douyin';
+  return contentType === 'article'
+    ? ARTICLE_PUBLISH_PLATFORMS.has(platform)
+    : contentType === 'graphic'
+      ? GRAPHIC_PUBLISH_PLATFORMS.has(platform)
+      : platform === 'douyin';
 }
 
 export interface PublishCookie {
@@ -105,7 +112,7 @@ export class ContentPublishService {
       }
       throw new BadRequestException(
         content.type === 'graphic'
-          ? '暂时仅支持抖音图文发布；请绑定可用的抖音账号后再试'
+          ? '请绑定可用的抖音、头条或小红书账号后再发布图文'
           : content.type === 'article'
             ? '请绑定可用的文章发布账号后再试'
             : '暂时仅支持抖音短视频发布；请绑定可用的抖音账号后再试',
@@ -229,7 +236,7 @@ export class ContentPublishService {
     }
     if (!supportsPublish(content.type, target.platform)) {
       throw new BadRequestException(
-        content.type === 'graphic' ? '暂时仅支持抖音图文重试' : content.type === 'article' ? '该平台暂不支持文章发布' : '暂时仅支持抖音短视频重试',
+        content.type === 'graphic' ? '该平台暂不支持图文重试' : content.type === 'article' ? '该平台暂不支持文章发布' : '暂时仅支持抖音短视频重试',
       );
     }
 
@@ -276,6 +283,21 @@ export class ContentPublishService {
     }
 
     const mediaPaths = (content.mediaPaths ?? []).map((p) => p.trim()).filter(Boolean);
+    if (isGraphic) {
+      const issue = graphicPublishIssue({
+        platform: target.platform,
+        title: overrides.title?.trim() || content.title,
+        body: overrides.body?.trim() || content.body || '',
+        imageCount: mediaPaths.length,
+        tags: overrides.tags ?? content.tags,
+        visibility: overrides.visibility ?? content.visibility,
+        scheduledAt: scheduled,
+        authorDeclaration: overrides.authorDeclaration,
+      });
+      if (issue) {
+        throw new BadRequestException(issue);
+      }
+    }
     // 图文必须有轮播图；视频必须有文件；文章插图可空
     if (!isArticle && mediaPaths.length === 0) {
       throw new BadRequestException(isGraphic ? '缺少图片本地路径' : '缺少视频本地路径');
@@ -308,7 +330,7 @@ export class ContentPublishService {
     }
 
     if (isGraphic) {
-      if (!portrait) {
+      if (target.platform === 'douyin' && !portrait) {
         throw new BadRequestException('缺少竖版封面');
       }
     } else if (isArticle) {
@@ -320,7 +342,7 @@ export class ContentPublishService {
       }
     }
 
-    const primaryCover = isArticle && !isDouyinArticle ? landscape : portrait;
+    const primaryCover = isGraphic && target.platform !== 'douyin' ? null : isArticle && !isDouyinArticle ? landscape : portrait;
     if (isArticle && ['toutiao', 'bilibili'].includes(target.platform)) {
       for (const cover of [...(primaryCover ? [primaryCover] : []), ...extraCovers]) {
         if (!['image/jpeg', 'image/png'].includes(cover.mime)) {
@@ -370,7 +392,7 @@ export class ContentPublishService {
         : overrides.body?.trim() || content.body || undefined,
       tags: overrides.tags ?? content.tags,
       articleSettings: isArticle ? overrides.articleSettings : undefined,
-      authorDeclaration: !isArticle && target.platform === 'douyin' ? (overrides.authorDeclaration ?? 'none') : undefined,
+      authorDeclaration: isGraphic || (!isArticle && target.platform === 'douyin') ? (overrides.authorDeclaration ?? 'none') : undefined,
       visibility: overrides.visibility ?? content.visibility,
       scheduledAt: scheduled,
       allowDownload: overrides.allowDownload ?? content.allowDownload,
@@ -441,7 +463,7 @@ export class ContentPublishService {
     this.assertVideoReady(content);
   }
 
-  /** 图文：标题 + 至少一张轮播图 + 竖封面 */
+  /** 图文：标题 + 至少一张轮播图；封面按账号在 buildDispatch 校验。 */
   private assertGraphicReady(content: Content): void {
     if (content.type !== 'graphic') {
       throw new BadRequestException('内容类型不是图文');
@@ -451,9 +473,6 @@ export class ContentPublishService {
     }
     if (!content.mediaPaths?.length) {
       throw new BadRequestException('请先选择本机图片文件');
-    }
-    if (!content.coverMime || !content.coverData?.length) {
-      throw new BadRequestException('请先准备竖版封面');
     }
   }
 

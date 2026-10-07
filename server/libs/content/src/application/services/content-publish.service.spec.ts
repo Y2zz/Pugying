@@ -126,6 +126,42 @@ describe('ContentPublishService', () => {
   });
 
   describe('publish', () => {
+    it.each(['toutiao', 'xiaohongshu'])('dispatches %s graphics without a separate cover and retains the declaration', async (platform) => {
+      const content = createVideo({
+        type: 'graphic',
+        title: '桌上留一点绿',
+        body: '留一点空。',
+        coverMime: null,
+        coverData: null,
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
+      });
+      const target = createTarget({ platform, overrides: { authorDeclaration: 'ai_generated', visibility: platform === 'toutiao' ? 'public' : 'private' } });
+      accounts.findById.mockResolvedValue(createAccount({ platform }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches[0]).toMatchObject({
+        platform,
+        contentType: 'graphic',
+        coverPath: '',
+        mediaPaths: [videoPath],
+        authorDeclaration: 'ai_generated',
+        visibility: platform === 'toutiao' ? 'public' : 'private',
+      });
+    });
+
+    it('does not queue a private micro post because that audience cannot be applied', async () => {
+      const content = createVideo({ type: 'graphic', visibility: 'private' });
+      const target = createTarget({ platform: 'toutiao' });
+      accounts.findById.mockResolvedValue(createAccount({ platform: 'toutiao' }));
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      await expect(service.publish(CONTENT_ID)).rejects.toThrow('公开');
+      expect(targets.saveMany).not.toHaveBeenCalled();
+    });
+
     it('queues eligible targets and returns local-path dispatches', async () => {
       const content = createVideo();
       const target = createTarget();
@@ -379,7 +415,30 @@ describe('ContentPublishService', () => {
           coverLandscapeData: null,
         }),
       );
-      await expect(service.publish(CONTENT_ID)).rejects.toBeInstanceOf(BadRequestException);
+      const target = createTarget();
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      await expect(service.publish(CONTENT_ID)).rejects.toThrow('缺少竖版封面');
+      expect(targets.saveMany).not.toHaveBeenCalled();
+    });
+
+    it('publishes graphic using the account portrait cover without a common cover', async () => {
+      const accountCover = Buffer.from('account-graphic-cover');
+      const content = createVideo({
+        type: 'graphic',
+        coverMime: null,
+        coverData: null,
+        coverLandscapeMime: null,
+        coverLandscapeData: null,
+      });
+      const target = createTarget({ coverMime: 'image/jpeg', coverData: accountCover });
+      contents.findByIdWithCovers.mockResolvedValue(content);
+      targets.findByContent.mockResolvedValue([target]);
+      targets.findByIdWithCovers.mockResolvedValue(target);
+      const result = await service.publish(CONTENT_ID);
+      expect(result.dispatches[0].contentType).toBe('graphic');
+      expect(await readFile(result.dispatches[0].coverPath)).toEqual(accountCover);
+      expect(targets.saveMany).toHaveBeenCalled();
     });
 
     it('rejects when a job is already running', async () => {

@@ -1,16 +1,6 @@
 import { ArticleAccountSettingsDto } from './article-account-settings.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsDateString,
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { CONTENT_VISIBILITIES } from '../../domain/content-types';
 import { AUTHOR_DECLARATIONS, type AuthorDeclaration } from '../../domain/author-declaration';
 import { Type } from 'class-transformer';
@@ -56,7 +46,7 @@ export class TargetOverridesDto {
   @IsBoolean()
   allowDownload?: boolean;
 
-  @ApiPropertyOptional({ description: '自主声明（抖音图文）', enum: AUTHOR_DECLARATIONS })
+  @ApiPropertyOptional({ description: '图文自主声明', enum: AUTHOR_DECLARATIONS })
   @IsOptional()
   @IsIn([...AUTHOR_DECLARATIONS])
   authorDeclaration?: AuthorDeclaration;
