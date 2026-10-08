@@ -227,6 +227,7 @@ export function parseBilibiliTopicSuggestions(
   if (!Array.isArray(list)) {
     return [];
   }
+  // 话题名走 PlatformResourceRef 契约（不可含空格），与 DTO 校验一致
   return normalizePlatformResourceRefs(
     list.map((item) => {
       if (!item || typeof item !== "object") {
@@ -236,7 +237,6 @@ export function parseBilibiliTopicSuggestions(
       return { id: row.id, name: row.name };
     }),
     20,
-    { allowSpaces: true },
   ).filter((ref) => ref.id !== "0");
 }
 
