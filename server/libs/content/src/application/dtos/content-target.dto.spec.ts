@@ -62,6 +62,30 @@ describe('平台话题资源', () => {
   });
 });
 
+describe('合集与文集资源', () => {
+  it('accepts bound anthology and collection refs with spaces in name', async () => {
+    const dto = plainToInstance(TargetOverridesDto, {
+      anthologyRef: { id: '9', name: '旅行 笔记' },
+      collectionRef: { id: '11', name: '日常合集' },
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+  it.each([
+    { anthologyRef: { id: '0', name: '未绑定' } },
+    { anthologyRef: { id: 'abc', name: '文集' } },
+    { collectionRef: { id: '1', name: '含#号' } },
+  ])('rejects invalid bound refs %j', async (payload) => {
+    const dto = plainToInstance(TargetOverridesDto, payload);
+    const errors = await validate(dto);
+    expect(
+      errors.some(
+        (error) =>
+          error.property === 'anthologyRef' || error.property === 'collectionRef',
+      ),
+    ).toBe(true);
+  });
+});
+
 describe('Bilibili video settings', () => {
   it('accepts numeric platform configuration and source', async () => {
     const dto = plainToInstance(TargetOverridesDto, {

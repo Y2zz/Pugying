@@ -68,6 +68,8 @@ export interface PublishDispatch {
   body?: string;
   tags?: string[];
   topicRefs?: import('../../domain/platform-resource').PlatformResourceRef[];
+  anthologyRef?: import('../../domain/platform-resource').PlatformResourceRef;
+  collectionRef?: import('../../domain/platform-resource').PlatformResourceRef;
   articleSettings?: import('../../domain/article-settings').ArticleAccountSettings;
   bilibiliVideoSettings?: import('../../domain/bilibili-video-settings').BilibiliVideoSettings;
   authorDeclaration?: import('../../domain/author-declaration').AuthorDeclaration;
@@ -422,6 +424,9 @@ export class ContentPublishService {
         : overrides.body?.trim() || content.body || undefined,
       tags: overrides.tags ?? content.tags,
       topicRefs: overrides.topicRefs,
+      anthologyRef: isArticle ? overrides.anthologyRef : undefined,
+      collectionRef:
+        !isArticle && !isGraphic ? overrides.collectionRef : undefined,
       articleSettings: isArticle ? overrides.articleSettings : undefined,
       bilibiliVideoSettings: !isArticle && !isGraphic && target.platform === 'bilibili' ? overrides.bilibiliVideoSettings : undefined,
       authorDeclaration: isGraphic || !isArticle ? (overrides.authorDeclaration ?? 'none') : undefined,

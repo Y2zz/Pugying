@@ -1,5 +1,6 @@
 import { articleSettingsForPlatform } from '../../domain/article-settings';
 import {
+  normalizeBoundPlatformResourceRef,
   normalizePlatformResourceRefs,
   topicNames,
 } from '../../domain/platform-resource';
@@ -442,6 +443,25 @@ export class ContentService {
       if (tags.length > 0) {
         result.tags = tags;
       }
+    }
+    // 文集仅 B 站文章；合集仅抖音视频——其它形态忽略，避免误存
+    const anthologyRef = normalizeBoundPlatformResourceRef(overrides.anthologyRef);
+    if (
+      anthologyRef &&
+      contentType === 'article' &&
+      platform === 'bilibili'
+    ) {
+      result.anthologyRef = anthologyRef;
+    }
+    const collectionRef = normalizeBoundPlatformResourceRef(
+      overrides.collectionRef,
+    );
+    if (
+      collectionRef &&
+      contentType === 'video' &&
+      platform === 'douyin'
+    ) {
+      result.collectionRef = collectionRef;
     }
     if (overrides.scheduledAt) {
       const date = new Date(overrides.scheduledAt);

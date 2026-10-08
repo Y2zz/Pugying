@@ -1,6 +1,9 @@
 import { ArticleAccountSettingsDto } from './article-account-settings.dto';
 import { BilibiliVideoSettingsDto } from './bilibili-video-settings.dto';
-import { PlatformResourceRefDto } from './platform-resource-ref.dto';
+import {
+  BoundPlatformResourceRefDto,
+  PlatformResourceRefDto,
+} from './platform-resource-ref.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { CONTENT_VISIBILITIES } from '../../domain/content-types';
@@ -45,6 +48,24 @@ export class TargetOverridesDto {
   @ValidateNested({ each: true })
   @Type(() => PlatformResourceRefDto)
   topicRefs?: PlatformResourceRefDto[];
+
+  @ApiPropertyOptional({
+    type: BoundPlatformResourceRefDto,
+    description: 'B 站文章文集（含标识）',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BoundPlatformResourceRefDto)
+  anthologyRef?: BoundPlatformResourceRefDto;
+
+  @ApiPropertyOptional({
+    type: BoundPlatformResourceRefDto,
+    description: '抖音视频合集（含标识）',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BoundPlatformResourceRefDto)
+  collectionRef?: BoundPlatformResourceRefDto;
 
   @ApiPropertyOptional({ description: '定时发布时间（差异，ISO 字符串）' })
   @IsOptional()

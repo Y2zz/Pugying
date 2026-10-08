@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterPlatformResources,
+  normalizeBoundPlatformResourceRef,
   normalizePlatformResourceRef,
   normalizePlatformResourceRefs,
+  parseBilibiliAnthologyList,
+  parseDouyinCollectionList,
   parseDouyinTopicSuggestions,
   topicNames,
   topicRefsFromNames,
@@ -24,6 +28,15 @@ describe("normalizePlatformResourceRef", () => {
       normalizePlatformResourceRef({ id: "123", name: "bad tag" }),
     ).toBeNull();
     expect(normalizePlatformResourceRef({ id: "abc", name: "日常" })).toBeNull();
+  });
+
+  it("allows spaces for bound list resources", () => {
+    expect(
+      normalizeBoundPlatformResourceRef({ id: "9", name: "旅行 笔记" }),
+    ).toEqual({ id: "9", name: "旅行 笔记" });
+    expect(
+      normalizeBoundPlatformResourceRef({ id: "0", name: "未绑定" }),
+    ).toBeNull();
   });
 });
 
@@ -69,5 +82,43 @@ describe("topic helpers", () => {
       { id: "0", name: "旅行" },
     ]);
     expect(topicNames(refs)).toEqual(["日常", "旅行"]);
+  });
+});
+
+describe("list resource parsers", () => {
+  it("maps Douyin mix list and Bilibili anthology list", () => {
+    expect(
+      parseDouyinCollectionList({
+        mix_list: [
+          { mix_id: "11", mix_name: "日常合集" },
+          { mix_id: "12", mix_name: "旅行 vlog" },
+        ],
+      }),
+    ).toEqual([
+      { id: "11", name: "日常合集" },
+      { id: "12", name: "旅行 vlog" },
+    ]);
+    expect(
+      parseBilibiliAnthologyList({
+        data: {
+          lists: [
+            { id: 9, name: "旅行笔记" },
+            { id: 0, name: "忽略" },
+          ],
+        },
+      }),
+    ).toEqual([{ id: "9", name: "旅行笔记" }]);
+  });
+
+  it("filters by keyword", () => {
+    expect(
+      filterPlatformResources(
+        [
+          { id: "1", name: "日常合集" },
+          { id: "2", name: "旅行" },
+        ],
+        "旅",
+      ),
+    ).toEqual([{ id: "2", name: "旅行" }]);
   });
 });

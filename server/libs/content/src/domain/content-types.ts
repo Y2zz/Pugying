@@ -82,6 +82,10 @@ export interface ContentTargetOverrides {
   tags?: string[];
   /** 平台话题资源（含标识）；有值时优先于纯文本 tags */
   topicRefs?: import('./platform-resource').PlatformResourceRef[];
+  /** B 站文章文集（含标识） */
+  anthologyRef?: import('./platform-resource').PlatformResourceRef;
+  /** 抖音视频合集（含标识） */
+  collectionRef?: import('./platform-resource').PlatformResourceRef;
   scheduledAt?: string;
   visibility?: ContentVisibility;
   allowDownload?: boolean;
