@@ -17,6 +17,10 @@ export const DESKTOP_IPC = {
   searchBilibiliAnthologies: "desktop:search-bilibili-anthologies",
   /** 按账号读取/筛选抖音合集候选项 */
   searchDouyinCollections: "desktop:search-douyin-collections",
+  /** 按账号搜索抖音发布位置（POI） */
+  searchDouyinLocations: "desktop:search-douyin-locations",
+  /** 按账号搜索 B 站发布话题候选项 */
+  searchBilibiliTopics: "desktop:search-bilibili-topics",
   /** renderer → main */
   message: "desktop:message",
   /** main → renderer（hello / progress / result / closed） */

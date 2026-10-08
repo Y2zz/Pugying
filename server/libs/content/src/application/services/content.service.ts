@@ -463,6 +463,15 @@ export class ContentService {
     ) {
       result.collectionRef = collectionRef;
     }
+    // 位置仅抖音视频——其它形态忽略，避免误存纯文本地点冒充 POI
+    const locationRef = normalizeBoundPlatformResourceRef(overrides.locationRef);
+    if (
+      locationRef &&
+      contentType === 'video' &&
+      platform === 'douyin'
+    ) {
+      result.locationRef = locationRef;
+    }
     if (overrides.scheduledAt) {
       const date = new Date(overrides.scheduledAt);
       if (!Number.isNaN(date.getTime())) {

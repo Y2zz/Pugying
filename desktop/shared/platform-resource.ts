@@ -187,6 +187,59 @@ export function parseBilibiliAnthologyList(
   ).filter((ref) => ref.id !== "0");
 }
 
+/** 解析抖音创作者位置（POI）搜索回执。 */
+export function parseDouyinPoiSuggestions(
+  response: unknown,
+): PlatformResourceRef[] {
+  if (!response || typeof response !== "object") {
+    return [];
+  }
+  const list = (response as { poi_list?: unknown }).poi_list;
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return normalizePlatformResourceRefs(
+    list.map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const row = item as Record<string, unknown>;
+      return { id: row.poi_id ?? row.id, name: row.poi_name ?? row.name };
+    }),
+    20,
+    { allowSpaces: true },
+  ).filter((ref) => ref.id !== "0");
+}
+
+/** 解析 B 站发布话题搜索回执。 */
+export function parseBilibiliTopicSuggestions(
+  response: unknown,
+): PlatformResourceRef[] {
+  if (!response || typeof response !== "object") {
+    return [];
+  }
+  const data = (response as { data?: unknown }).data;
+  const root =
+    data && typeof data === "object"
+      ? (data as { topic_items?: unknown })
+      : (response as { topic_items?: unknown });
+  const list = root.topic_items;
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return normalizePlatformResourceRefs(
+    list.map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const row = item as Record<string, unknown>;
+      return { id: row.id, name: row.name };
+    }),
+    20,
+    { allowSpaces: true },
+  ).filter((ref) => ref.id !== "0");
+}
+
 /** 按关键词过滤账号资源列表（空关键词返回全部）。 */
 export function filterPlatformResources(
   items: PlatformResourceRef[],

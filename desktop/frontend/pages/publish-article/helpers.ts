@@ -218,6 +218,17 @@ export function articleDraftToOverrides(
     if (anthologyRef) {
       result.anthologyRef = anthologyRef;
     }
+    // 专栏话题须为已绑定资源；id=0 的纯文本话题不下发
+    if (result.topicRefs) {
+      const bound = result.topicRefs.filter((ref) => ref.id !== "0");
+      if (bound.length > 0) {
+        result.topicRefs = bound.slice(0, 1);
+        result.tags = topicNames(result.topicRefs);
+      } else {
+        delete result.topicRefs;
+        delete result.tags;
+      }
+    }
   }
   const iso = localInputToIso(draft.scheduledLocal);
   if (spec.schedule?.enabled && iso) {

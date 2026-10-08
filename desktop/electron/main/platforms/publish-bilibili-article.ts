@@ -1,6 +1,9 @@
 import { randomInt } from 'node:crypto';
 import { articleSettingsForPlatform } from '../../../shared/article-settings';
-import { normalizeBoundPlatformResourceRef } from '../../../shared/platform-resource';
+import {
+  normalizeBoundPlatformResourceRef,
+  normalizePlatformResourceRefs,
+} from '../../../shared/platform-resource';
 import {
   ArticleApiError,
   articlePostId,
@@ -21,6 +24,12 @@ export function runBilibiliArticlePublish(options: ArticlePublishOptions) {
   return runArticleApiPublish('bilibili', options, async (api, emit) => {
     const { payload, article, signal } = options;
     const anthology = normalizeBoundPlatformResourceRef(payload.anthologyRef);
+    // 专栏话题为单选已绑定资源；搜索接口返回的标识写入 opus_req.topic
+    const topic = normalizeBoundPlatformResourceRef(
+      normalizePlatformResourceRefs(payload.topicRefs, 1).find(
+        (ref) => ref.id !== '0',
+      ),
+    );
     const settings = articleSettingsForPlatform(
       payload.articleSettings,
       'bilibili',
@@ -114,6 +123,10 @@ export function runBilibiliArticlePublish(options: ArticlePublishOptions) {
         },
       ];
     }
+    const topicId = topic ? Number(topic.id) : undefined;
+    if (topic && !Number.isSafeInteger(topicId)) {
+      throw new ArticleApiError('invalid_payload', '请重新选择话题');
+    }
     const body = {
       raw_content: '',
       opus_req: {
@@ -137,6 +150,17 @@ export function runBilibiliArticlePublish(options: ArticlePublishOptions) {
           private_pub: visibility === 'private' ? 1 : 2,
           ...(timing ? { timer_pub_time: timing } : {}),
         },
+        // 话题挂在 opus_req；字段来自创作者话题搜索回执，尚未经文章实发复核
+        ...(topic && topicId !== undefined
+          ? {
+              topic: {
+                id: topicId,
+                name: topic.name,
+                from_source: 'create.topic.topic_search',
+                from_topic_id: 0,
+              },
+            }
+          : {}),
       },
     };
     emit('submitting', '提交文章');

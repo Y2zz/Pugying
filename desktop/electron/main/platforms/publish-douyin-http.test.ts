@@ -130,6 +130,24 @@ it('attaches the selected Douyin collection as mix on create_v2', async () => {
   );
 });
 
+it('attaches the selected Douyin location as poi on create_v2', async () => {
+  const { api, input } = setup({
+    locationRef: { id: '6601', name: '上海外滩' },
+  });
+  expect((await runDouyinHttpPublish(input)).ok).toBe(true);
+  expect(api.request).toHaveBeenLastCalledWith(
+    '/web/api/media/aweme/create_v2/',
+    expect.objectContaining({
+      item: expect.objectContaining({
+        common: expect.objectContaining({
+          poi_id: '6601',
+          poi_name: '上海外滩',
+        }),
+      }),
+    }),
+  );
+});
+
 it('uses the uploaded first frame when covers are absent and maps friends/schedule/download settings', async () => {
   const scheduledAt = new Date(Date.now() + 4 * 3600000).toISOString();
   const { input, api } = setup({

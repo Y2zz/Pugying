@@ -175,6 +175,8 @@ export interface OverrideDraft {
   topicRefs: import("@shared/platform-resource").PlatformResourceRef[];
   /** 抖音视频合集（最多一条）；选择器用数组承载 */
   collectionRefs: import("@shared/platform-resource").PlatformResourceRef[];
+  /** 抖音视频位置 POI（最多一条）；选择器用数组承载 */
+  locationRefs: import("@shared/platform-resource").PlatformResourceRef[];
   scheduledLocal: string;
   visibility: ContentVisibility;
   allowDownload: boolean;
@@ -203,6 +205,7 @@ export function emptyDraft(platform?: string): OverrideDraft {
     tagsText: "",
     topicRefs: [],
     collectionRefs: [],
+    locationRefs: [],
     scheduledLocal: "",
     // 视频号试发默认仅自己可见，与图文一致
     visibility: platform === "channels" ? "private" : "public",
@@ -310,6 +313,7 @@ export function overridesToDraft(
   const resolved =
     topicRefs.length > 0 ? topicRefs : topicRefsFromNames(tags);
   const collection = normalizeBoundPlatformResourceRef(o?.collectionRef);
+  const locationPoi = normalizeBoundPlatformResourceRef(o?.locationRef);
   return {
     title: o?.title ?? "",
     body: o?.body ?? "",
@@ -326,6 +330,7 @@ export function overridesToDraft(
     tagsText: (topicRefs.length > 0 ? topicNames(topicRefs) : tags).join(" "),
     topicRefs: resolved,
     collectionRefs: collection ? [collection] : [],
+    locationRefs: locationPoi ? [locationPoi] : [],
     scheduledLocal: isoToLocalInput(o?.scheduledAt),
     visibility: o?.visibility ?? "public",
     allowDownload: o?.allowDownload ?? true,
@@ -388,6 +393,10 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   const collectionRef = normalizeBoundPlatformResourceRef(draft.collectionRefs[0]);
   if (collectionRef) {
     result.collectionRef = collectionRef;
+  }
+  const locationRef = normalizeBoundPlatformResourceRef(draft.locationRefs[0]);
+  if (locationRef) {
+    result.locationRef = locationRef;
   }
   const iso = localInputToIso(draft.scheduledLocal);
   if (iso) {

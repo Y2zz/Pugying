@@ -347,6 +347,31 @@ it('writes the selected Bilibili anthology id into list_id', async () => {
   expect(body.opus_req.opus.article.list_id).toBe(88);
 });
 
+it('writes the selected Bilibili topic into opus_req.topic', async () => {
+  const { request, options } = fixture('bilibili');
+  options.payload.topicRefs = [{ id: '2233', name: '动画' }];
+  expect(await runBilibiliArticlePublish(options)).toMatchObject({ ok: true });
+  const [, body] = request.mock.calls.find((call) => call[1]) as [
+    string,
+    {
+      opus_req: {
+        topic: {
+          id: number;
+          name: string;
+          from_source: string;
+          from_topic_id: number;
+        };
+      };
+    },
+  ];
+  expect(body.opus_req.topic).toEqual({
+    id: 2233,
+    name: '动画',
+    from_source: 'create.topic.topic_search',
+    from_topic_id: 0,
+  });
+});
+
 it('stops a Bilibili article before uploading when the daily publication limit is reached', async () => {
   const { api, request, options } = fixture('bilibili');
   request.mockResolvedValueOnce({

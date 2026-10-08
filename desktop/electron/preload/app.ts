@@ -38,6 +38,20 @@ const pugyingDesktop = {
       accountId,
       keyword,
     ),
+  searchDouyinLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinLocations,
+      accountId,
+      keyword,
+    ),
+  searchBilibiliTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchBilibiliTopics, accountId, keyword),
   getDistributionSnapshot: (): Promise<
     import("@shared/distribution").DistributionSnapshot
   > => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),

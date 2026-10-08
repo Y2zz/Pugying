@@ -2,6 +2,8 @@ import { BilibiliArticleCoverField } from "./ArticleCoverModeFields";
 import { ArticlePlatformSettingsFields } from "./ArticlePlatformSettingsFields";
 import { getArticlePlatformFields } from "../article-platform-fields";
 import { BilibiliAnthologyField } from "./BilibiliAnthologyField";
+import { BilibiliTopicField } from "./BilibiliTopicField";
+import { topicNames } from "@shared/platform-resource";
 import {
   ArticleAccountFormLayout,
   ArticleScheduleField,
@@ -70,6 +72,17 @@ export function BilibiliArticleAccountForm({
             disabled={disabled}
             onChange={(articleSettings) => {
               patch({ articleSettings });
+            }}
+          />
+          <BilibiliTopicField
+            accountId={account.id}
+            value={draft.topicRefs}
+            disabled={disabled}
+            onChange={(topicRefs) => {
+              patch({
+                topicRefs,
+                tagsText: topicNames(topicRefs).join(" "),
+              });
             }}
           />
           <BilibiliAnthologyField

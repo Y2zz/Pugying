@@ -67,6 +67,7 @@ describe('合集与文集资源', () => {
     const dto = plainToInstance(TargetOverridesDto, {
       anthologyRef: { id: '9', name: '旅行 笔记' },
       collectionRef: { id: '11', name: '日常合集' },
+      locationRef: { id: '6601', name: '上海 外滩' },
     });
     expect(await validate(dto)).toEqual([]);
   });
@@ -74,13 +75,16 @@ describe('合集与文集资源', () => {
     { anthologyRef: { id: '0', name: '未绑定' } },
     { anthologyRef: { id: 'abc', name: '文集' } },
     { collectionRef: { id: '1', name: '含#号' } },
+    { locationRef: { id: '0', name: '未绑定' } },
   ])('rejects invalid bound refs %j', async (payload) => {
     const dto = plainToInstance(TargetOverridesDto, payload);
     const errors = await validate(dto);
     expect(
       errors.some(
         (error) =>
-          error.property === 'anthologyRef' || error.property === 'collectionRef',
+          error.property === 'anthologyRef' ||
+          error.property === 'collectionRef' ||
+          error.property === 'locationRef',
       ),
     ).toBe(true);
   });

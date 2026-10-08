@@ -19,6 +19,7 @@ import {
 import { ArticleRadioField } from "../publish-article/account-forms/ArticleRadioField";
 import { DouyinTopicField } from "../publish-article/account-forms/DouyinTopicField";
 import { DouyinCollectionField } from "./DouyinCollectionField";
+import { DouyinLocationField } from "./DouyinLocationField";
 import { formatLocalDateTime, getDateTimeWindow } from "@/lib/date-time";
 import type { PlatformAccountItem } from "@/lib/api";
 import { CharCountInput, CharCountTextarea } from "./CharCountFields";
@@ -296,6 +297,14 @@ export function AccountOverrideForm({
                 disabled={disabled}
                 onChange={(collectionRefs) => {
                   patch({ collectionRefs });
+                }}
+              />
+              <DouyinLocationField
+                accountId={account.id}
+                value={draft.locationRefs}
+                disabled={disabled}
+                onChange={(locationRefs) => {
+                  patch({ locationRefs });
                 }}
               />
             </>

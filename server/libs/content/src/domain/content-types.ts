@@ -86,6 +86,8 @@ export interface ContentTargetOverrides {
   anthologyRef?: import('./platform-resource').PlatformResourceRef;
   /** 抖音视频合集（含标识） */
   collectionRef?: import('./platform-resource').PlatformResourceRef;
+  /** 抖音视频位置 POI（含标识） */
+  locationRef?: import('./platform-resource').PlatformResourceRef;
   scheduledAt?: string;
   visibility?: ContentVisibility;
   allowDownload?: boolean;

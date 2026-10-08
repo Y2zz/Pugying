@@ -67,6 +67,15 @@ export class TargetOverridesDto {
   @Type(() => BoundPlatformResourceRefDto)
   collectionRef?: BoundPlatformResourceRefDto;
 
+  @ApiPropertyOptional({
+    type: BoundPlatformResourceRefDto,
+    description: '抖音视频位置 POI（含标识）',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BoundPlatformResourceRefDto)
+  locationRef?: BoundPlatformResourceRefDto;
+
   @ApiPropertyOptional({ description: '定时发布时间（差异，ISO 字符串）' })
   @IsOptional()
   @IsDateString()

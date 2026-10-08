@@ -5,7 +5,9 @@ import {
   normalizePlatformResourceRef,
   normalizePlatformResourceRefs,
   parseBilibiliAnthologyList,
+  parseBilibiliTopicSuggestions,
   parseDouyinCollectionList,
+  parseDouyinPoiSuggestions,
   parseDouyinTopicSuggestions,
   topicNames,
   topicRefsFromNames,
@@ -108,6 +110,27 @@ describe("list resource parsers", () => {
         },
       }),
     ).toEqual([{ id: "9", name: "旅行笔记" }]);
+  });
+
+  it("maps Douyin POI and Bilibili topic search results", () => {
+    expect(
+      parseDouyinPoiSuggestions({
+        poi_list: [
+          { poi_id: "6601", poi_name: "上海外滩" },
+          { poi_id: "0", poi_name: "忽略" },
+        ],
+      }),
+    ).toEqual([{ id: "6601", name: "上海外滩" }]);
+    expect(
+      parseBilibiliTopicSuggestions({
+        data: {
+          topic_items: [
+            { id: 2233, name: "动画" },
+            { id: 0, name: "忽略" },
+          ],
+        },
+      }),
+    ).toEqual([{ id: "2233", name: "动画" }]);
   });
 
   it("filters by keyword", () => {

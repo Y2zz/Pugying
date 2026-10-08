@@ -117,6 +117,7 @@ export interface PlatformPublishStartInput {
   topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
   anthologyRef?: import("@shared/platform-resource").PlatformResourceRef;
   collectionRef?: import("@shared/platform-resource").PlatformResourceRef;
+  locationRef?: import("@shared/platform-resource").PlatformResourceRef;
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
   bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
@@ -171,6 +172,14 @@ export type PugyingDesktopBridge = {
     keyword: string,
   ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
   searchDouyinCollections?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchDouyinLocations?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchBilibiliTopics?: (
     accountId: string,
     keyword: string,
   ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
@@ -562,6 +571,7 @@ class AgentClient {
           topicRefs: input.topicRefs,
           anthologyRef: input.anthologyRef,
           collectionRef: input.collectionRef,
+          locationRef: input.locationRef,
           authorDeclaration: input.authorDeclaration,
           articleSettings: input.articleSettings,
           bilibiliVideoSettings: input.bilibiliVideoSettings,

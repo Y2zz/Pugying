@@ -210,6 +210,7 @@ export async function runDouyinHttpPublish(
     emit('submitting', '提交视频');
     submitted = true;
     const collection = normalizeBoundPlatformResourceRef(payload.collectionRef);
+    const location = normalizeBoundPlatformResourceRef(payload.locationRef);
     const response = await api.request('/web/api/media/aweme/create_v2/', {
       item: {
         common: {
@@ -220,6 +221,10 @@ export async function runDouyinHttpPublish(
           visibility_type: visibility,
           download: payload.allowDownload === false ? 0 : 1,
           timing: timing ?? 0,
+          // 仅在已选位置时带上 poi；官方未选时可不传
+          ...(location
+            ? { poi_id: location.id, poi_name: location.name }
+            : {}),
         },
         cover,
         // 仅在已选合集时带上 mix；官方未选时可不传该字段

@@ -49,6 +49,7 @@ export function DistributionAccountEditor({
       draft.tagsText ||
       draft.topicRefs.length ||
       draft.collectionRefs.length ||
+      draft.locationRefs.length ||
       draft.scheduledLocal ||
       draft.location ||
       draft.partition,
