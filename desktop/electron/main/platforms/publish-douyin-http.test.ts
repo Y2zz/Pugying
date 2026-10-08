@@ -114,6 +114,22 @@ it('uploads the video and both covers, submits official fields and only succeeds
   expect(api.dispose).toHaveBeenCalledOnce();
 });
 
+it('attaches the selected Douyin collection as mix on create_v2', async () => {
+  const { api, input } = setup({
+    collectionRef: { id: '7693814736445508899', name: '日常合集' },
+    topicRefs: [{ id: '1234', name: '日常' }],
+  });
+  expect((await runDouyinHttpPublish(input)).ok).toBe(true);
+  expect(api.request).toHaveBeenLastCalledWith(
+    '/web/api/media/aweme/create_v2/',
+    expect.objectContaining({
+      item: expect.objectContaining({
+        mix: { mix_id: '7693814736445508899', mix_order: 0 },
+      }),
+    }),
+  );
+});
+
 it('uses the uploaded first frame when covers are absent and maps friends/schedule/download settings', async () => {
   const scheduledAt = new Date(Date.now() + 4 * 3600000).toISOString();
   const { input, api } = setup({

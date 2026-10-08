@@ -3,7 +3,10 @@ import {
   isDouyinAuthorDeclaration,
   type DouyinAuthorDeclaration,
 } from '../../../shared/douyin-graphic-settings';
-import type { PlatformResourceRef } from '../../../shared/platform-resource';
+import {
+  normalizeBoundPlatformResourceRef,
+  type PlatformResourceRef,
+} from '../../../shared/platform-resource';
 import type {
   PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
@@ -206,6 +209,7 @@ export async function runDouyinHttpPublish(
     checkSchedule();
     emit('submitting', '提交视频');
     submitted = true;
+    const collection = normalizeBoundPlatformResourceRef(payload.collectionRef);
     const response = await api.request('/web/api/media/aweme/create_v2/', {
       item: {
         common: {
@@ -218,6 +222,10 @@ export async function runDouyinHttpPublish(
           timing: timing ?? 0,
         },
         cover,
+        // 仅在已选合集时带上 mix；官方未选时可不传该字段
+        ...(collection
+          ? { mix: { mix_id: collection.id, mix_order: 0 } }
+          : {}),
         assistant: { is_preview: 0, is_post_assistant: 0 },
         ...(declaration === 'none'
           ? {}

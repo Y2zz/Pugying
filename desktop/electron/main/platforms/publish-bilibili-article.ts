@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { articleSettingsForPlatform } from '../../../shared/article-settings';
+import { normalizeBoundPlatformResourceRef } from '../../../shared/platform-resource';
 import {
   ArticleApiError,
   articlePostId,
@@ -19,6 +20,7 @@ import {
 export function runBilibiliArticlePublish(options: ArticlePublishOptions) {
   return runArticleApiPublish('bilibili', options, async (api, emit) => {
     const { payload, article, signal } = options;
+    const anthology = normalizeBoundPlatformResourceRef(payload.anthologyRef);
     const settings = articleSettingsForPlatform(
       payload.articleSettings,
       'bilibili',
@@ -93,10 +95,14 @@ export function runBilibiliArticlePublish(options: ArticlePublishOptions) {
     );
     const articleInfo: Record<string, unknown> = {
       category_id: 15,
-      list_id: 0,
+      // 未选文集时与官方新建默认一致：list_id=0
+      list_id: anthology ? Number(anthology.id) : 0,
       originality: settings.original ? 1 : 0,
       reproduced: settings.original ? 0 : 1,
     };
+    if (anthology && !Number.isSafeInteger(articleInfo.list_id)) {
+      throw new ArticleApiError('invalid_payload', '请重新选择文集');
+    }
     if (settings.customCover) {
       const image = uploadedImage(images, payload.coverPath);
       articleInfo.cover = [

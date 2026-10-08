@@ -60,6 +60,7 @@ const CONFIG = {
       "/web/api/media/user/info/",
       "/web/api/media/item/info/",
       "/aweme/v1/search/challengesug/",
+      "/web/api/mix/list/",
     ],
   },
   toutiao: {
@@ -95,6 +96,7 @@ const CONFIG = {
       "/x/web-interface/nav",
       "/x/dynamic/feed/create/opus_init_check",
       "/x/dynamic/feed/create/opus",
+      "/x/article/up/lists",
     ],
   },
 } as const;
@@ -513,7 +515,21 @@ class CookieArticleApiSession implements VideoApiSession {
           url.searchParams.size !== 3 ||
           !url.searchParams.get("keyword")?.trim() ||
           url.searchParams.get("source") !== "challenge_create" ||
-          url.searchParams.get("aid") !== "2906"))
+          url.searchParams.get("aid") !== "2906")) ||
+      (url.pathname === "/web/api/mix/list/" &&
+        (data !== undefined ||
+          url.searchParams.size !== 6 ||
+          url.searchParams.get("status") !== "0,1,2,3,6" ||
+          url.searchParams.get("count") !== "20" ||
+          url.searchParams.get("cursor") !== "0" ||
+          url.searchParams.get("should_query_new_mix") !== "1" ||
+          url.searchParams.get("device_platform") !== "web" ||
+          url.searchParams.get("aid") !== "1128")) ||
+      (url.pathname === "/x/article/up/lists" &&
+        (data !== undefined ||
+          url.searchParams.size !== 2 ||
+          !/^\d+$/.test(url.searchParams.get("mid") ?? "") ||
+          !["0", "1"].includes(url.searchParams.get("sort") ?? "")))
     ) {
       throw new ArticleApiError("invalid_payload", "发布请求不可用");
     }

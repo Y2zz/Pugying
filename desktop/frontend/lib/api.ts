@@ -205,6 +205,8 @@ export interface ContentTargetOverrides {
   body?: string;
   tags?: string[];
   topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
+  anthologyRef?: import("@shared/platform-resource").PlatformResourceRef;
+  collectionRef?: import("@shared/platform-resource").PlatformResourceRef;
   scheduledAt?: string;
   visibility?: ContentVisibility;
   allowDownload?: boolean;
@@ -304,6 +306,8 @@ export interface PublishDispatch {
   body?: string;
   tags?: string[];
   topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
+  anthologyRef?: import("@shared/platform-resource").PlatformResourceRef;
+  collectionRef?: import("@shared/platform-resource").PlatformResourceRef;
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
   bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;

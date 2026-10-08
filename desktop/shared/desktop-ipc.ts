@@ -13,6 +13,10 @@ export const DESKTOP_IPC = {
   getBilibiliVideoOptions: "desktop:get-bilibili-video-options",
   /** 按账号搜索抖音官方话题候选项 */
   searchDouyinTopics: "desktop:search-douyin-topics",
+  /** 按账号读取/筛选 B 站文集候选项 */
+  searchBilibiliAnthologies: "desktop:search-bilibili-anthologies",
+  /** 按账号读取/筛选抖音合集候选项 */
+  searchDouyinCollections: "desktop:search-douyin-collections",
   /** renderer → main */
   message: "desktop:message",
   /** main → renderer（hello / progress / result / closed） */

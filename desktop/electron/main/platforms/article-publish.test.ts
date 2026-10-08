@@ -236,6 +236,7 @@ it('uses Bilibili opus structured paragraphs and preserves comment, originality,
   expect(path).toBe('/x/dynamic/feed/create/opus');
   expect(body.opus_req.opus.article).toMatchObject({
     category_id: 15,
+    list_id: 0,
     originality: 1,
     reproduced: 0,
     cover: [{ url: 'https://images.example/cover.png' }],
@@ -333,6 +334,17 @@ it('does not enable Toutiao reward when its daily quota is exhausted', async () 
     errorCode: 'ARTICLE_SETTINGS_UNAVAILABLE',
   });
   expect(api.uploadImage).not.toHaveBeenCalled();
+});
+
+it('writes the selected Bilibili anthology id into list_id', async () => {
+  const { request, options } = fixture('bilibili');
+  options.payload.anthologyRef = { id: '88', name: '旅行笔记' };
+  expect(await runBilibiliArticlePublish(options)).toMatchObject({ ok: true });
+  const [, body] = request.mock.calls.find((call) => call[1]) as [
+    string,
+    { opus_req: { opus: { article: { list_id: number } } } },
+  ];
+  expect(body.opus_req.opus.article.list_id).toBe(88);
 });
 
 it('stops a Bilibili article before uploading when the daily publication limit is reached', async () => {
