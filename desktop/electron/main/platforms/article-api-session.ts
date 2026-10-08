@@ -77,6 +77,8 @@ const CONFIG = {
       "/mp/agw/article/new",
       "/mp/agw/article/publish",
       "/mp/agw/diversity/publish/strategy/v1/check/",
+      // 文章编辑器城市列表（位置选择）
+      "/toutiao/normandy/mp/city_district/",
     ],
   },
   xiaohongshu: {
@@ -546,7 +548,10 @@ class CookieArticleApiSession implements VideoApiSession {
           !url.searchParams.get("keywords")?.trim() ||
           url.searchParams.get("page_size") !== "20" ||
           url.searchParams.get("page_num") !== "1" ||
-          url.searchParams.get("offset") !== "0"))
+          url.searchParams.get("offset") !== "0")) ||
+      // 头条城市列表：官方 getPositionInfo 为无参 GET
+      (url.pathname === "/toutiao/normandy/mp/city_district/" &&
+        (data !== undefined || url.searchParams.size !== 0))
     ) {
       throw new ArticleApiError("invalid_payload", "发布请求不可用");
     }

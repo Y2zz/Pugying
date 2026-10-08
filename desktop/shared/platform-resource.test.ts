@@ -9,6 +9,7 @@ import {
   parseDouyinCollectionList,
   parseDouyinPoiSuggestions,
   parseDouyinTopicSuggestions,
+  parseToutiaoCityList,
   topicNames,
   topicRefsFromNames,
 } from "./platform-resource";
@@ -112,7 +113,7 @@ describe("list resource parsers", () => {
     ).toEqual([{ id: "9", name: "旅行笔记" }]);
   });
 
-  it("maps Douyin POI and Bilibili topic search results", () => {
+  it("maps Douyin POI, Bilibili topic, and Toutiao city search results", () => {
     expect(
       parseDouyinPoiSuggestions({
         poi_list: [
@@ -131,6 +132,24 @@ describe("list resource parsers", () => {
         },
       }),
     ).toEqual([{ id: "2233", name: "动画" }]);
+    expect(
+      parseToutiaoCityList({
+        data: {
+          cityList: [
+            {
+              cities: [
+                { code: "330100", name: "杭州" },
+                { code: "0", name: "忽略" },
+              ],
+            },
+          ],
+          gpsLocation: { cityCode: "110100", cityName: "北京" },
+        },
+      }),
+    ).toEqual([
+      { id: "110100", name: "北京" },
+      { id: "330100", name: "杭州" },
+    ]);
   });
 
   it("filters by keyword", () => {

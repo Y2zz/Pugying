@@ -240,6 +240,56 @@ export function parseBilibiliTopicSuggestions(
   ).filter((ref) => ref.id !== "0");
 }
 
+/**
+ * 解析头条文章城市列表（`/toutiao/normandy/mp/city_district/`）。
+ * 候选项为城市编码 + 名称；发布写入 extra.manual_selected_city。
+ */
+export function parseToutiaoCityList(response: unknown): PlatformResourceRef[] {
+  if (!response || typeof response !== "object") {
+    return [];
+  }
+  const data = (response as { data?: unknown }).data;
+  const root =
+    data && typeof data === "object"
+      ? (data as {
+          cityList?: unknown;
+          gpsLocation?: { cityCode?: unknown; cityName?: unknown };
+        })
+      : (response as {
+          cityList?: unknown;
+          gpsLocation?: { cityCode?: unknown; cityName?: unknown };
+        });
+  const groups = root.cityList;
+  const cities: unknown[] = [];
+  if (Array.isArray(groups)) {
+    for (const group of groups) {
+      const nested =
+        group && typeof group === "object"
+          ? (group as { cities?: unknown }).cities
+          : undefined;
+      if (Array.isArray(nested)) {
+        cities.push(...nested);
+      }
+    }
+  }
+  // GPS 定位城市置顶，便于空关键词浏览时优先同城
+  const gps = root.gpsLocation;
+  if (gps && (gps.cityCode != null || gps.cityName != null)) {
+    cities.unshift({ code: gps.cityCode, name: gps.cityName });
+  }
+  return normalizePlatformResourceRefs(
+    cities.map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const row = item as Record<string, unknown>;
+      return { id: row.code ?? row.city_code ?? row.id, name: row.name ?? row.city };
+    }),
+    500,
+    { allowSpaces: true },
+  ).filter((ref) => ref.id !== "0");
+}
+
 /** 按关键词过滤账号资源列表（空关键词返回全部）。 */
 export function filterPlatformResources(
   items: PlatformResourceRef[],

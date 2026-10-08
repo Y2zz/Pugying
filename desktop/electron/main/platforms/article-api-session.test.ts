@@ -418,6 +418,30 @@ it("allows the verified Douyin mix list query and rejects altered parameters", a
   await api.dispose();
 });
 
+it("allows the verified Toutiao city list query and rejects altered parameters", async () => {
+  const input = options();
+  input.payload.platform = "toutiao";
+  input.payload.cookies = [
+    { name: "sessionid", value: "private", domain: ".toutiao.com" },
+  ];
+  const api = await createArticleApiSession("toutiao", input);
+  mock.execute.mockResolvedValueOnce({
+    ok: true,
+    data: { data: { cityList: [] } },
+  });
+  const path = "/toutiao/normandy/mp/city_district/";
+  await expect(api.request(path)).resolves.toMatchObject({
+    data: { cityList: [] },
+  });
+  await expect(api.request(`${path}?extra=1`)).rejects.toMatchObject({
+    code: "invalid_payload",
+  });
+  await expect(api.request(path, {})).rejects.toMatchObject({
+    code: "invalid_payload",
+  });
+  await api.dispose();
+});
+
 it("allows the verified Bilibili anthology list query", async () => {
   const input = options();
   input.payload.platform = "bilibili";

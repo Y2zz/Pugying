@@ -99,6 +99,8 @@ export interface ArticleOverrideDraft {
   topicRefs: import("@shared/platform-resource").PlatformResourceRef[];
   /** B 站文章文集（最多一条）；选择器用数组承载 */
   anthologyRefs: import("@shared/platform-resource").PlatformResourceRef[];
+  /** 头条文章城市位置（最多一条）；选择器用数组承载 */
+  locationRefs: import("@shared/platform-resource").PlatformResourceRef[];
   scheduledLocal: string;
   visibility: ContentVisibility;
   location: string;
@@ -116,6 +118,7 @@ export function emptyArticleDraft(): ArticleOverrideDraft {
     tagsText: "",
     topicRefs: [],
     anthologyRefs: [],
+    locationRefs: [],
     scheduledLocal: "",
     visibility: "public",
     location: "",
@@ -169,12 +172,14 @@ export function draftFromTarget(
   const resolvedTopics =
     topicRefs.length > 0 ? topicRefs : topicRefsFromNames(tags);
   const anthology = normalizeBoundPlatformResourceRef(overrides?.anthologyRef);
+  const locationPoi = normalizeBoundPlatformResourceRef(overrides?.locationRef);
   return {
     ...emptyArticleDraft(),
     title: overrides?.title ?? "",
     tagsText: (topicRefs.length > 0 ? topicNames(topicRefs) : tags).join(" "),
     topicRefs: resolvedTopics,
     anthologyRefs: anthology ? [anthology] : [],
+    locationRefs: locationPoi ? [locationPoi] : [],
     scheduledLocal: isoToLocalInput(
       overrides?.scheduledAt ?? content.scheduledAt,
     ),
@@ -230,6 +235,12 @@ export function articleDraftToOverrides(
       }
     }
   }
+  if (platform === "toutiao") {
+    const locationRef = normalizeBoundPlatformResourceRef(draft.locationRefs[0]);
+    if (locationRef) {
+      result.locationRef = locationRef;
+    }
+  }
   const iso = localInputToIso(draft.scheduledLocal);
   if (spec.schedule?.enabled && iso) {
     result.scheduledAt = iso;
@@ -259,6 +270,7 @@ export function articleDraftHasCustomizations(
     Boolean(draft.tagsText.trim()) ||
     draft.topicRefs.length > 0 ||
     draft.anthologyRefs.length > 0 ||
+    draft.locationRefs.length > 0 ||
     Boolean(draft.scheduledLocal.trim()) ||
     draft.visibility !== "public" ||
     draft.allowDownload === false ||

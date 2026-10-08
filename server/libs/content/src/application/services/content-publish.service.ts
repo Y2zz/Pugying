@@ -428,8 +428,12 @@ export class ContentPublishService {
       anthologyRef: isArticle ? overrides.anthologyRef : undefined,
       collectionRef:
         !isArticle && !isGraphic ? overrides.collectionRef : undefined,
+      // 抖音视频 POI / 头条文章城市；其余形态不下发
       locationRef:
-        !isArticle && !isGraphic ? overrides.locationRef : undefined,
+        (!isArticle && !isGraphic && target.platform === 'douyin') ||
+        (isArticle && target.platform === 'toutiao')
+          ? overrides.locationRef
+          : undefined,
       articleSettings: isArticle ? overrides.articleSettings : undefined,
       bilibiliVideoSettings: !isArticle && !isGraphic && target.platform === 'bilibili' ? overrides.bilibiliVideoSettings : undefined,
       authorDeclaration: isGraphic || !isArticle ? (overrides.authorDeclaration ?? 'none') : undefined,

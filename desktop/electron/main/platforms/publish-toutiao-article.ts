@@ -1,4 +1,5 @@
 import { articleSettingsForPlatform } from '../../../shared/article-settings';
+import { normalizeBoundPlatformResourceRef } from '../../../shared/platform-resource';
 import { renderArticleForPlatform } from '../article-publish-format';
 import {
   ArticleApiError,
@@ -177,6 +178,14 @@ export function runToutiaoArticlePublish(options: ArticlePublishOptions) {
         time_format: '',
         position: {},
       };
+    }
+    // 官方文章表单 position → extra.manual_selected_city（城市名 + 城市编码）
+    const location = normalizeBoundPlatformResourceRef(payload.locationRef);
+    if (location) {
+      extra.manual_selected_city = JSON.stringify({
+        city: location.name,
+        city_code: location.id,
+      });
     }
     const timerTime = timing
       ? new Intl.DateTimeFormat('sv-SE', {

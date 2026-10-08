@@ -183,6 +183,10 @@ export type PugyingDesktopBridge = {
     accountId: string,
     keyword: string,
   ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchToutiaoLocations?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
   postMessage: (message: unknown) => void;
   onMessage: (callback: (message: unknown) => void) => () => void;
   getToutiaoRewardPrivilege?: (

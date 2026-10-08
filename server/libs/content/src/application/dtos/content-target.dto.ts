@@ -69,7 +69,7 @@ export class TargetOverridesDto {
 
   @ApiPropertyOptional({
     type: BoundPlatformResourceRefDto,
-    description: '抖音视频位置 POI（含标识）',
+    description: '已绑定位置资源（抖音视频 POI / 头条文章城市）',
   })
   @IsOptional()
   @ValidateNested()

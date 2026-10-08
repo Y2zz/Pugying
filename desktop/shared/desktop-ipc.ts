@@ -21,6 +21,8 @@ export const DESKTOP_IPC = {
   searchDouyinLocations: "desktop:search-douyin-locations",
   /** 按账号搜索 B 站发布话题候选项 */
   searchBilibiliTopics: "desktop:search-bilibili-topics",
+  /** 按账号读取/筛选头条文章城市位置候选项 */
+  searchToutiaoLocations: "desktop:search-toutiao-locations",
   /** renderer → main */
   message: "desktop:message",
   /** main → renderer（hello / progress / result / closed） */

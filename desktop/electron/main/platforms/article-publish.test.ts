@@ -216,6 +216,21 @@ it.each(['single', 'triple', 'none'] as const)(
   },
 );
 
+it('writes Toutiao article location into extra.manual_selected_city', async () => {
+  const { request, options } = fixture('toutiao');
+  options.payload.locationRef = { id: '330100', name: '杭州' };
+  options.payload.articleSettings = { coverMode: 'none' };
+  options.payload.articleCoverPaths = [];
+  expect(await runToutiaoArticlePublish(options)).toMatchObject({ ok: true });
+  const [, body] = request.mock.calls.find((call) => call[1]) as [
+    string,
+    { extra: string },
+  ];
+  expect(JSON.parse(body.extra).manual_selected_city).toBe(
+    JSON.stringify({ city: '杭州', city_code: '330100' }),
+  );
+});
+
 it('uses Bilibili opus structured paragraphs and preserves comment, originality, cover, and visibility settings', async () => {
   const { request, options } = fixture('bilibili');
   options.payload.articleSettings = {

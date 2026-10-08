@@ -5,6 +5,7 @@ import { searchBilibiliAnthologies } from "./platforms/bilibili-anthology-search
 import { searchDouyinCollections } from "./platforms/douyin-collection-search";
 import { searchDouyinLocations } from "./platforms/douyin-location-search";
 import { searchBilibiliTopics } from "./platforms/bilibili-topic-search";
+import { searchToutiaoLocations } from "./platforms/toutiao-location-search";
 /**
  * 业务主窗 ↔ 主进程 IPC：注册 webContents 为 bridge 客户端。
  * 不与授权壳 chrome:* handlers 共用。
@@ -258,6 +259,20 @@ export function wireDesktopIpc(): void {
         return [];
       }
       return searchBilibiliTopics(accountId, keyword);
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchToutiaoLocations,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        !isAccountId(accountId) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchToutiaoLocations(accountId, keyword);
     },
   );
 
