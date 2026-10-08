@@ -29,7 +29,6 @@ import {
   TITLE_MAX,
   VISIBILITY_OPTIONS,
   draftTagNames,
-  parseTags,
   localInputToIso,
   validateSchedule,
   type CoverKind,
