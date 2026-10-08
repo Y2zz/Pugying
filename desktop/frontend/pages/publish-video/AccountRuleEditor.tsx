@@ -4,6 +4,7 @@ import {
   DOUYIN_AUTHOR_DECLARATIONS,
   composeDouyinGraphicDescription,
 } from "@shared/douyin-graphic-settings";
+import { topicNames } from "@shared/platform-resource";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import {
   Field,
@@ -16,6 +17,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { ArticleRadioField } from "../publish-article/account-forms/ArticleRadioField";
+import { DouyinTopicField } from "../publish-article/account-forms/DouyinTopicField";
 import { formatLocalDateTime, getDateTimeWindow } from "@/lib/date-time";
 import type { PlatformAccountItem } from "@/lib/api";
 import { CharCountInput, CharCountTextarea } from "./CharCountFields";
@@ -26,6 +28,7 @@ import {
   BODY_MAX,
   TITLE_MAX,
   VISIBILITY_OPTIONS,
+  draftTagNames,
   parseTags,
   localInputToIso,
   validateSchedule,
@@ -154,7 +157,7 @@ export function AccountOverrideForm({
     : resolvedTitle.length > titleMax
       ? `标题最多 ${titleMax} 字`
       : "";
-  const tags = parseTags(draft.tagsText);
+  const tags = draftTagNames(draft);
   const bodyError =
     (bilibili
       ? (draft.body.trim() || commonBody).length
@@ -273,7 +276,20 @@ export function AccountOverrideForm({
               }}
             />
           </Field>
-          {((!xiaohongshu && !toutiao) || tags.length > 0) && (
+          {account.platform === "douyin" ? (
+            <DouyinTopicField
+              accountId={account.id}
+              value={draft.topicRefs}
+              maxCount={5}
+              disabled={disabled}
+              onChange={(topicRefs) => {
+                patch({
+                  topicRefs,
+                  tagsText: topicNames(topicRefs).join(" "),
+                });
+              }}
+            />
+          ) : ((!xiaohongshu && !toutiao) || tags.length > 0) && (
             <Field>
               <FieldLabel
                 className="font-normal"
@@ -286,7 +302,10 @@ export function AccountOverrideForm({
                 value={tags}
                 disabled={disabled}
                 onChange={(next) => {
-                  patch({ tagsText: next.join(" ") });
+                  patch({
+                    tagsText: next.join(" "),
+                    topicRefs: [],
+                  });
                 }}
               />
             </Field>

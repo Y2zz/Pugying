@@ -69,7 +69,11 @@ it("简介加上话题超限时阻止发布，包含继承的通用简介", asyn
   const { getAccountDraftIssues } = await import("./helpers");
   expect(
     getAccountDraftIssues(
-      { ...emptyDraft(), tagsText: "美食" },
+      {
+        ...emptyDraft(),
+        tagsText: "美食",
+        topicRefs: [{ id: "0", name: "美食" }],
+      },
       "字".repeat(1000),
     ),
   ).toContain("简介与话题合计超过 1000 字");

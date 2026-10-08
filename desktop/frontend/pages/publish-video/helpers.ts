@@ -2,6 +2,11 @@ import {
   composeDouyinGraphicDescription,
   type DouyinAuthorDeclaration,
 } from "@shared/douyin-graphic-settings";
+import {
+  normalizePlatformResourceRefs,
+  topicNames,
+  topicRefsFromNames,
+} from "@shared/platform-resource";
 import type {
   ContentTargetOverrides,
   ContentVisibility,
@@ -165,6 +170,8 @@ export interface OverrideDraft {
   coverLandscapeSourceFrameTime: number | null;
   /** 该账号独立发布选项（非通用） */
   tagsText: string;
+  /** 抖音等平台话题资源；有值时优先于 tagsText */
+  topicRefs: import("@shared/platform-resource").PlatformResourceRef[];
   scheduledLocal: string;
   visibility: ContentVisibility;
   allowDownload: boolean;
@@ -191,6 +198,7 @@ export function emptyDraft(platform?: string): OverrideDraft {
     coverSourceFrameTime: null,
     coverLandscapeSourceFrameTime: null,
     tagsText: "",
+    topicRefs: [],
     scheduledLocal: "",
     // 视频号试发默认仅自己可见，与图文一致
     visibility: platform === "channels" ? "private" : "public",
@@ -257,6 +265,17 @@ export function parseTags(text: string): string[] {
   ];
 }
 
+/** 草稿话题名称：优先 topicRefs，兼容旧 tagsText。 */
+export function draftTagNames(draft: {
+  tagsText: string;
+  topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
+}): string[] {
+  if (draft.topicRefs && draft.topicRefs.length > 0) {
+    return draft.topicRefs.map((item) => item.name);
+  }
+  return parseTags(draft.tagsText);
+}
+
 /** 统计可选覆盖项（标题/描述/账号封面）已填数量，用于账号卡片 Badge */
 export function optionalOverrideCount(draft: OverrideDraft): number {
   let count = 0;
@@ -282,6 +301,10 @@ export function optionalOverrideCount(draft: OverrideDraft): number {
 export function overridesToDraft(
   o: ContentTargetOverrides | undefined,
 ): OverrideDraft {
+  const tags = o?.tags ?? [];
+  const topicRefs = normalizePlatformResourceRefs(o?.topicRefs);
+  const resolved =
+    topicRefs.length > 0 ? topicRefs : topicRefsFromNames(tags);
   return {
     title: o?.title ?? "",
     body: o?.body ?? "",
@@ -295,7 +318,8 @@ export function overridesToDraft(
     coverLandscapeSourceUrl: "",
     coverSourceFrameTime: null,
     coverLandscapeSourceFrameTime: null,
-    tagsText: o?.tags?.join(" ") ?? "",
+    tagsText: (topicRefs.length > 0 ? topicNames(topicRefs) : tags).join(" "),
+    topicRefs: resolved,
     scheduledLocal: isoToLocalInput(o?.scheduledAt),
     visibility: o?.visibility ?? "public",
     allowDownload: o?.allowDownload ?? true,
@@ -320,9 +344,15 @@ export function draftFromTargetAndContent(
   },
 ): OverrideDraft {
   const draft = overridesToDraft(overrides);
+  const tagsText = draft.tagsText || content.tags.join(" ");
+  const topicRefs =
+    draft.topicRefs.length > 0
+      ? draft.topicRefs
+      : topicRefsFromNames(parseTags(tagsText));
   return {
     ...draft,
-    tagsText: draft.tagsText || content.tags.join(" "),
+    tagsText,
+    topicRefs,
     scheduledLocal:
       draft.scheduledLocal || isoToLocalInput(content.scheduledAt),
     visibility: overrides?.visibility ?? content.visibility,
@@ -339,9 +369,15 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
   if (draft.body.trim()) {
     result.body = draft.body.trim();
   }
-  const tags = parseTags(draft.tagsText);
-  if (tags.length > 0) {
-    result.tags = tags;
+  const topicRefs = normalizePlatformResourceRefs(draft.topicRefs);
+  if (topicRefs.length > 0) {
+    result.topicRefs = topicRefs;
+    result.tags = topicNames(topicRefs);
+  } else {
+    const tags = parseTags(draft.tagsText);
+    if (tags.length > 0) {
+      result.tags = tags;
+    }
   }
   const iso = localInputToIso(draft.scheduledLocal);
   if (iso) {
@@ -550,7 +586,7 @@ export function describeAccountPublishSummary(draft: OverrideDraft): string {
   const schedule = draft.scheduledLocal.trim()
     ? formatScheduleSummary(draft.scheduledLocal)
     : "立即发布";
-  const tags = parseTags(draft.tagsText);
+  const tags = draftTagNames(draft);
   const tagPart = tags.length > 0 ? ` · ${tags.length} 个话题` : "";
   return `${visibility} · ${schedule}${tagPart}`;
 }
@@ -640,7 +676,7 @@ export function getAccountDraftIssues(
       ? (draft.body.trim() || commonBody).length
       : composeDouyinGraphicDescription(
           draft.body.trim() || commonBody,
-          parseTags(draft.tagsText),
+          draftTagNames(draft),
         ).length) > BODY_MAX
   ) {
     issues.push("简介与话题合计超过 1000 字");

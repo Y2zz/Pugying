@@ -106,7 +106,11 @@ it('round-trips permissions and declarations and resets them without affecting o
 });
 
 it('checks the total description and topic length before saving', () => {
-  const draft = { ...emptyArticleDraft(), tagsText: '旅行' };
+  const draft = {
+    ...emptyArticleDraft(),
+    tagsText: '旅行',
+    topicRefs: [{ id: '0', name: '旅行' }],
+  };
   expect(getGraphicAccountDraftIssues(draft, 'douyin', '文'.repeat(1000))).toContain(
     '作品描述与话题合计超长',
   );

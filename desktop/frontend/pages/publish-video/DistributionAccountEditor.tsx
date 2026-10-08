@@ -47,6 +47,7 @@ export function DistributionAccountEditor({
     optionalOverrideCount(draft) > 0 ||
     Boolean(
       draft.tagsText ||
+      draft.topicRefs.length ||
       draft.scheduledLocal ||
       draft.location ||
       draft.partition,

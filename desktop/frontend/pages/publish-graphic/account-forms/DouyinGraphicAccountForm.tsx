@@ -1,5 +1,5 @@
 import { composeDouyinGraphicDescription } from "@shared/douyin-graphic-settings";
-import { parseTags } from "../../publish-article/helpers";
+import { topicNames } from "@shared/platform-resource";
 import {
   Field,
   FieldDescription,
@@ -16,12 +16,12 @@ import {
 } from "../graphic-platform-fields";
 import {
   ArticleCoverOverrideField,
-  ArticleTagsField,
   ArticleTitleOverrideField,
   ArticleVisibilityField,
   draftPatcher,
   type ArticlePlatformAccountFormProps,
 } from "../../publish-article/account-forms/shared-fields";
+import { DouyinTopicField } from "../../publish-article/account-forms/DouyinTopicField";
 import { DouyinDeclarationField } from "./DouyinDeclarationField";
 import { DouyinPublishTimeField } from "./DouyinPublishTimeField";
 
@@ -40,6 +40,7 @@ export function DouyinGraphicAccountForm({
 }: ArticlePlatformAccountFormProps) {
   const patch = draftPatcher(draft, onDraftChange);
   const downloadId = `graphic-${account.id}-download`;
+  const tags = topicNames(draft.topicRefs);
   return (
     <FieldGroup>
       <FieldSet>
@@ -56,20 +57,22 @@ export function DouyinGraphicAccountForm({
               patch({ title });
             }}
           />
-          <ArticleTagsField
-            tagsText={draft.tagsText}
+          <DouyinTopicField
+            accountId={account.id}
+            value={draft.topicRefs}
+            maxCount={spec.tags.maxCount}
+            disabled={disabled}
             validationMessage={
-              composeDouyinGraphicDescription(
-                commonBody,
-                parseTags(draft.tagsText),
-              ).length > spec.bodyPlainMax
+              composeDouyinGraphicDescription(commonBody, tags).length >
+              spec.bodyPlainMax
                 ? `文案与话题合计最多 ${spec.bodyPlainMax} 字，请缩短文案或减少话题`
                 : undefined
             }
-            maxCount={spec.tags.maxCount}
-            disabled={disabled}
-            onChange={(tagsText) => {
-              patch({ tagsText });
+            onChange={(topicRefs) => {
+              patch({
+                topicRefs,
+                tagsText: topicNames(topicRefs).join(" "),
+              });
             }}
           />
           <ArticleCoverOverrideField

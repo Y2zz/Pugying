@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { topicRefsFromNames } from '@shared/platform-resource';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -147,6 +148,7 @@ export function GraphicBulkEditDialog({
     }
     if (enabled.has('tags')) {
       patch.tagsText = values.tags.join(' ');
+      patch.topicRefs = topicRefsFromNames(values.tags);
     }
     if (enabled.has('visibility')) {
       patch.visibility = values.visibility;
