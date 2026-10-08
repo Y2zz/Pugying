@@ -37,6 +37,8 @@ export function PlatformResourcePicker({
   description,
   placeholder = "搜索并选择",
   collapsedByDefault = false,
+  /** 合集/文集等账号列表：展开后空关键词也拉取候选项 */
+  browseOnEmpty = false,
   emptySummary = "未选择",
 }: {
   label: string;
@@ -50,6 +52,7 @@ export function PlatformResourcePicker({
   description?: string;
   placeholder?: string;
   collapsedByDefault?: boolean;
+  browseOnEmpty?: boolean;
   emptySummary?: string;
 }) {
   const id = useId();
@@ -60,8 +63,12 @@ export function PlatformResourcePicker({
   const [searchFailed, setSearchFailed] = useState(false);
 
   useEffect(() => {
+    // 折叠未展开时不请求，避免后台空跑账号资源列表
+    if (collapsedByDefault && !open) {
+      return;
+    }
     const keyword = query.trim().replace(/^#+/, "");
-    if (!keyword) {
+    if (!keyword && !browseOnEmpty) {
       setSuggestions([]);
       setLoading(false);
       setSearchFailed(false);
@@ -87,12 +94,12 @@ export function PlatformResourcePicker({
           setSearchFailed(true);
           setLoading(false);
         });
-    }, 300);
+    }, keyword ? 300 : 0);
     return () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [query, search]);
+  }, [query, search, browseOnEmpty, collapsedByDefault, open]);
 
   const summary =
     value.length > 0
@@ -155,8 +162,15 @@ export function PlatformResourcePicker({
       {searchFailed ? (
         <p className="text-xs text-muted-foreground">暂时无法搜索，请稍后重试</p>
       ) : null}
-      {!loading && query.trim() && suggestions.length === 0 && !searchFailed ? (
-        <p className="text-xs text-muted-foreground">没有匹配的候选项</p>
+      {!loading &&
+      (query.trim() || browseOnEmpty) &&
+      suggestions.length === 0 &&
+      !searchFailed ? (
+        <p className="text-xs text-muted-foreground">
+          {browseOnEmpty && !query.trim()
+            ? "暂无可选项"
+            : "没有匹配的候选项"}
+        </p>
       ) : null}
       {suggestions.length > 0 ? (
         <ul className="max-h-40 overflow-y-auto rounded-md border border-border p-1">

@@ -4,6 +4,7 @@ import {
   type ArticleAccountSettings,
 } from "@shared/article-settings";
 import {
+  normalizeBoundPlatformResourceRef,
   normalizePlatformResourceRefs,
   topicNames,
   topicRefsFromNames,
@@ -96,6 +97,8 @@ export interface ArticleOverrideDraft {
   tagsText: string;
   /** 抖音等平台话题资源；有值时优先于 tagsText */
   topicRefs: import("@shared/platform-resource").PlatformResourceRef[];
+  /** B 站文章文集（最多一条）；选择器用数组承载 */
+  anthologyRefs: import("@shared/platform-resource").PlatformResourceRef[];
   scheduledLocal: string;
   visibility: ContentVisibility;
   location: string;
@@ -112,6 +115,7 @@ export function emptyArticleDraft(): ArticleOverrideDraft {
     extraCovers: [emptyCoverSlot(), emptyCoverSlot()],
     tagsText: "",
     topicRefs: [],
+    anthologyRefs: [],
     scheduledLocal: "",
     visibility: "public",
     location: "",
@@ -164,11 +168,13 @@ export function draftFromTarget(
   const topicRefs = normalizePlatformResourceRefs(overrides?.topicRefs);
   const resolvedTopics =
     topicRefs.length > 0 ? topicRefs : topicRefsFromNames(tags);
+  const anthology = normalizeBoundPlatformResourceRef(overrides?.anthologyRef);
   return {
     ...emptyArticleDraft(),
     title: overrides?.title ?? "",
     tagsText: (topicRefs.length > 0 ? topicNames(topicRefs) : tags).join(" "),
     topicRefs: resolvedTopics,
+    anthologyRefs: anthology ? [anthology] : [],
     scheduledLocal: isoToLocalInput(
       overrides?.scheduledAt ?? content.scheduledAt,
     ),
@@ -207,6 +213,12 @@ export function articleDraftToOverrides(
       result.tags = tags;
     }
   }
+  if (platform === "bilibili") {
+    const anthologyRef = normalizeBoundPlatformResourceRef(draft.anthologyRefs[0]);
+    if (anthologyRef) {
+      result.anthologyRef = anthologyRef;
+    }
+  }
   const iso = localInputToIso(draft.scheduledLocal);
   if (spec.schedule?.enabled && iso) {
     result.scheduledAt = iso;
@@ -235,6 +247,7 @@ export function articleDraftHasCustomizations(
     Boolean(draft.extraCovers?.some(coverSlotReady)) ||
     Boolean(draft.tagsText.trim()) ||
     draft.topicRefs.length > 0 ||
+    draft.anthologyRefs.length > 0 ||
     Boolean(draft.scheduledLocal.trim()) ||
     draft.visibility !== "public" ||
     draft.allowDownload === false ||

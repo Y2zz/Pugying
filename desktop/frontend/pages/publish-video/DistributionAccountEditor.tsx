@@ -48,6 +48,7 @@ export function DistributionAccountEditor({
     Boolean(
       draft.tagsText ||
       draft.topicRefs.length ||
+      draft.collectionRefs.length ||
       draft.scheduledLocal ||
       draft.location ||
       draft.partition,

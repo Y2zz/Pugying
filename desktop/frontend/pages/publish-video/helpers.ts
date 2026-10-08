@@ -3,6 +3,7 @@ import {
   type DouyinAuthorDeclaration,
 } from "@shared/douyin-graphic-settings";
 import {
+  normalizeBoundPlatformResourceRef,
   normalizePlatformResourceRefs,
   topicNames,
   topicRefsFromNames,
@@ -172,6 +173,8 @@ export interface OverrideDraft {
   tagsText: string;
   /** 抖音等平台话题资源；有值时优先于 tagsText */
   topicRefs: import("@shared/platform-resource").PlatformResourceRef[];
+  /** 抖音视频合集（最多一条）；选择器用数组承载 */
+  collectionRefs: import("@shared/platform-resource").PlatformResourceRef[];
   scheduledLocal: string;
   visibility: ContentVisibility;
   allowDownload: boolean;
@@ -199,6 +202,7 @@ export function emptyDraft(platform?: string): OverrideDraft {
     coverLandscapeSourceFrameTime: null,
     tagsText: "",
     topicRefs: [],
+    collectionRefs: [],
     scheduledLocal: "",
     // 视频号试发默认仅自己可见，与图文一致
     visibility: platform === "channels" ? "private" : "public",
@@ -305,6 +309,7 @@ export function overridesToDraft(
   const topicRefs = normalizePlatformResourceRefs(o?.topicRefs);
   const resolved =
     topicRefs.length > 0 ? topicRefs : topicRefsFromNames(tags);
+  const collection = normalizeBoundPlatformResourceRef(o?.collectionRef);
   return {
     title: o?.title ?? "",
     body: o?.body ?? "",
@@ -320,6 +325,7 @@ export function overridesToDraft(
     coverLandscapeSourceFrameTime: null,
     tagsText: (topicRefs.length > 0 ? topicNames(topicRefs) : tags).join(" "),
     topicRefs: resolved,
+    collectionRefs: collection ? [collection] : [],
     scheduledLocal: isoToLocalInput(o?.scheduledAt),
     visibility: o?.visibility ?? "public",
     allowDownload: o?.allowDownload ?? true,
@@ -378,6 +384,10 @@ export function draftToOverrides(draft: OverrideDraft): ContentTargetOverrides {
     if (tags.length > 0) {
       result.tags = tags;
     }
+  }
+  const collectionRef = normalizeBoundPlatformResourceRef(draft.collectionRefs[0]);
+  if (collectionRef) {
+    result.collectionRef = collectionRef;
   }
   const iso = localInputToIso(draft.scheduledLocal);
   if (iso) {

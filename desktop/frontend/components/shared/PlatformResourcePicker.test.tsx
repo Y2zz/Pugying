@@ -39,4 +39,24 @@ describe("PlatformResourcePicker", () => {
     );
     expect(screen.getByText("#旅行记")).toBeTruthy();
   });
+
+  it("loads account list candidates when browseOnEmpty is enabled", async () => {
+    const search = vi.fn(async () => [{ id: "2", name: "旅行 vlog" }]);
+    render(
+      <PlatformResourcePicker
+        label="合集"
+        value={[]}
+        onChange={vi.fn()}
+        search={search}
+        collapsedByDefault
+        browseOnEmpty
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByText("合集"));
+    await waitFor(() => {
+      expect(search).toHaveBeenCalledWith("");
+    });
+    expect(await screen.findByRole("button", { name: /旅行 vlog/ })).toBeTruthy();
+  });
 });

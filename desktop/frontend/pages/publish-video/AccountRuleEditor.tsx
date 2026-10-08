@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/field";
 import { ArticleRadioField } from "../publish-article/account-forms/ArticleRadioField";
 import { DouyinTopicField } from "../publish-article/account-forms/DouyinTopicField";
+import { DouyinCollectionField } from "./DouyinCollectionField";
 import { formatLocalDateTime, getDateTimeWindow } from "@/lib/date-time";
 import type { PlatformAccountItem } from "@/lib/api";
 import { CharCountInput, CharCountTextarea } from "./CharCountFields";
@@ -276,18 +277,28 @@ export function AccountOverrideForm({
             />
           </Field>
           {account.platform === "douyin" ? (
-            <DouyinTopicField
-              accountId={account.id}
-              value={draft.topicRefs}
-              maxCount={5}
-              disabled={disabled}
-              onChange={(topicRefs) => {
-                patch({
-                  topicRefs,
-                  tagsText: topicNames(topicRefs).join(" "),
-                });
-              }}
-            />
+            <>
+              <DouyinTopicField
+                accountId={account.id}
+                value={draft.topicRefs}
+                maxCount={5}
+                disabled={disabled}
+                onChange={(topicRefs) => {
+                  patch({
+                    topicRefs,
+                    tagsText: topicNames(topicRefs).join(" "),
+                  });
+                }}
+              />
+              <DouyinCollectionField
+                accountId={account.id}
+                value={draft.collectionRefs}
+                disabled={disabled}
+                onChange={(collectionRefs) => {
+                  patch({ collectionRefs });
+                }}
+              />
+            </>
           ) : ((!xiaohongshu && !toutiao) || tags.length > 0) && (
             <Field>
               <FieldLabel

@@ -1,6 +1,7 @@
 import { BilibiliArticleCoverField } from "./ArticleCoverModeFields";
 import { ArticlePlatformSettingsFields } from "./ArticlePlatformSettingsFields";
 import { getArticlePlatformFields } from "../article-platform-fields";
+import { BilibiliAnthologyField } from "./BilibiliAnthologyField";
 import {
   ArticleAccountFormLayout,
   ArticleScheduleField,
@@ -69,6 +70,14 @@ export function BilibiliArticleAccountForm({
             disabled={disabled}
             onChange={(articleSettings) => {
               patch({ articleSettings });
+            }}
+          />
+          <BilibiliAnthologyField
+            accountId={account.id}
+            value={draft.anthologyRefs}
+            disabled={disabled}
+            onChange={(anthologyRefs) => {
+              patch({ anthologyRefs });
             }}
           />
 
