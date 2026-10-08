@@ -60,6 +60,8 @@ const CONFIG = {
       "/web/api/media/user/info/",
       "/web/api/media/item/info/",
       "/aweme/v1/search/challengesug/",
+      "/web/api/mix/list/",
+      "/aweme/v1/life/video_api/search/poi/",
     ],
   },
   toutiao: {
@@ -75,6 +77,8 @@ const CONFIG = {
       "/mp/agw/article/new",
       "/mp/agw/article/publish",
       "/mp/agw/diversity/publish/strategy/v1/check/",
+      // 文章编辑器城市列表（位置选择）
+      "/toutiao/normandy/mp/city_district/",
     ],
   },
   xiaohongshu: {
@@ -95,6 +99,8 @@ const CONFIG = {
       "/x/web-interface/nav",
       "/x/dynamic/feed/create/opus_init_check",
       "/x/dynamic/feed/create/opus",
+      "/x/article/up/lists",
+      "/x/topic/pub/search",
     ],
   },
 } as const;
@@ -513,7 +519,39 @@ class CookieArticleApiSession implements VideoApiSession {
           url.searchParams.size !== 3 ||
           !url.searchParams.get("keyword")?.trim() ||
           url.searchParams.get("source") !== "challenge_create" ||
-          url.searchParams.get("aid") !== "2906"))
+          url.searchParams.get("aid") !== "2906")) ||
+      (url.pathname === "/web/api/mix/list/" &&
+        (data !== undefined ||
+          url.searchParams.size !== 6 ||
+          url.searchParams.get("status") !== "0,1,2,3,6" ||
+          url.searchParams.get("count") !== "20" ||
+          url.searchParams.get("cursor") !== "0" ||
+          url.searchParams.get("should_query_new_mix") !== "1" ||
+          url.searchParams.get("device_platform") !== "web" ||
+          url.searchParams.get("aid") !== "1128")) ||
+      (url.pathname === "/x/article/up/lists" &&
+        (data !== undefined ||
+          url.searchParams.size !== 2 ||
+          !/^\d+$/.test(url.searchParams.get("mid") ?? "") ||
+          !["0", "1"].includes(url.searchParams.get("sort") ?? ""))) ||
+      (url.pathname === "/aweme/v1/life/video_api/search/poi/" &&
+        (data !== undefined ||
+          url.searchParams.size !== 3 ||
+          !url.searchParams.get("keyword")?.trim() ||
+          !/^\d+$/.test(url.searchParams.get("count") ?? "") ||
+          Number(url.searchParams.get("count")) < 1 ||
+          Number(url.searchParams.get("count")) > 20 ||
+          url.searchParams.get("aid") !== "1128")) ||
+      (url.pathname === "/x/topic/pub/search" &&
+        (data !== undefined ||
+          url.searchParams.size !== 4 ||
+          !url.searchParams.get("keywords")?.trim() ||
+          url.searchParams.get("page_size") !== "20" ||
+          url.searchParams.get("page_num") !== "1" ||
+          url.searchParams.get("offset") !== "0")) ||
+      // 头条城市列表：官方 getPositionInfo 为无参 GET
+      (url.pathname === "/toutiao/normandy/mp/city_district/" &&
+        (data !== undefined || url.searchParams.size !== 0))
     ) {
       throw new ArticleApiError("invalid_payload", "发布请求不可用");
     }

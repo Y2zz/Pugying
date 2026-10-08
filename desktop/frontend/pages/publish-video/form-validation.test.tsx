@@ -136,7 +136,11 @@ it("账号继承简介加上话题超限时显示可定位的字段错误", () =
       displayName: "测试",
       platform: "douyin",
     } as PlatformAccountItem,
-    draft: { ...emptyDraft(), tagsText: "美食" },
+    draft: {
+      ...emptyDraft(),
+      tagsText: "美食",
+      topicRefs: [{ id: "0", name: "美食" }],
+    },
     commonTitle: "标题",
     commonBody: "字".repeat(1000),
     commonCoverReady: false,
@@ -160,7 +164,11 @@ it("账号继承简介加上话题超限时显示可定位的字段错误", () =
 it("图文的文案与话题合计超限时，关联话题输入并随文案修改清除", () => {
   const props = {
     account: { id: "g", platform: "douyin" } as PlatformAccountItem,
-    draft: { ...emptyArticleDraft(), tagsText: "美食" },
+    draft: {
+      ...emptyArticleDraft(),
+      tagsText: "美食",
+      topicRefs: [{ id: "0", name: "美食" }],
+    },
     commonTitle: "标题",
     commonBody: "字".repeat(1000),
     commonCovers: emptyCoverPair(),

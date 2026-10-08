@@ -1,4 +1,9 @@
 import { articleSettingsForPlatform } from '../../domain/article-settings';
+import {
+  normalizeBoundPlatformResourceRef,
+  normalizePlatformResourceRefs,
+  topicNames,
+} from '../../domain/platform-resource';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { isAbsolute } from 'path';
 import { isAuthorDeclaration } from '../../domain/author-declaration';
@@ -428,9 +433,44 @@ export class ContentService {
     if (overrides.body?.trim()) {
       result.body = overrides.body.trim();
     }
-    const tags = this.normalizeList(overrides.tags);
-    if (tags.length > 0) {
-      result.tags = tags;
+    const topicRefs = normalizePlatformResourceRefs(overrides.topicRefs);
+    if (topicRefs.length > 0) {
+      // 有平台标识时以 topicRefs 为准，并同步名称到 tags 供旧校验/摘要使用
+      result.topicRefs = topicRefs;
+      result.tags = topicNames(topicRefs);
+    } else {
+      const tags = this.normalizeList(overrides.tags);
+      if (tags.length > 0) {
+        result.tags = tags;
+      }
+    }
+    // 文集仅 B 站文章；合集仅抖音视频——其它形态忽略，避免误存
+    const anthologyRef = normalizeBoundPlatformResourceRef(overrides.anthologyRef);
+    if (
+      anthologyRef &&
+      contentType === 'article' &&
+      platform === 'bilibili'
+    ) {
+      result.anthologyRef = anthologyRef;
+    }
+    const collectionRef = normalizeBoundPlatformResourceRef(
+      overrides.collectionRef,
+    );
+    if (
+      collectionRef &&
+      contentType === 'video' &&
+      platform === 'douyin'
+    ) {
+      result.collectionRef = collectionRef;
+    }
+    // 位置：抖音视频 POI，或头条文章城市；其它形态忽略，避免误存纯文本地点
+    const locationRef = normalizeBoundPlatformResourceRef(overrides.locationRef);
+    if (
+      locationRef &&
+      ((contentType === 'video' && platform === 'douyin') ||
+        (contentType === 'article' && platform === 'toutiao'))
+    ) {
+      result.locationRef = locationRef;
     }
     if (overrides.scheduledAt) {
       const date = new Date(overrides.scheduledAt);

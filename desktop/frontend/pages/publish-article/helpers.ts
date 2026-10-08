@@ -3,6 +3,12 @@ import {
   hasCustomizedArticleSettings,
   type ArticleAccountSettings,
 } from "@shared/article-settings";
+import {
+  normalizeBoundPlatformResourceRef,
+  normalizePlatformResourceRefs,
+  topicNames,
+  topicRefsFromNames,
+} from "@shared/platform-resource";
 import type {
   ContentTargetOverrides,
   ContentVisibility,
@@ -89,6 +95,12 @@ export interface ArticleOverrideDraft {
   covers: CoverPair;
   extraCovers?: CoverSlot[];
   tagsText: string;
+  /** 抖音等平台话题资源；有值时优先于 tagsText */
+  topicRefs: import("@shared/platform-resource").PlatformResourceRef[];
+  /** B 站文章文集（最多一条）；选择器用数组承载 */
+  anthologyRefs: import("@shared/platform-resource").PlatformResourceRef[];
+  /** 头条文章城市位置（最多一条）；选择器用数组承载 */
+  locationRefs: import("@shared/platform-resource").PlatformResourceRef[];
   scheduledLocal: string;
   visibility: ContentVisibility;
   location: string;
@@ -104,6 +116,9 @@ export function emptyArticleDraft(): ArticleOverrideDraft {
     covers: emptyCoverPair(),
     extraCovers: [emptyCoverSlot(), emptyCoverSlot()],
     tagsText: "",
+    topicRefs: [],
+    anthologyRefs: [],
+    locationRefs: [],
     scheduledLocal: "",
     visibility: "public",
     location: "",
@@ -152,10 +167,19 @@ export function draftFromTarget(
     location?: string | null;
   },
 ): ArticleOverrideDraft {
+  const tags = overrides?.tags ?? content.tags;
+  const topicRefs = normalizePlatformResourceRefs(overrides?.topicRefs);
+  const resolvedTopics =
+    topicRefs.length > 0 ? topicRefs : topicRefsFromNames(tags);
+  const anthology = normalizeBoundPlatformResourceRef(overrides?.anthologyRef);
+  const locationPoi = normalizeBoundPlatformResourceRef(overrides?.locationRef);
   return {
     ...emptyArticleDraft(),
     title: overrides?.title ?? "",
-    tagsText: (overrides?.tags ?? content.tags).join(" "),
+    tagsText: (topicRefs.length > 0 ? topicNames(topicRefs) : tags).join(" "),
+    topicRefs: resolvedTopics,
+    anthologyRefs: anthology ? [anthology] : [],
+    locationRefs: locationPoi ? [locationPoi] : [],
     scheduledLocal: isoToLocalInput(
       overrides?.scheduledAt ?? content.scheduledAt,
     ),
@@ -184,9 +208,38 @@ export function articleDraftToOverrides(
   if (title) {
     result.title = title;
   }
-  const tags = parseTags(draft.tagsText);
-  if (spec.tags.enabled && tags.length > 0) {
-    result.tags = tags;
+  const topicRefs = normalizePlatformResourceRefs(draft.topicRefs);
+  if (spec.tags.enabled && topicRefs.length > 0) {
+    result.topicRefs = topicRefs;
+    result.tags = topicNames(topicRefs);
+  } else {
+    const tags = parseTags(draft.tagsText);
+    if (spec.tags.enabled && tags.length > 0) {
+      result.tags = tags;
+    }
+  }
+  if (platform === "bilibili") {
+    const anthologyRef = normalizeBoundPlatformResourceRef(draft.anthologyRefs[0]);
+    if (anthologyRef) {
+      result.anthologyRef = anthologyRef;
+    }
+    // 专栏话题须为已绑定资源；id=0 的纯文本话题不下发
+    if (result.topicRefs) {
+      const bound = result.topicRefs.filter((ref) => ref.id !== "0");
+      if (bound.length > 0) {
+        result.topicRefs = bound.slice(0, 1);
+        result.tags = topicNames(result.topicRefs);
+      } else {
+        delete result.topicRefs;
+        delete result.tags;
+      }
+    }
+  }
+  if (platform === "toutiao") {
+    const locationRef = normalizeBoundPlatformResourceRef(draft.locationRefs[0]);
+    if (locationRef) {
+      result.locationRef = locationRef;
+    }
   }
   const iso = localInputToIso(draft.scheduledLocal);
   if (spec.schedule?.enabled && iso) {
@@ -215,6 +268,9 @@ export function articleDraftHasCustomizations(
     COVER_ASPECTS.some((aspect) => coverSlotReady(draft.covers[aspect])) ||
     Boolean(draft.extraCovers?.some(coverSlotReady)) ||
     Boolean(draft.tagsText.trim()) ||
+    draft.topicRefs.length > 0 ||
+    draft.anthologyRefs.length > 0 ||
+    draft.locationRefs.length > 0 ||
     Boolean(draft.scheduledLocal.trim()) ||
     draft.visibility !== "public" ||
     draft.allowDownload === false ||
@@ -253,7 +309,8 @@ export function getArticleAccountDraftIssues(
   }
   if (
     spec.tags.enabled &&
-    parseTags(draft.tagsText).length > spec.tags.maxCount
+    Math.max(parseTags(draft.tagsText).length, draft.topicRefs.length) >
+      spec.tags.maxCount
   ) {
     issues.push("话题过多");
   }

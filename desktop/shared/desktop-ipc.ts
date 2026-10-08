@@ -11,6 +11,18 @@ export const DESKTOP_IPC = {
   /** 读取头条文章编辑器的当前账号赞赏额度 */
   getToutiaoRewardPrivilege: "desktop:get-toutiao-reward-privilege",
   getBilibiliVideoOptions: "desktop:get-bilibili-video-options",
+  /** 按账号搜索抖音官方话题候选项 */
+  searchDouyinTopics: "desktop:search-douyin-topics",
+  /** 按账号读取/筛选 B 站文集候选项 */
+  searchBilibiliAnthologies: "desktop:search-bilibili-anthologies",
+  /** 按账号读取/筛选抖音合集候选项 */
+  searchDouyinCollections: "desktop:search-douyin-collections",
+  /** 按账号搜索抖音发布位置（POI） */
+  searchDouyinLocations: "desktop:search-douyin-locations",
+  /** 按账号搜索 B 站发布话题候选项 */
+  searchBilibiliTopics: "desktop:search-bilibili-topics",
+  /** 按账号读取/筛选头条文章城市位置候选项 */
+  searchToutiaoLocations: "desktop:search-toutiao-locations",
   /** renderer → main */
   message: "desktop:message",
   /** main → renderer（hello / progress / result / closed） */

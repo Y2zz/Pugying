@@ -1,5 +1,11 @@
 import { fetchToutiaoRewardPrivilege } from "./platforms/toutiao-article-privileges";
 import { fetchBilibiliVideoOptions } from "./platforms/bilibili-video-options";
+import { searchDouyinTopics } from "./platforms/douyin-topic-search";
+import { searchBilibiliAnthologies } from "./platforms/bilibili-anthology-search";
+import { searchDouyinCollections } from "./platforms/douyin-collection-search";
+import { searchDouyinLocations } from "./platforms/douyin-location-search";
+import { searchBilibiliTopics } from "./platforms/bilibili-topic-search";
+import { searchToutiaoLocations } from "./platforms/toutiao-location-search";
 /**
  * 业务主窗 ↔ 主进程 IPC：注册 webContents 为 bridge 客户端。
  * 不与授权壳 chrome:* handlers 共用。
@@ -174,6 +180,99 @@ export function wireDesktopIpc(): void {
         return null;
       }
       return fetchBilibiliVideoOptions(accountId);
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchDouyinTopics,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        typeof accountId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          accountId,
+        ) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchDouyinTopics(accountId, keyword);
+    },
+  );
+
+  const isAccountId = (value: unknown): value is string =>
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchBilibiliAnthologies,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        !isAccountId(accountId) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchBilibiliAnthologies(accountId, keyword);
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchDouyinCollections,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        !isAccountId(accountId) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchDouyinCollections(accountId, keyword);
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchDouyinLocations,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        !isAccountId(accountId) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchDouyinLocations(accountId, keyword);
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchBilibiliTopics,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        !isAccountId(accountId) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchBilibiliTopics(accountId, keyword);
+    },
+  );
+
+  ipcMain.handle(
+    DESKTOP_IPC.searchToutiaoLocations,
+    async (event, accountId: unknown, keyword: unknown) => {
+      if (
+        event.sender !== getAppWindow()?.webContents ||
+        !isAccountId(accountId) ||
+        typeof keyword !== "string"
+      ) {
+        return [];
+      }
+      return searchToutiaoLocations(accountId, keyword);
     },
   );
 

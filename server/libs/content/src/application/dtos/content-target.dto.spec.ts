@@ -44,6 +44,52 @@ describe('文章账号设置校验', () => {
   });
 });
 
+describe('平台话题资源', () => {
+  it('accepts topic refs with platform ids', async () => {
+    const dto = plainToInstance(TargetOverridesDto, {
+      topicRefs: [{ id: '1234', name: '日常' }],
+      tags: ['日常'],
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+  it.each([
+    [{ id: 'abc', name: '日常' }],
+    [{ id: '123', name: 'bad tag' }],
+    [{ id: '123', name: '' }],
+  ])('rejects invalid topic refs %j', async (topicRefs) => {
+    const dto = plainToInstance(TargetOverridesDto, { topicRefs });
+    expect((await validate(dto)).some((error) => error.property === 'topicRefs')).toBe(true);
+  });
+});
+
+describe('合集与文集资源', () => {
+  it('accepts bound anthology and collection refs with spaces in name', async () => {
+    const dto = plainToInstance(TargetOverridesDto, {
+      anthologyRef: { id: '9', name: '旅行 笔记' },
+      collectionRef: { id: '11', name: '日常合集' },
+      locationRef: { id: '6601', name: '上海 外滩' },
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+  it.each([
+    { anthologyRef: { id: '0', name: '未绑定' } },
+    { anthologyRef: { id: 'abc', name: '文集' } },
+    { collectionRef: { id: '1', name: '含#号' } },
+    { locationRef: { id: '0', name: '未绑定' } },
+  ])('rejects invalid bound refs %j', async (payload) => {
+    const dto = plainToInstance(TargetOverridesDto, payload);
+    const errors = await validate(dto);
+    expect(
+      errors.some(
+        (error) =>
+          error.property === 'anthologyRef' ||
+          error.property === 'collectionRef' ||
+          error.property === 'locationRef',
+      ),
+    ).toBe(true);
+  });
+});
+
 describe('Bilibili video settings', () => {
   it('accepts numeric platform configuration and source', async () => {
     const dto = plainToInstance(TargetOverridesDto, {

@@ -8,10 +8,11 @@ import {
   draftPatcher,
   type ArticlePlatformAccountFormProps,
 } from "./shared-fields";
+import { ToutiaoLocationField } from "./ToutiaoLocationField";
 
 const spec = getArticlePlatformFields("toutiao");
 
-/** 头条文章：标题、封面，以及广告、首发、赞赏和作品声明。 */
+/** 头条文章：标题、封面、位置，以及广告、首发、赞赏和作品声明。 */
 export function ToutiaoArticleAccountForm({
   account,
   draft,
@@ -50,6 +51,14 @@ export function ToutiaoArticleAccountForm({
       }
       publish={
         <>
+          <ToutiaoLocationField
+            accountId={account.id}
+            value={draft.locationRefs}
+            disabled={disabled}
+            onChange={(locationRefs) => {
+              patch({ locationRefs });
+            }}
+          />
           <ArticlePlatformSettingsFields
             accountId={account.id}
             platform="toutiao"

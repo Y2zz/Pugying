@@ -114,6 +114,10 @@ export interface PlatformPublishStartInput {
   title: string;
   body?: string;
   tags?: string[];
+  topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
+  anthologyRef?: import("@shared/platform-resource").PlatformResourceRef;
+  collectionRef?: import("@shared/platform-resource").PlatformResourceRef;
+  locationRef?: import("@shared/platform-resource").PlatformResourceRef;
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
   bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
@@ -159,6 +163,30 @@ export type PugyingDesktopBridge = {
   ) => Promise<
     import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
   >;
+  searchDouyinTopics?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchBilibiliAnthologies?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchDouyinCollections?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchDouyinLocations?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchBilibiliTopics?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchToutiaoLocations?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
   postMessage: (message: unknown) => void;
   onMessage: (callback: (message: unknown) => void) => () => void;
   getToutiaoRewardPrivilege?: (
@@ -544,6 +572,10 @@ class AgentClient {
           title: input.title,
           body: input.body,
           tags: input.tags,
+          topicRefs: input.topicRefs,
+          anthologyRef: input.anthologyRef,
+          collectionRef: input.collectionRef,
+          locationRef: input.locationRef,
           authorDeclaration: input.authorDeclaration,
           articleSettings: input.articleSettings,
           bilibiliVideoSettings: input.bilibiliVideoSettings,

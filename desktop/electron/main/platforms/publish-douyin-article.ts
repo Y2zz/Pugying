@@ -13,6 +13,10 @@ import {
   uploadArticleImages,
   uploadedImage,
 } from './article-content';
+import {
+  douyinTopicNames,
+  resolveDouyinTopics,
+} from './douyin-topic-resolve';
 
 export function runDouyinArticlePublish(options: ArticlePublishOptions) {
   return runArticleApiPublish('douyin', options, async (api, emit) => {
@@ -34,13 +38,8 @@ export function runDouyinArticlePublish(options: ArticlePublishOptions) {
         '抖音文章正文需为 100～20,000 字，标题和摘要最多 30 字',
       );
     }
-    const tags = [
-      ...new Set(
-        (payload.tags ?? [])
-          .map((tag) => tag.trim().replace(/^#+/, ''))
-          .filter(Boolean),
-      ),
-    ];
+    const topics = await resolveDouyinTopics(api, payload);
+    const tags = douyinTopicNames(topics);
     if (
       tags.length > 5 ||
       tags.some((tag) => /\s|#/.test(tag)) ||
@@ -64,7 +63,7 @@ export function runDouyinArticlePublish(options: ArticlePublishOptions) {
     const cover = uploadedImage(images, payload.coverPath);
     let start = Array.from(title).length + 1;
     let captionStart = 0;
-    const textExtra = tags.length
+    const textExtra = topics.length
       ? [
           {
             start: 0,
@@ -73,15 +72,15 @@ export function runDouyinArticlePublish(options: ArticlePublishOptions) {
             hashtag_name: '',
             type: 7,
           },
-          ...tags.map((tag) => {
-            const size = Array.from(tag).length + 1;
+          ...topics.map((topic) => {
+            const size = Array.from(topic.name).length + 1;
             const entry = {
               start,
               end: start + size,
               caption_start: captionStart,
               caption_end: captionStart + size,
-              hashtag_id: 0,
-              hashtag_name: tag,
+              hashtag_id: topic.id === '0' ? 0 : topic.id,
+              hashtag_name: topic.name,
               type: 1,
             };
             start += size + 1;

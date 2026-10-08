@@ -400,6 +400,86 @@ it("restricts topic lookups to a read-only keyword query and forbids account-wid
   await api.dispose();
 });
 
+it("allows the verified Douyin mix list query and rejects altered parameters", async () => {
+  const api = await createArticleApiSession("douyin", options());
+  mock.execute.mockResolvedValueOnce({
+    ok: true,
+    data: { status_code: 0, mix_list: [] },
+  });
+  const path =
+    "/web/api/mix/list/?status=0,1,2,3,6&count=20&cursor=0&should_query_new_mix=1&device_platform=web&aid=1128";
+  await expect(api.request(path)).resolves.toMatchObject({ status_code: 0 });
+  await expect(
+    api.request(path.replace("count=20", "count=50")),
+  ).rejects.toMatchObject({ code: "invalid_payload" });
+  await expect(api.request(path, {})).rejects.toMatchObject({
+    code: "invalid_payload",
+  });
+  await api.dispose();
+});
+
+it("allows the verified Toutiao city list query and rejects altered parameters", async () => {
+  const input = options();
+  input.payload.platform = "toutiao";
+  input.payload.cookies = [
+    { name: "sessionid", value: "private", domain: ".toutiao.com" },
+  ];
+  const api = await createArticleApiSession("toutiao", input);
+  mock.execute.mockResolvedValueOnce({
+    ok: true,
+    data: { data: { cityList: [] } },
+  });
+  const path = "/toutiao/normandy/mp/city_district/";
+  await expect(api.request(path)).resolves.toMatchObject({
+    data: { cityList: [] },
+  });
+  await expect(api.request(`${path}?extra=1`)).rejects.toMatchObject({
+    code: "invalid_payload",
+  });
+  await expect(api.request(path, {})).rejects.toMatchObject({
+    code: "invalid_payload",
+  });
+  await api.dispose();
+});
+
+it("allows the verified Bilibili anthology list query", async () => {
+  const input = options();
+  input.payload.platform = "bilibili";
+  input.payload.cookies = [
+    { name: "SESSDATA", value: "private", domain: ".bilibili.com" },
+    { name: "bili_jct", value: "csrf", domain: ".bilibili.com" },
+  ];
+  const api = await createArticleApiSession("bilibili", input);
+  mock.execute.mockImplementation(async (script: string) => {
+    if (script.includes("request('/x/web-interface/nav')")) {
+      return {
+        ok: true,
+        data: {
+          code: 0,
+          data: {
+            isLogin: true,
+            wbi_img: {
+              img_url: "https://i.example/7cd084941338484aae1ad9425b84077c.png",
+              sub_url: "https://i.example/4932caff0ff746eab6f01bf08b70ac45.png",
+            },
+          },
+        },
+      };
+    }
+    if (script.includes("wbiParams()")) {
+      return { ok: true, data: {} };
+    }
+    return { ok: true, data: { code: 0, data: { lists: [] } } };
+  });
+  await expect(
+    api.request("/x/article/up/lists?mid=42&sort=0"),
+  ).resolves.toMatchObject({ code: 0 });
+  await expect(
+    api.request("/x/article/up/lists?mid=42"),
+  ).rejects.toMatchObject({ code: "invalid_payload" });
+  await api.dispose();
+});
+
 it("Bilibili video uses its native runtime and origin without article WBI signing", async () => {
   const input = options();
   input.payload.platform = "bilibili";

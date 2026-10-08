@@ -3,6 +3,10 @@ import {
   isDouyinAuthorDeclaration,
   type DouyinAuthorDeclaration,
 } from '../../../shared/douyin-graphic-settings';
+import {
+  normalizeBoundPlatformResourceRef,
+  type PlatformResourceRef,
+} from '../../../shared/platform-resource';
 import type {
   PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
@@ -11,12 +15,15 @@ import type {
 import {
   ArticleApiError,
   articlePostId,
-  articleRecord,
   assertArticleActive,
   assertArticleResponse,
 } from './article-api';
 import { articleSchedule } from './article-content';
 import type { CookiePublishSessionOptions } from './article-api-session';
+import {
+  douyinTopicNames,
+  resolveDouyinTopics,
+} from './douyin-topic-resolve';
 import type { VideoApiSession } from './video-api';
 
 export interface VideoPublishOptions {
@@ -38,37 +45,17 @@ const DECLARATIONS: Record<Exclude<DouyinAuthorDeclaration, 'none'>, string> = {
 };
 
 /** 2026-10-07 官方视频编辑器：标题以空格连接简介，话题分别保存全文/简介偏移。 */
-async function videoCaption(
-  api: VideoApiSession,
+function videoCaption(
   title: string,
   caption: string,
+  topics: PlatformResourceRef[],
 ) {
+  const byName = new Map(topics.map((topic) => [topic.name, topic.id]));
   const extra: Record<string, unknown>[] = [];
   const challenges: string[] = [];
   for (const match of caption.matchAll(/#[^\s#]+/g)) {
     const name = match[0].slice(1);
-    const query = new URLSearchParams({
-      keyword: name,
-      source: 'challenge_create',
-      aid: '2906',
-    });
-    const response = await api.request(
-      `/aweme/v1/search/challengesug/?${query}`,
-    );
-    assertArticleResponse(response, 'douyin');
-    const suggestions = Array.isArray(response.sug_list)
-      ? response.sug_list
-      : [];
-    const suggestion = suggestions
-      .map(articleRecord)
-      .find((item) => item.cha_name === name);
-    const id = suggestion?.cid;
-    const hashtagId =
-      typeof id === 'string' && /^\d+$/.test(id)
-        ? id
-        : typeof id === 'number' && Number.isSafeInteger(id) && id > 0
-          ? String(id)
-          : '0';
+    const hashtagId = byName.get(name) ?? '0';
     if (hashtagId !== '0') {
       challenges.push(hashtagId);
     }
@@ -116,14 +103,17 @@ export async function runDouyinHttpPublish(
   try {
     emit('accepted', '准备发布视频');
     const title = payload.title.trim();
-    const tags = [
+    const provisionalTags = [
       ...new Set(
         (payload.tags ?? [])
           .map((tag) => tag.trim().replace(/^#+/, ''))
           .filter(Boolean),
       ),
     ];
-    const caption = composeDouyinGraphicDescription(payload.body ?? '', tags);
+    const provisionalCaption = composeDouyinGraphicDescription(
+      payload.body ?? '',
+      provisionalTags,
+    );
     const declaration = payload.authorDeclaration ?? 'none';
     const visibility = (
       { public: 0, private: 1, friends: 2 } as Record<string, number>
@@ -132,12 +122,12 @@ export async function runDouyinHttpPublish(
       payload.platform !== 'douyin' ||
       !title ||
       title.length > 30 ||
-      caption.length > 1000 ||
+      provisionalCaption.length > 1000 ||
       !payload.mediaPath?.trim() ||
       visibility === undefined ||
       !isDouyinAuthorDeclaration(declaration) ||
-      tags.length > 5 ||
-      tags.some((tag) => /\s|#/.test(tag))
+      provisionalTags.length > 5 ||
+      provisionalTags.some((tag) => /\s|#/.test(tag))
     ) {
       throw new ArticleApiError(
         'invalid_payload',
@@ -163,7 +153,10 @@ export async function runDouyinHttpPublish(
       options.createSession ??
       (await import('./article-api-session')).createArticleApiSession;
     api = await factory('douyin', options);
-    const metadata = await videoCaption(api, title, caption);
+    const topics = await resolveDouyinTopics(api, payload);
+    const tags = douyinTopicNames(topics);
+    const caption = composeDouyinGraphicDescription(payload.body ?? '', tags);
+    const metadata = videoCaption(title, caption, topics);
     emit('uploading', '上传视频');
     const video = await api.uploadVideo(payload.mediaPath);
     if (
@@ -216,6 +209,8 @@ export async function runDouyinHttpPublish(
     checkSchedule();
     emit('submitting', '提交视频');
     submitted = true;
+    const collection = normalizeBoundPlatformResourceRef(payload.collectionRef);
+    const location = normalizeBoundPlatformResourceRef(payload.locationRef);
     const response = await api.request('/web/api/media/aweme/create_v2/', {
       item: {
         common: {
@@ -226,8 +221,16 @@ export async function runDouyinHttpPublish(
           visibility_type: visibility,
           download: payload.allowDownload === false ? 0 : 1,
           timing: timing ?? 0,
+          // 仅在已选位置时带上 poi；官方未选时可不传
+          ...(location
+            ? { poi_id: location.id, poi_name: location.name }
+            : {}),
         },
         cover,
+        // 仅在已选合集时带上 mix；官方未选时可不传该字段
+        ...(collection
+          ? { mix: { mix_id: collection.id, mix_order: 0 } }
+          : {}),
         assistant: { is_preview: 0, is_post_assistant: 0 },
         ...(declaration === 'none'
           ? {}

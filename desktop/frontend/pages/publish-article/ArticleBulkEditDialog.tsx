@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { topicRefsFromNames } from '@shared/platform-resource';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -122,7 +123,9 @@ export function ArticleBulkEditDialog({
       patch.title = normalizeArticleTitle(values.title);
     }
     if (enabled.has('tags')) {
+      // 批量仍写名称；抖音账号打开表单后可再搜索绑定平台标识
       patch.tagsText = values.tags.join(' ');
+      patch.topicRefs = topicRefsFromNames(values.tags);
     }
     if (enabled.has('visibility')) {
       patch.visibility = values.visibility;

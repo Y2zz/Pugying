@@ -31,6 +31,12 @@ function fixture(platform: string) {
                 platform === 'toutiao' ? { pgc_id: ID } : { dyn_id_str: ID },
             };
       }
+      if (path.includes('challengesug')) {
+        return {
+          status_code: 0,
+          sug_list: [{ cha_name: '测试', cid: '9876' }],
+        };
+      }
       if (path.includes('strategy')) {
         return {
           err_no: 0,
@@ -103,9 +109,11 @@ it('submits Douyin article Markdown with uploaded URIs, visibility, summary and 
     ok: true,
     platformPostId: ID,
   });
-  expect(request).toHaveBeenCalledOnce();
-  const [path, body] = request.mock.calls[0] as [string, any];
-  expect(path).toBe('/web/api/media/aweme/create_v2/');
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(createCall[0]).toBe('/web/api/media/aweme/create_v2/');
+  const body = createCall[1];
   expect(body.item.common).toMatchObject({
     media_type: 43,
     long_article_version: '1',
@@ -132,9 +140,30 @@ it('submits Douyin article Markdown with uploaded URIs, visibility, summary and 
     end: 8,
     caption_start: 0,
     caption_end: 3,
+    hashtag_id: '9876',
+    hashtag_name: '测试',
   });
   expect(body.item.cover.poster).toBe('uri-cover.png');
   expect(JSON.stringify(body)).not.toMatch(/file:|data-local|private-cookie/);
+  expect(api.dispose).toHaveBeenCalledOnce();
+});
+
+it('uses saved Douyin topic resource ids without searching again', async () => {
+  const { api, request, options } = fixture('douyin');
+  options.payload.articleSettings = { summary: '摘要' };
+  options.payload.topicRefs = [{ id: '555', name: '绑定话题' }];
+  options.payload.visibility = 'private';
+  expect(await runDouyinArticlePublish(options)).toMatchObject({ ok: true });
+  expect(
+    request.mock.calls.some(([path]) => String(path).includes('challengesug')),
+  ).toBe(false);
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(JSON.parse(createCall[1].item.common.text_extra)[1]).toMatchObject({
+    hashtag_id: '555',
+    hashtag_name: '绑定话题',
+  });
   expect(api.dispose).toHaveBeenCalledOnce();
 });
 
@@ -187,6 +216,21 @@ it.each(['single', 'triple', 'none'] as const)(
   },
 );
 
+it('writes Toutiao article location into extra.manual_selected_city', async () => {
+  const { request, options } = fixture('toutiao');
+  options.payload.locationRef = { id: '330100', name: '杭州' };
+  options.payload.articleSettings = { coverMode: 'none' };
+  options.payload.articleCoverPaths = [];
+  expect(await runToutiaoArticlePublish(options)).toMatchObject({ ok: true });
+  const [, body] = request.mock.calls.find((call) => call[1]) as [
+    string,
+    { extra: string },
+  ];
+  expect(JSON.parse(body.extra).manual_selected_city).toBe(
+    JSON.stringify({ city: '杭州', city_code: '330100' }),
+  );
+});
+
 it('uses Bilibili opus structured paragraphs and preserves comment, originality, cover, and visibility settings', async () => {
   const { request, options } = fixture('bilibili');
   options.payload.articleSettings = {
@@ -207,6 +251,7 @@ it('uses Bilibili opus structured paragraphs and preserves comment, originality,
   expect(path).toBe('/x/dynamic/feed/create/opus');
   expect(body.opus_req.opus.article).toMatchObject({
     category_id: 15,
+    list_id: 0,
     originality: 1,
     reproduced: 0,
     cover: [{ url: 'https://images.example/cover.png' }],
@@ -304,6 +349,42 @@ it('does not enable Toutiao reward when its daily quota is exhausted', async () 
     errorCode: 'ARTICLE_SETTINGS_UNAVAILABLE',
   });
   expect(api.uploadImage).not.toHaveBeenCalled();
+});
+
+it('writes the selected Bilibili anthology id into list_id', async () => {
+  const { request, options } = fixture('bilibili');
+  options.payload.anthologyRef = { id: '88', name: '旅行笔记' };
+  expect(await runBilibiliArticlePublish(options)).toMatchObject({ ok: true });
+  const [, body] = request.mock.calls.find((call) => call[1]) as [
+    string,
+    { opus_req: { opus: { article: { list_id: number } } } },
+  ];
+  expect(body.opus_req.opus.article.list_id).toBe(88);
+});
+
+it('writes the selected Bilibili topic into opus_req.topic', async () => {
+  const { request, options } = fixture('bilibili');
+  options.payload.topicRefs = [{ id: '2233', name: '动画' }];
+  expect(await runBilibiliArticlePublish(options)).toMatchObject({ ok: true });
+  const [, body] = request.mock.calls.find((call) => call[1]) as [
+    string,
+    {
+      opus_req: {
+        topic: {
+          id: number;
+          name: string;
+          from_source: string;
+          from_topic_id: number;
+        };
+      };
+    },
+  ];
+  expect(body.opus_req.topic).toEqual({
+    id: 2233,
+    name: '动画',
+    from_source: 'create.topic.topic_search',
+    from_topic_id: 0,
+  });
 });
 
 it('stops a Bilibili article before uploading when the daily publication limit is reached', async () => {

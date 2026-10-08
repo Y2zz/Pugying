@@ -9,9 +9,20 @@ const ID = '7561234567890123456';
 function fixture() {
   const request = vi.fn(
     async (
-      _path: string,
+      path: string,
       _data?: Record<string, unknown>,
-    ): Promise<Record<string, unknown>> => ({ status_code: 0, item_id: ID }),
+    ): Promise<Record<string, unknown>> => {
+      if (path.includes('challengesug')) {
+        return {
+          status_code: 0,
+          sug_list: [
+            { cha_name: '日常', cid: '111' },
+            { cha_name: '绿植', cid: '222' },
+          ],
+        };
+      }
+      return { status_code: 0, item_id: ID };
+    },
   );
   const uploadImage = vi.fn(async (path: string) => ({
     uri: `uri-${path.split('/').pop()}`,
@@ -35,6 +46,11 @@ function fixture() {
       title: '桌上留一点绿',
       body: '给桌面留一点空。\n#日常',
       tags: ['日常', '绿植'],
+      // 默认带已绑定标识，避免各用例被话题搜索请求打乱断言顺序
+      topicRefs: [
+        { id: '111', name: '日常' },
+        { id: '222', name: '绿植' },
+      ],
       mediaPaths: ['/tmp/second.png', '/tmp/first.png'],
       coverPath: '/tmp/first.png',
       cookies: [],
@@ -62,9 +78,11 @@ it('publishes ordered uploaded images with a cover, private visibility, download
     '/tmp/second.png',
     '/tmp/first.png',
   ]);
-  expect(request).toHaveBeenCalledOnce();
-  const [path, data] = request.mock.calls[0] as [string, any];
-  expect(path).toBe('/web/api/media/aweme/create_v2/');
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(createCall[0]).toBe('/web/api/media/aweme/create_v2/');
+  const data = createCall[1];
   expect(data.item.common).toMatchObject({
     media_type: 2,
     text: '桌上留一点绿。给桌面留一点空。\n#日常\n#绿植',
@@ -85,12 +103,56 @@ it('publishes ordered uploaded images with a cover, private visibility, download
 });
 
 it('uses UTF-16 offsets and does not append a second title separator', () => {
-  const caption = douyinGraphicCaption('绿🌿。', '桌面 #日常', []);
+  const caption = douyinGraphicCaption('绿🌿。', '桌面 #日常', [
+    { id: '88', name: '日常' },
+  ]);
   expect(caption.text).toBe('绿🌿。桌面 #日常');
   expect(JSON.parse(caption.text_extra)).toEqual([
     { start: 0, end: 4, hashtag_id: 0, hashtag_name: '', type: 7 },
-    { start: 7, end: 10, hashtag_id: 0, hashtag_name: '日常', type: 1 },
+    { start: 7, end: 10, hashtag_id: '88', hashtag_name: '日常', type: 1 },
   ]);
+});
+
+it('uses saved topic resource ids without searching again', async () => {
+  const { options, api, request } = fixture();
+  options.payload.topicRefs = [
+    { id: '555', name: '日常' },
+    { id: '666', name: '绿植' },
+  ];
+  expect(await runDouyinGraphicPublish(options)).toMatchObject({ ok: true });
+  expect(
+    request.mock.calls.some(([path]) => String(path).includes('challengesug')),
+  ).toBe(false);
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(JSON.parse(createCall[1].item.common.text_extra)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ hashtag_id: '555', hashtag_name: '日常' }),
+      expect.objectContaining({ hashtag_id: '666', hashtag_name: '绿植' }),
+    ]),
+  );
+  expect(api.dispose).toHaveBeenCalledOnce();
+});
+
+it('searches unbound tag names before submitting', async () => {
+  const { options, request } = fixture();
+  options.payload.topicRefs = undefined;
+  expect(await runDouyinGraphicPublish(options)).toMatchObject({ ok: true });
+  expect(
+    request.mock.calls.filter(([path]) =>
+      String(path).includes('challengesug'),
+    ),
+  ).toHaveLength(2);
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  expect(JSON.parse(createCall[1].item.common.text_extra)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ hashtag_id: '111', hashtag_name: '日常' }),
+      expect.objectContaining({ hashtag_id: '222', hashtag_name: '绿植' }),
+    ]),
+  );
 });
 
 it.each([
@@ -126,10 +188,11 @@ it.each([
     const { options, request } = fixture();
     options.payload.authorDeclaration = declaration;
     await runDouyinGraphicPublish(options);
+    const createCall = request.mock.calls.find(([path]) =>
+      String(path).includes('create_v2'),
+    ) as [string, any];
     expect(
-      JSON.parse(
-        (request.mock.calls[0][1] as any).item.declare.user_declare_info,
-      ),
+      JSON.parse(createCall[1].item.declare.user_declare_info),
     ).toEqual({ choose_value: value });
   },
 );
@@ -142,7 +205,10 @@ it('preserves scheduling and friend visibility without an unnecessary declaratio
     visibility: 'friends',
   });
   await runDouyinGraphicPublish(options);
-  const item = (request.mock.calls[0][1] as any).item;
+  const createCall = request.mock.calls.find(([path]) =>
+    String(path).includes('create_v2'),
+  ) as [string, any];
+  const item = createCall[1].item;
   expect(item.common.timing).toBe(Math.floor(time / 1000));
   expect(item.common.visibility_type).toBe(2);
   expect(item.declare).toBeUndefined();

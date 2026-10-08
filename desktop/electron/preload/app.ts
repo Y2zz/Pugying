@@ -15,6 +15,52 @@ const pugyingDesktop = {
   ): Promise<
     import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
   > => ipcRenderer.invoke(DESKTOP_IPC.getBilibiliVideoOptions, accountId),
+  searchDouyinTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchDouyinTopics, accountId, keyword),
+  searchBilibiliAnthologies: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchBilibiliAnthologies,
+      accountId,
+      keyword,
+    ),
+  searchDouyinCollections: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinCollections,
+      accountId,
+      keyword,
+    ),
+  searchDouyinLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinLocations,
+      accountId,
+      keyword,
+    ),
+  searchBilibiliTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchBilibiliTopics, accountId, keyword),
+  searchToutiaoLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchToutiaoLocations,
+      accountId,
+      keyword,
+    ),
   getDistributionSnapshot: (): Promise<
     import("@shared/distribution").DistributionSnapshot
   > => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),

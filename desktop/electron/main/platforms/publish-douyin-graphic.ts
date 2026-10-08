@@ -3,6 +3,7 @@ import {
   isDouyinAuthorDeclaration,
   type DouyinAuthorDeclaration,
 } from '../../../shared/douyin-graphic-settings';
+import type { PlatformResourceRef } from '../../../shared/platform-resource';
 import type {
   PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
@@ -21,6 +22,10 @@ import {
   uploadedImage,
 } from './article-content';
 import type { CookiePublishSessionOptions } from './article-api-session';
+import {
+  douyinTopicNames,
+  resolveDouyinTopics,
+} from './douyin-topic-resolve';
 
 export interface GraphicPublishOptions {
   payload: PlatformPublishStartPayload;
@@ -45,8 +50,10 @@ const DECLARATIONS: Record<Exclude<DouyinAuthorDeclaration, 'none'>, string> = {
 export function douyinGraphicCaption(
   title: string,
   body: string,
-  tags: string[],
+  topics: PlatformResourceRef[],
 ) {
+  const tags = douyinTopicNames(topics);
+  const byName = new Map(topics.map((topic) => [topic.name, topic.id]));
   const description = composeDouyinGraphicDescription(body, tags);
   const prefix = title.endsWith('。') ? title : `${title}。`;
   const extra: Record<string, unknown>[] = [
@@ -62,11 +69,13 @@ export function douyinGraphicCaption(
     });
   }
   for (const match of description.matchAll(/#[^\s#]+/g)) {
+    const name = match[0].slice(1);
+    const id = byName.get(name) ?? '0';
     extra.push({
       start: prefix.length + match.index,
       end: prefix.length + match.index + match[0].length,
-      hashtag_id: 0,
-      hashtag_name: match[0].slice(1),
+      hashtag_id: id === '0' ? 0 : id,
+      hashtag_name: name,
       type: 1,
     });
   }
@@ -96,32 +105,32 @@ export async function runDouyinGraphicPublish(
     emit('accepted', '准备发布图文');
     const title = payload.title.trim();
     const paths = payload.mediaPaths ?? [];
-    const tags = [
+    const body = payload.body?.trim() ?? '';
+    const declaration = payload.authorDeclaration ?? 'none';
+    const visibility = (
+      { public: 0, private: 1, friends: 2 } as Record<string, number>
+    )[payload.visibility ?? 'public'];
+    const provisionalTags = [
       ...new Set(
         (payload.tags ?? [])
           .map((tag) => tag.trim().replace(/^#+/, ''))
           .filter(Boolean),
       ),
     ];
-    const body = payload.body?.trim() ?? '';
-    const declaration = payload.authorDeclaration ?? 'none';
-    const visibility = (
-      { public: 0, private: 1, friends: 2 } as Record<string, number>
-    )[payload.visibility ?? 'public'];
     if (
       payload.platform !== 'douyin' ||
       !title ||
       title.length > 20 ||
       !body ||
-      composeDouyinGraphicDescription(body, tags).length > 1000 ||
+      composeDouyinGraphicDescription(body, provisionalTags).length > 1000 ||
       paths.length < 1 ||
       paths.length > 30 ||
       paths.some((path) => !path.trim()) ||
       !payload.coverPath?.trim() ||
       visibility === undefined ||
       !isDouyinAuthorDeclaration(declaration) ||
-      tags.length > 5 ||
-      tags.some((tag) => /\s|#/.test(tag))
+      provisionalTags.length > 5 ||
+      provisionalTags.some((tag) => /\s|#/.test(tag))
     ) {
       throw new ArticleApiError(
         'invalid_payload',
@@ -144,6 +153,7 @@ export async function runDouyinGraphicPublish(
       options.createSession ??
       (await import('./article-api-session')).createArticleApiSession;
     api = await factory('douyin', options);
+    const topics = await resolveDouyinTopics(api, payload);
     emit('uploading', '上传图文图片与封面');
     const images = await uploadArticleImages(
       api,
@@ -155,7 +165,7 @@ export async function runDouyinGraphicPublish(
       common: {
         media_type: 2,
         creation_id: payload.requestId,
-        ...douyinGraphicCaption(title, body, tags),
+        ...douyinGraphicCaption(title, body, topics),
         images: paths.map((path) => {
           const image = uploadedImage(images, path);
           return { uri: image.uri, width: image.width, height: image.height };
