@@ -154,7 +154,6 @@ export async function runDouyinGraphicPublish(
       (await import('./article-api-session')).createArticleApiSession;
     api = await factory('douyin', options);
     const topics = await resolveDouyinTopics(api, payload);
-    const tags = douyinTopicNames(topics);
     emit('uploading', '上传图文图片与封面');
     const images = await uploadArticleImages(
       api,
