@@ -18,8 +18,22 @@ import {
   resolveDouyinTopics,
 } from './douyin-topic-resolve';
 
+/** Cookie 直调 ImageX + create_v2（media_type=43）；默认不再开隐藏窗。 */
 export function runDouyinArticlePublish(options: ArticlePublishOptions) {
-  return runArticleApiPublish('douyin', options, async (api, emit) => {
+  return runArticleApiPublish(
+    'douyin',
+    {
+      ...options,
+      createSession:
+        options.createSession ??
+        (async () => {
+          const { DouyinGraphicClient } = await import(
+            './douyin-graphic-client'
+          );
+          return new DouyinGraphicClient(options.payload.cookies);
+        }),
+    },
+    async (api, emit) => {
     const { payload, article, signal } = options;
     const title = payload.title.trim();
     const settings = articleSettingsForPlatform(

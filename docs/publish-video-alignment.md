@@ -20,8 +20,8 @@
 | 谁可以看                                           | 公开、好友可见、仅自己可见                                                                                 | 应用选择后核对选中状态，失败停止自动提交                                                                                                        |
 | 保存权限                                           | 允许、不允许                                                                                               | 使用后台字段名，应用后核对选中状态                                                                                                              |
 | 发布时间                                           | 立即发布、定时发布；明确提示支持 2 小时后至 14 天内                                                        | 选择时限制范围；后台采用本地 yyyy-MM-dd HH:mm，不能截取 UTC ISO；确认模式和日期回显后才继续                                                     |
-| 合集                                               | 账号相关的合集选择                                                                                         | 已接入：读取 `/web/api/mix/list/`，保存 `collectionRef`，发布写入 `create_v2` 的 `mix`                                                                 |
-| 位置                                               | 账号侧搜索官方 POI                                                                                         | 已接入：读取 `/aweme/v1/life/video_api/search/poi/`，保存 `locationRef`，发布写入 `create_v2` 的 `poi_id` / `poi_name`                                 |
+| 合集                                               | 账号相关的合集选择                                                                                         | 已接入：Cookie 直拉 `/web/api/mix/list/`（不打开创作者页），保存 `collectionRef`，发布写入 `create_v2` 的 `mix`                                         |
+| 位置                                               | 账号侧搜索官方 POI                                                                                         | 已接入：主进程官方 bdms（jsdom）签名 + Cookie 直拉 `/aweme/v1/life/video_api/search/poi/`，保存 `locationRef`，发布写入 `create_v2` 的 `poi_id` / `poi_name` |
 | 关联热点、同时发布、音乐、视频章节、官方活动       | 视频编辑页中的其他可选能力                                                                                 | 已确认存在；缺已核实的创作者查询接口，暂不接入                                                                                                    |
 
 封面不是强制双封面的依据来自后台的推荐文案。未在本次核实中提交作品，因此并未验证最终发布成功、平台审核或所有格式/编码组合。
@@ -48,7 +48,15 @@
 ## 2026-10-07 真实接口接入
 
 - 视频发布沿用文章、图文的本机 API、分发队列和结果回写，当前接入抖音。默认直接使用平台真实接口，移除模拟成功开关以及 HTTP 失败后转网页填表的策略。
-- 每个任务创建非持久化 Cookie 会话，加载抖音官方视频分片上传和签名 SDK；主进程不整段读取视频或转换 base64。媒体协议须在创建发布窗口前注册，仅在当前任务会话内提供一份已校验的视频，校验 Chromium 的 `initiatorOrigin`，上传后撤销访问。
+- **2026-10-10**：抖音短视频改为主进程 Cookie + STS（`auth/v5`）直调，不再开隐藏窗加载上传 SDK。链路为 `ApplyUploadInner`（`SpaceName=aweme`）→ `POST /upload/v1/{StoreUri}` → `CommitUploadInner` → `/web/api/media/video/enable/` → 轮询 `transend` 至 `encode=1` 与宽高时长封面 → `create_v2`（`media_type=4`）。创作者读/写仍经主进程官方 bdms 签名。上限仍按平台 16GB／1 小时校验。
+- **2026-10-11**：抖音视频对齐创作者页实抓：`ApplyUploadInner` 带 `user_id` 才分配边缘节点；超过 10MB 走 `phase=init` / `transfer` / `finish`，每片 10MB，不足一片的余数并进上一片，同时约 6 片。上传头带 `X-Storage-Mode: gateway` 与 `X-Storage-U`。不超过 10MB 仍 serial 整文件。
+- **2026-10-10**：头条短视频改为主进程 Cookie + VAS object 上传，不再开隐藏窗加载 VOD SDK。链路为 `GetPublishAuth`（取 `xigua_csrf_token`）→ `getAuthKey`（GET）→ `vas-lf-x.snssdk.com` `GetVideoUploadParams` → TOS `/upload/v1/{oid}`（`Content-CRC32`）→ `UpdateVideoUploadInfos` → `PublishVideo`（`VideoInfo.Uri` 用 Update 回执的 `video.oid`，勿带 VOD Provider）。VOD STS 回执投稿会 `21028`。超大文件分片协议尚未对齐，当前按整文件读取。
+- **2026-10-11**：~900MB 实发排查：头条失败主因是 `defaultSession` + 手写 Cookie 头在 `GetPublishAuth` Set-Cookie 后 `getAuthKey` 只剩 CSRF（`status=-12 no login`），并非分片；已改为 `createToutiaoVideoClient`（ephemeral + `injectCookies`），`-12` 映射 `AUTH_EXPIRED`。B 站 UPOS 已分片，补强分片 PUT 传输错误包装。
+- **2026-10-12**：~181MB 实发：小红书 permit 回 ROS（`ros-upload*.xhscdn.com`），Cos `POST ?uploads` + `application/xml` 会 415；ROS 只接受整文件 PUT `Content-Type: video/mp4`。出站须用 `net.fetch`（不受页面 CORS）：`session.fetch` 对跨域 ROS 走 no-cors，线路已 200 并回 `X-Ros-Video-Id`，Promise 仍拒绝，后续 videoid 发不出。`credentials: omit` 会让 `session.fetch` 请求不出进程。B 站 UPOS 分片遇 CDN `InternalError` 500「Try again」须按 `chunk_retry`/`chunk_retry_delay` 重试，勿把瞬时 500 直接记成连接失败。
+- **2026-10-11**：头条 TOS 对齐官方西瓜 Uploader 分片：`?uploadmode=part&phase=init` → `phase=transfer`（每片 `Content-CRC32`）→ `phase=finish`（body=`part:crc,...`）；超过 5MB 走分片，小文件仍 serial。分发队列透出 `uploadPercent` / `uploadSpeedBps`，界面显示「上传到平台 N% · X MB/s」。
+- **2026-10-11**：分片**并发**统一默认 `DEFAULT_UPLOAD_CONCURRENCY=3`（Cos / 字节常见值）；B 站优先 `preupload.threads`，缺省仍回落 3、上限 8。此前各端串行并发=1。
+- **2026-10-11**：短视频分发队列的百分比与速度：B 站 / 头条 / 小红书 / 视频号 / 抖音均按实际上传字节累加。抖音小文件仍是一次 POST，开始 0%、成功 100%。
+- **2026-10-10**：小红书短视频改为主进程 Cookie 直调，不再开隐藏窗加载 PublishCore。链路为创作者 `permit?scene=video` → ROS PUT（`x-ros-video-id`）→ edith `capa/postgw/videoid` / `query_transcode`（**查询参数必须 snake_case**，与官方 axios `transform` 一致；camelCase 会导致 videoid 无 `data`、转码永不回首帧）→ `v2/note`（XYS_ 签名）。封面用转码回执 `first_frame_file_id`。成功回执常无 `code`，与图文一致按 `success` + 24 位笔记 ID 确认。
 - 官方上传回执提供 `vid` 和视频元数据。没有首帧或需要转换时，先调用 `/web/api/media/video/enable/`，再等待 `/web/api/media/video/transend/` 的 `encode=1` 与完整元数据；`encode=0` 仍在处理。宽高可能为字符串，统一转为数值。上传完成后显示等待处理。文件上限保持 16GB，时长不超过 1 小时。不同编码及大文件边界仍需进一步实测。
 - 向 `/web/api/media/aweme/create_v2/` 提交 `common.media_type=4` 与 `video_id`，同时传入标题、简介、话题范围与标识、双封面、可见范围、保存权限、定时时间和自主声明。话题候选读取当前官方搜索接口，按准确名称匹配；新增话题没有候选标识时保留官方文本话题结构。合集从创作者 `/web/api/mix/list/` 读取，选择后以 `collectionRef` 保存，提交时写入 `item.mix = { mix_id, mix_order: 0 }`。位置从 `/aweme/v1/life/video_api/search/poi/` 搜索，选择后以 `locationRef` 保存，提交时写入 `common.poi_id` / `common.poi_name`。
 - 无自定义封面使用上传回执的首帧；竖封面使用 `upload_poster`，双封面的横版 URI 与宽高独立传入。仅有横封面时将其作为主封面。视频立即发布 `timing=0`，定时限制为 2 小时至 14 天，并在上传完成后重新校验时间。
@@ -56,7 +64,7 @@
 
 本次实发使用已登录抖音账号「Midnight」，经生产分发队列发布《视频接口测试》：本机生成的 2 秒、640×360 蓝色视频，立即发布、仅自己可见、不允许保存、无自定义封面。平台返回作品 ID `7693814736445508899`，本机 Target 回写 `succeeded`。官方内容管理页及权限弹窗确认作品存在、仅自己可见、不允许保存。回执与截图保存在 `output/video-publish-test/`。双封面、话题、自主声明与定时映射经过适配器测试，本次私密实发没有使用这些选项。
 
-抖音开放平台的[内容发布方案](https://open.douyin.com/platform/resource/docs/ability/content-management/douyin-publish-solution/)是另一条接口契约。当前适配器使用用户已绑定账号的创作者接口和官方 SDK。媒体协议注册与隔离会话遵循 [Electron protocol 文档](https://www.electronjs.org/docs/latest/api/protocol)。
+抖音开放平台的[内容发布方案](https://open.douyin.com/platform/resource/docs/ability/content-management/douyin-publish-solution/)是另一条接口契约。当前适配器使用用户已绑定账号的创作者接口；Cookie 直调路径由主进程自行完成 VOD 签名与上传。
 
 
 ## 2026-10-07 其他平台接入进度
@@ -113,10 +121,23 @@ B 站账号入口已在发布视频页和 Server 开放。发布前要求有效�
 | 平台 | 账号 | 本机状态 | 作品 ID | 回执 |
 |------|------|----------|---------|------|
 | 抖音 | Midnight | succeeded | `7693814736445508899` | `queue-receipt.json` |
+| 抖音（Cookie 直调 2026-10-10） | Midnight | succeeded | `7694991772283374902` | `douyin-video-cookie-live.json` |
+| 头条（Cookie 直调 2026-10-10） | 洲谋天下 | succeeded | `7694995347315114538` | `toutiao-video-cookie-live.json` |
+| 小红书（Cookie 直调 2026-10-10） | Midnight | succeeded | `6aca2307000000001500eee7` | `xiaohongshu-video-cookie-live.json` |
 | 小红书 | Midnight | succeeded | `6ac618b40000000018006e45` | `xiaohongshu-queue-receipt.json` |
 | 头条 | 洲谋天下 | succeeded | `7693865835932189225` | `toutiao-queue-receipt.json` |
+| B 站（Cookie 直调 2026-10-11） | Arma666 | succeeded | `BV13Cpj6tEkn` | `bilibili-video-cookie-live.json` |
 | B 站 | Arma666 | succeeded | `BV1RYHk6KERt` | `bilibili-queue-receipt.json` |
 | 视频号 | Y2zz | succeeded | `export/UzFfBgAAxICGAAIiFgOgk8zT4DCaf_FI0nJBEJ9I6Ks0iZN4hQ`（`mediaType=4`，`visibleType=3`） | `channels-video-private.json` |
+
+### Cookie 直调迁移进度（2026-10-10）
+
+| 平台 | 状态 | 说明 |
+|------|------|------|
+| 抖音短视频 | 已完成 | 主进程 STS + VOD（`ApplyUploadInner` 带用户编号 / 超过 10MB 按 10MB 分片否则整文件 POST / `CommitUploadInner`）→ `enable`/`transend` → `create_v2`；私密实发见上表。默认路径不再开隐藏窗。 |
+| 头条短视频 | 已完成 | 主进程 `getAuthKey` → VAS `GetVideoUploadParams` / TOS `/upload/v1` / `UpdateVideoUploadInfos` → `PublishVideo`（Uri=`video.oid`）；私密实发见上表。默认路径不再开隐藏窗。 |
+| 小红书短视频 | 已完成 | 主进程 permit/ROS → edith `videoid`/`query_transcode`（snake_case + XYS_ GET）→ `v2/note`；私密实发见上表。默认路径不再开隐藏窗。 |
+| B 站短视频 | 已完成 | 主进程 `BilibiliVideoClient`：`preupload`（`profile=ugcupos/bup` + `put_query`）→ UPOS（`?uploads` / 分片 PUT / complete）→ `cover/up` → `/x/vu/web/add/v3`；默认路径不再开隐藏窗。`ugcfx/bup` 在 CDN `?uploads` 会 400。私密实发 `BV13Cpj6tEkn`。 |
 
 视频号短视频路径摘要（2026-10-07）：表单 / Server Target / Desktop 适配器已开放；试发默认仅自己可见。流程为 helper_upload_params → COS 上传视频与封面 → `post_clip_video` → `post_create`（`mediaType=4`）→ `post_update_visible`（`visibleType=3`）。moov 在文件尾时须头尾分段解析时长，假拼接头尾会导致时长落成 1s、`post_create` 失败。`post_create` 常不回 `exportId`，按描述从 `post_list` 回读；回写的 `platformPostId` 与列表最终 `exportId` 偶发不一致，平台侧以描述 + `mediaType` / `visibleType` 核对。
 

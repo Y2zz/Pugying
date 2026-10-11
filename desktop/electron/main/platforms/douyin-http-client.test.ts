@@ -43,21 +43,36 @@ describe('DouyinHttpClient', () => {
     ).toBe('good=ok');
   });
 
-  it('把 401/403 映射为 AUTH_EXPIRED', async () => {
-    const transport: DouyinHttpTransport = {
+  it('把 401 映射为 AUTH_EXPIRED，403 不当登录失效', async () => {
+    const expired: DouyinHttpTransport = {
+      request: vi.fn().mockResolvedValue({
+        status: 401,
+        headers: {},
+        body: new Uint8Array(),
+      }),
+    };
+    await expect(
+      new DouyinHttpClient(
+        [{ name: 'sessionid', value: 'abc' }],
+        expired,
+      ).request({ url: 'https://example.invalid/action' }),
+    ).rejects.toMatchObject<DouyinHttpError>({ code: 'AUTH_EXPIRED', status: 401 });
+
+    const blocked: DouyinHttpTransport = {
       request: vi.fn().mockResolvedValue({
         status: 403,
         headers: {},
         body: new Uint8Array(),
       }),
     };
-    const client = new DouyinHttpClient(
-      [{ name: 'sessionid', value: 'expired' }],
-      transport,
-    );
-
     await expect(
-      client.request({ url: 'https://example.invalid/action' }),
-    ).rejects.toMatchObject<DouyinHttpError>({ code: 'AUTH_EXPIRED', status: 403 });
+      new DouyinHttpClient(
+        [{ name: 'sessionid', value: 'abc' }],
+        blocked,
+      ).request({ url: 'https://example.invalid/action' }),
+    ).rejects.toMatchObject<DouyinHttpError>({
+      code: 'HTTP_REQUEST_FAILED',
+      status: 403,
+    });
   });
 });

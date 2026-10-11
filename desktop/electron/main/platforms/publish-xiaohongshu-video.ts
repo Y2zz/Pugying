@@ -1,4 +1,5 @@
 import type {
+  PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
   PlatformPublishStartPayload,
 } from "../publish-protocol";
@@ -7,20 +8,25 @@ import {
   articleRecord,
   assertArticleActive,
 } from "./article-api";
-import type { CookiePublishSessionOptions } from "./article-api-session";
 import type { VideoApiSession } from "./video-api";
+import {
+  throttleVideoUploadProgress,
+  videoUploadProgressFields,
+} from "./upload-progress";
 
-interface Options extends CookiePublishSessionOptions {
+export interface XiaohongshuVideoPublishOptions {
   payload: PlatformPublishStartPayload;
+  onProgress: (progress: PlatformPublishProgressPayload) => void;
+  signal: { cancelled: boolean };
+  /** 可注入会话以单测；生产默认 Cookie + ROS/edith（无隐藏窗）。 */
   createSession?: (
-    platform: "xiaohongshu",
-    options: CookiePublishSessionOptions,
-  ) => Promise<VideoApiSession>;
+    options: XiaohongshuVideoPublishOptions,
+  ) => Promise<VideoApiSession> | VideoApiSession;
 }
 
-/** 官方视频笔记结构：上传文件、原始轨道与封面分别提交，不复用图文图片列表。 */
+/** Cookie 直调 permit/ROS/转码查询与发帖；主进程完成，无隐藏窗。 */
 export async function runXiaohongshuVideoPublish(
-  options: Options,
+  options: XiaohongshuVideoPublishOptions,
 ): Promise<PlatformPublishResultPayload> {
   const { payload, signal, onProgress } = options;
   const base = {
@@ -79,10 +85,20 @@ export async function runXiaohongshuVideoPublish(
     emit("opening_creator", "连接发布平台");
     const factory =
       options.createSession ??
-      (await import("./article-api-session")).createArticleApiSession;
-    api = await factory("xiaohongshu", options);
+      (async () => {
+        const { XiaohongshuVideoClient } = await import(
+          "./xiaohongshu-video-client"
+        );
+        return new XiaohongshuVideoClient(options.payload.cookies);
+      });
+    api = await factory(options);
     emit("uploading", "上传视频");
-    const video = await api.uploadVideo(paths[0]);
+    const video = await api.uploadVideo(paths[0], {
+      onProgress: throttleVideoUploadProgress((progress) => {
+        assertArticleActive(signal);
+        onProgress({ ...base, ...videoUploadProgressFields(progress) });
+      }),
+    });
     if (!video.fileId || !video.originalMetadata || !video.coverUri) {
       throw new ArticleApiError(
         "ARTICLE_API_CHANGED",
@@ -188,25 +204,14 @@ export async function runXiaohongshuVideoPublish(
     emit("submitting", "提交视频");
     submitted = true;
     const response = await api.request("/web_api/sns/v2/note", data);
-    if (
-      (response.code !== 0 && response.code !== "N/A") ||
-      response.success !== true
-    ) {
-      try {
-        const { appendFileSync } = await import("node:fs");
-        const { tmpdir } = await import("node:os");
-        const { join } = await import("node:path");
-        appendFileSync(
-          join(tmpdir(), "pugying-xhs-upload-diag.log"),
-          `${new Date().toISOString()} note reject code=${String(response?.code)} success=${String(response?.success)} msg=${String(response?.msg ?? response?.message ?? "").slice(0, 200)} data=${JSON.stringify(response?.data ?? null).slice(0, 300)} keys=${Object.keys(response || {}).join(",")} metaKeys=${Object.keys(trackMeta || {}).join(",")}\n`,
-        );
-      } catch {
-        /* 诊断落盘失败不影响错误本身 */
-      }
-      if (response.code === -100 || response.code === -10001) {
+    const code = response.code;
+    const success = response.success === true;
+    // Cookie 直调成功时常无 code；页面 SDK 可能补 "N/A"
+    if (!success || (code != null && code !== 0 && code !== "N/A")) {
+      if (code === -100 || code === -10001) {
         throw new ArticleApiError("AUTH_EXPIRED", "账号登录已失效，请重新授权");
       }
-      if (typeof response.code !== "number" || response.code === 0) {
+      if (typeof code !== "number") {
         throw new ArticleApiError(
           "PUBLISH_RESULT_UNKNOWN",
           "尚未确认发布结果，请先到平台查看",

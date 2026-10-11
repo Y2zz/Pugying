@@ -20,8 +20,22 @@ import {
   uploadedImage,
 } from './article-content';
 
+/** Cookie 直调 WBI + upload_bfs + create/opus；默认不再开隐藏窗。 */
 export function runBilibiliArticlePublish(options: ArticlePublishOptions) {
-  return runArticleApiPublish('bilibili', options, async (api, emit) => {
+  return runArticleApiPublish(
+    'bilibili',
+    {
+      ...options,
+      createSession:
+        options.createSession ??
+        (async () => {
+          const { BilibiliArticleClient } = await import(
+            './bilibili-article-client'
+          );
+          return new BilibiliArticleClient(options.payload.cookies);
+        }),
+    },
+    async (api, emit) => {
     const { payload, article, signal } = options;
     const anthology = normalizeBoundPlatformResourceRef(payload.anthologyRef);
     // 专栏话题为单选已绑定资源；搜索接口返回的标识写入 opus_req.topic

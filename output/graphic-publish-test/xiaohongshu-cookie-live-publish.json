@@ -1,0 +1,16 @@
+{
+  "requestId": "live-1791561213088",
+  "targetId": "live-target",
+  "platform": "xiaohongshu",
+  "ok": true,
+  "platformPostId": "6ac90dfd000000001802a675",
+  "platformUrl": "https://www.xiaohongshu.com/explore/6ac90dfd000000001802a675",
+  "progress": [
+    "accepted",
+    "opening_creator",
+    "uploading",
+    "uploading",
+    "submitting",
+    "done"
+  ]
+}

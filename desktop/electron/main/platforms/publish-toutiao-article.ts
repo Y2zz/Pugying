@@ -28,8 +28,22 @@ const DECLARATIONS = {
 const field = (object: Record<string, unknown>, snake: string, camel: string) =>
   object[snake] ?? object[camel];
 
+/** Cookie 直调 spice 上传与 form publish；默认不再开隐藏窗。 */
 export function runToutiaoArticlePublish(options: ArticlePublishOptions) {
-  return runArticleApiPublish('toutiao', options, async (api, emit) => {
+  return runArticleApiPublish(
+    'toutiao',
+    {
+      ...options,
+      createSession:
+        options.createSession ??
+        (async () => {
+          const { ToutiaoArticleClient } = await import(
+            './toutiao-article-client'
+          );
+          return new ToutiaoArticleClient(options.payload.cookies);
+        }),
+    },
+    async (api, emit) => {
     const { payload, article, signal } = options;
     const settings = articleSettingsForPlatform(
       payload.articleSettings,

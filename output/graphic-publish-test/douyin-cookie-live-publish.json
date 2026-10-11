@@ -1,0 +1,8 @@
+{
+  "requestId": "live-pub-1791628535352",
+  "targetId": "live-target",
+  "platform": "douyin",
+  "ok": false,
+  "errorCode": "AUTH_EXPIRED",
+  "error": "账号登录已失效，请重新授权"
+}

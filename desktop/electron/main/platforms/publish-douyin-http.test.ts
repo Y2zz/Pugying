@@ -43,7 +43,7 @@ function setup(overrides: Partial<PlatformPublishStartPayload> = {}) {
     ),
     dispose: vi.fn(async () => {}),
   };
-  const createSession = vi.fn(async () => api);
+  const createSession = vi.fn(async (_options) => api);
   const input = {
     payload,
     signal: { cancelled: false },
@@ -56,7 +56,10 @@ function setup(overrides: Partial<PlatformPublishStartPayload> = {}) {
 it('uploads the video and both covers, submits official fields and only succeeds with an exact platform receipt', async () => {
   const { api, input } = setup();
   const result = await runDouyinHttpPublish(input);
-  expect(api.uploadVideo).toHaveBeenCalledWith('/video.mp4');
+  expect(api.uploadVideo).toHaveBeenCalledWith(
+    '/video.mp4',
+    expect.objectContaining({ onProgress: expect.any(Function) }),
+  );
   expect(api.uploadImage.mock.calls.map(([path]) => path)).toEqual([
     '/portrait.jpg',
     '/landscape.jpg',
