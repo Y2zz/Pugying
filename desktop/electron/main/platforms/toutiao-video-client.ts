@@ -30,6 +30,7 @@ import {
 } from "./chunk-pool";
 import { createUploadMeter } from "./upload-progress";
 import { buildCookieHeader } from "./douyin-http-client";
+import { parseJsonPreservingIds } from "./parse-json-preserving-ids";
 import type {
   UploadedVideo,
   VideoUploadOptions,
@@ -105,26 +106,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function parseJsonPreservingIds(body: Uint8Array): Record<string, unknown> {
-  try {
-    const text = Buffer.from(body).toString("utf8");
-    const parsed = JSON.parse(text, (key, value, context) => {
-      if (
-        typeof value === "number" &&
-        !Number.isSafeInteger(value) &&
-        context &&
-        typeof (context as { source?: string }).source === "string"
-      ) {
-        return (context as { source: string }).source;
-      }
-      return value;
-    }) as unknown;
-    return asRecord(parsed);
-  } catch {
-    return {};
-  }
 }
 
 function imageMime(bytes: Buffer): string {

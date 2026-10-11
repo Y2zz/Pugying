@@ -105,10 +105,11 @@ function rotateLeft(val: number, n: number): number {
 
 /** a3 字段自定义哈希（8 字节对齐输入 → 16 字节） */
 function customHashV2(input: number[]): number[] {
-  let s0 = HASH_IV[0];
-  let s1 = HASH_IV[1];
-  let s2 = HASH_IV[2];
-  let s3 = HASH_IV[3];
+  // 显式 number：避免 as const 字面量元组在 >>> / 赋值时被收窄成不可变字面量类型
+  let s0: number = HASH_IV[0];
+  let s1: number = HASH_IV[1];
+  let s2: number = HASH_IV[2];
+  let s3: number = HASH_IV[3];
   const length = input.length;
   s0 = (s0 ^ length) >>> 0;
   s1 = (s1 ^ (length << 8)) >>> 0;

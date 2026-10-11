@@ -29,7 +29,6 @@ import {
 
 const CREATOR_ORIGIN = "https://creator.xiaohongshu.com";
 const EDITH_ORIGIN = "https://edith.xiaohongshu.com";
-const NOTE_PATH = "/web_api/sns/v2/note";
 const VIDEO_PERMIT_PATH =
   "/api/media/v1/upload/web/permit?biz_name=spectrum&scene=video&file_count=1&version=1&source=web";
 const VIDEOID_PATH = "/web_api/sns/capa/postgw/videoid";

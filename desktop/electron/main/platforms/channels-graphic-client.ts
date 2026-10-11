@@ -246,7 +246,8 @@ const defaultTransport: ChannelsHttpTransport = {
       const response = await platformOutboundFetch(options.url, {
         method: options.method,
         headers: options.headers,
-        body: options.body,
+        // Uint8Array<ArrayBufferLike> 与 DOM BodyInit 的 BufferSource 泛型不完全兼容
+        body: options.body as BodyInit | undefined,
         signal: controller.signal,
       });
       return {

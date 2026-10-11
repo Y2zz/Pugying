@@ -16,6 +16,7 @@ import {
 } from "./article-api";
 import { signBilibiliQuery } from "./bilibili-wbi";
 import { buildCookieHeader } from "./douyin-http-client";
+import { parseJsonPreservingIds } from "./parse-json-preserving-ids";
 
 const API_ORIGIN = "https://api.bilibili.com";
 const MEMBER_ORIGIN = "https://member.bilibili.com";
@@ -82,33 +83,6 @@ const defaultTransport: BilibiliArticleHttpTransport = {
     }
   },
 };
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function parseJsonPreservingIds(body: Uint8Array): Record<string, unknown> {
-  try {
-    const text = Buffer.from(body).toString("utf8");
-    return asRecord(
-      JSON.parse(text, (_key, value, context) => {
-        if (
-          typeof value === "number" &&
-          !Number.isSafeInteger(value) &&
-          context &&
-          typeof (context as { source?: string }).source === "string"
-        ) {
-          return (context as { source: string }).source;
-        }
-        return value;
-      }),
-    );
-  } catch {
-    return {};
-  }
-}
 
 function wbiKeyFromUrl(url: unknown): string {
   if (typeof url !== "string" || !url) {

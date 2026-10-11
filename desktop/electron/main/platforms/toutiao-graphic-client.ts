@@ -14,6 +14,7 @@ import {
   type UploadedArticleImage,
 } from "./article-api";
 import { buildCookieHeader } from "./douyin-http-client";
+import { parseJsonPreservingIds } from "./parse-json-preserving-ids";
 
 const MP_ORIGIN = "https://mp.toutiao.com";
 const REFERER = `${MP_ORIGIN}/profile_v4/weitoutiao/publish`;
@@ -66,27 +67,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-/** 保留超大整数源串，避免 thread_id 被 JSON 舍入。 */
-function parseJsonPreservingIds(body: Uint8Array): Record<string, unknown> {
-  try {
-    const text = Buffer.from(body).toString("utf8");
-    const parsed = JSON.parse(text, (key, value, context) => {
-      if (
-        typeof value === "number" &&
-        !Number.isSafeInteger(value) &&
-        context &&
-        typeof (context as { source?: string }).source === "string"
-      ) {
-        return (context as { source: string }).source;
-      }
-      return value;
-    }) as unknown;
-    return asRecord(parsed);
-  } catch {
-    return {};
-  }
 }
 
 function imageMime(bytes: Buffer): string {
