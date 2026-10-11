@@ -5,6 +5,17 @@ import type {
 import { describePublishPhase } from "./publish-errors";
 import { contentTargetMessage } from "./content-management";
 
+/** 分发队列上传速度文案（与选片预览 formatTransferRate 同刻度） */
+function formatUploadSpeed(bps: number): string {
+  if (!Number.isFinite(bps) || bps <= 0) {
+    return "";
+  }
+  if (bps < 1024 * 1024) {
+    return `${(bps / 1024).toFixed(1)} KB/s`;
+  }
+  return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
 export function distributionTaskStatus(
   row: DistributionTaskRow,
   live?: DistributionLiveTask,
@@ -18,7 +29,22 @@ export function distributionTaskStatus(
       : "等待空闲位置";
   }
   if (live?.state === "running") {
-    return describePublishPhase(live.phase ?? "accepted");
+    const phase = describePublishPhase(live.phase ?? "accepted");
+    if (
+      live.phase === "uploading" &&
+      typeof live.uploadPercent === "number" &&
+      Number.isFinite(live.uploadPercent)
+    ) {
+      const percent = Math.min(100, Math.max(0, Math.floor(live.uploadPercent)));
+      const speed =
+        typeof live.uploadSpeedBps === "number" && live.uploadSpeedBps > 0
+          ? formatUploadSpeed(live.uploadSpeedBps)
+          : null;
+      return speed
+        ? `${phase} ${percent}% · ${speed}`
+        : `${phase} ${percent}%`;
+    }
+    return phase;
   }
   switch (row.publishStatus) {
     case "queued":

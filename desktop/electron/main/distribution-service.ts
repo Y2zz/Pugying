@@ -148,19 +148,35 @@ async function execute(task: DistributionTask): Promise<void> {
     const requestId = randomUUID();
     activeRequests.set(task.targetId, requestId);
     result = await new Promise<PlatformPublishResultPayload>((resolve) => {
+      // 大视频分片上传可能超过 15 分钟；超时仅作兜底取消，不缩短平台侧限制
       const timer = setTimeout(
         () => {
           cancelPublishJob(requestId);
         },
-        15 * 60 * 1000,
+        60 * 60 * 1000,
       );
       const started = startPublishJob({
         payload: { ...dispatch, requestId },
         onProgress: (event) => {
-          // 只传公开阶段；平台原始消息、Cookie 与本机路径不进入观测通道。
+          // 只传阶段与数值进度；平台原始消息、Cookie 与本机路径不进入观测通道。
+          const current = live.get(task.targetId)!;
           live.set(task.targetId, {
-            ...live.get(task.targetId)!,
+            ...current,
             phase: event.phase,
+            // 后续仍是 uploading 但没有百分比（封面、转码）时清掉，避免停在 100%
+            ...(typeof event.percent === "number" && Number.isFinite(event.percent)
+              ? {
+                  uploadPercent: Math.min(
+                    100,
+                    Math.max(0, Math.floor(event.percent)),
+                  ),
+                }
+              : { uploadPercent: undefined, uploadSpeedBps: undefined }),
+            ...(typeof event.speedBps === "number" &&
+            Number.isFinite(event.speedBps) &&
+            event.speedBps >= 0
+              ? { uploadSpeedBps: event.speedBps }
+              : { uploadSpeedBps: undefined }),
           });
           changed();
         },

@@ -51,6 +51,14 @@ export interface PlatformPublishProgressPayload {
   platform: string;
   phase: PlatformPublishProgressPhase;
   message?: string;
+  /** 上传进度 0–100；仅 uploading 阶段有意义，供分发队列展示 */
+  percent?: number;
+  /** 已上传字节数 */
+  uploadedBytes?: number;
+  /** 文件总字节数 */
+  totalBytes?: number;
+  /** 滑动平均上传速度（字节/秒） */
+  speedBps?: number;
 }
 
 export interface PlatformPublishResultPayload {

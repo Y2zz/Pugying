@@ -26,6 +26,10 @@ export interface DistributionLiveTask {
     | "uploading"
     | "submitting"
     | "done";
+  /** 上传进度 0–100（来自平台适配器，无实现细节） */
+  uploadPercent?: number;
+  /** 上传速度字节/秒 */
+  uploadSpeedBps?: number;
   queuedAt: string;
   startedAt?: string;
 }

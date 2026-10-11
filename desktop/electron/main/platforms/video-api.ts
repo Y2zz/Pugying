@@ -14,6 +14,21 @@ export interface UploadedVideo {
   };
 }
 
+/** 分片上传进度（供分发队列展示百分比与速度） */
+export interface VideoUploadProgress {
+  uploadedBytes: number;
+  totalBytes: number;
+  percent: number;
+  speedBps: number;
+}
+
+export interface VideoUploadOptions {
+  onProgress?: (progress: VideoUploadProgress) => void;
+}
+
 export interface VideoApiSession extends ArticleApiSession {
-  uploadVideo(path: string): Promise<UploadedVideo>;
+  uploadVideo(
+    path: string,
+    options?: VideoUploadOptions,
+  ): Promise<UploadedVideo>;
 }

@@ -122,11 +122,25 @@ it("exposes safe live progress to refreshed observers and keeps saving results d
     ...options.payload,
     phase: "uploading",
     message: "private platform debug data",
+    percent: 37,
+    speedBps: 1_500_000,
   });
   const snapshot = service.getDistributionSnapshot();
-  expect(snapshot.tasks.find((task) => task.targetId === "1")?.phase).toBe(
-    "uploading",
-  );
+  expect(snapshot.tasks.find((task) => task.targetId === "1")).toMatchObject({
+    phase: "uploading",
+    uploadPercent: 37,
+    uploadSpeedBps: 1_500_000,
+  });
+  options.onProgress({
+    ...options.payload,
+    phase: "uploading",
+    message: "处理封面",
+  });
+  expect(service.getDistributionSnapshot().tasks.find((task) => task.targetId === "1")).toMatchObject({
+    phase: "uploading",
+    uploadPercent: undefined,
+    uploadSpeedBps: undefined,
+  });
   expect(JSON.stringify(snapshot)).not.toContain("private platform debug data");
   expect(JSON.stringify(snapshot)).not.toContain("cookies");
   expect(notified).toHaveBeenCalled();
