@@ -7,7 +7,7 @@
 | 文件 | 用途 |
 |------|------|
 | `.gitlab-ci.yml` | CI：Server / Desktop 测试与编译；可选 Docker 打 Linux 包 |
-| `./start.sh` | 本地开发：Server watch + Desktop |
+| `./scripts/start.sh` | 本地开发：Server watch + Desktop |
 | `cd desktop && npm run package` | 打出**当前主机**发行包（macOS 含 dmg + 目录包） |
 | `cd desktop && npm run package:dir` | 仅打出目录包（不生成 dmg） |
 | `cd desktop && npm run docker:package:linux` | Docker 打 Linux x64 目录包 |
@@ -63,7 +63,7 @@ npm run docker:package:win     # → desktop/release/win-unpacked/（见原生�
 | `PUGYING_ELECTRON_CACHE` | `~/.cache/electron` | Electron 下载缓存 |
 | `PUGYING_ELECTRON_BUILDER_CACHE` | `~/.cache/electron-builder` | electron-builder 缓存 |
 
-开发联调请用仓库根目录 `./start.sh`。发行版不会对局域网或公网提供 API 服务。
+开发联调请用 `./scripts/start.sh`。发行版不会对局域网或公网提供 API 服务。
 
 ## 数据与备份
 

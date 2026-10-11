@@ -2,14 +2,15 @@
 # Pugying 一键安装依赖；可从任意目录调用。
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 脚本位于 scripts/，仓库根目录为其上一级
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_COMMAND=install
 
 usage() {
   cat <<'EOF'
 Pugying 一键安装依赖
 
-用法: ./install.sh [--ci]
+用法: ./scripts/install.sh [--ci]
 
 选项:
   --ci         使用 npm ci，按锁文件安装并重建 node_modules
@@ -29,7 +30,7 @@ for argument in "$@"; do
 done
 
 if [[ "$EUID" -eq 0 ]]; then
-  printf '请使用普通用户运行 ./install.sh，不要添加 sudo。\n' >&2
+  printf '请使用普通用户运行 ./scripts/install.sh，不要添加 sudo。\n' >&2
   exit 1
 fi
 
@@ -48,4 +49,4 @@ for project in server desktop; do
   )
 done
 
-printf '\n依赖安装完成，运行 ./start.sh 启动开发环境。\n'
+printf '\n依赖安装完成，运行 ./scripts/start.sh 启动开发环境。\n'
