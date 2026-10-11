@@ -38,7 +38,7 @@ export function DouyinCollectionField({
       browseOnEmpty
       description="从当前账号的合集中选择"
       placeholder="搜索合集"
-      emptySummary="未加入合集"
+      emptySummary="加入合集"
     />
   );
 }

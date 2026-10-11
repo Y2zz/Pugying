@@ -125,7 +125,7 @@ export function ArticleFormatPopover({
             onChange={(value) => style('backgroundColor', value)}
           />
         </FieldGroup>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           部分平台会简化扩展样式，可在预览中查看。
         </p>
       </PopoverContent>

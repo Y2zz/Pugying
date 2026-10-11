@@ -216,7 +216,7 @@ export function ArticleCoverOverrideField({
                   onEdit(aspect);
                 }}
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 {COVER_ASPECT_LABEL[aspect]} ·{" "}
                 {own
                   ? "单独设置"
@@ -287,9 +287,7 @@ export function ArticleTagsField({
       {error ? (
         <FieldError id={`${id}-error`}>{error}</FieldError>
       ) : (
-        <FieldDescription className="text-xs">
-          最多 {maxCount} 个
-        </FieldDescription>
+        <FieldDescription>最多 {maxCount} 个</FieldDescription>
       )}
     </Field>
   );

@@ -208,7 +208,7 @@ export default function DistributionQueue() {
             title="分发队列"
             action={
               <>
-                <div className="hidden items-center gap-4 text-xs text-muted-foreground md:flex">
+                <div className="hidden items-center gap-4 text-sm text-muted-foreground md:flex">
                   <span className="inline-flex items-center gap-1.5">
                     <Clock3 className="size-3.5" aria-hidden />
                     {hasError ? "状态更新暂不可用" : "自动更新"}
@@ -370,14 +370,14 @@ export default function DistributionQueue() {
               </TableBody>
             </Table>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
             <p>
               {view === "completed"
                 ? "最近 24 小时的成功结果，发布结果以平台审核为准。"
                 : "任务按作品分组，发布进度自动更新。"}
             </p>
             {data && state.hasRead ? (
-              <span className="tabular-nums">
+              <span className="tabular-nums text-xs">
                 共 {data.total} 项任务
                 {data.total > data.pageSize
                   ? ` · 第 ${page} / ${Math.ceil(data.total / data.pageSize)} 页`

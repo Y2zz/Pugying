@@ -38,7 +38,7 @@ export function BilibiliAnthologyField({
       browseOnEmpty
       description="从当前账号的文集中选择"
       placeholder="搜索文集"
-      emptySummary="未加入文集"
+      emptySummary="加入文集"
     />
   );
 }

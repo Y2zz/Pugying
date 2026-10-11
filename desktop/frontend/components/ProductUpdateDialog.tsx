@@ -107,7 +107,7 @@ function ProductUpdateDialogView(state: ProductUpdateContextValue) {
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.body}</DialogDescription>
           {copy.hint ? (
-            <p className="text-xs text-muted-foreground">{copy.hint}</p>
+            <p className="text-sm text-muted-foreground">{copy.hint}</p>
           ) : null}
         </DialogHeader>
         <DialogFooter>

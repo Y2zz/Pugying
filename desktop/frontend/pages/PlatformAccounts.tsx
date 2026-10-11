@@ -1208,14 +1208,14 @@ export default function PlatformAccounts() {
                         {step.label(authLock.platformName)}
                       </p>
                       {status === "current" && step.id === "login" ? (
-                        <p className="mt-0.5 text-xs text-muted-foreground">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           {authLock.phase === "finishing"
                             ? "正在确认账号…"
                             : "在授权窗口完成登录"}
                         </p>
                       ) : null}
                       {status === "current" && step.id === "bind" ? (
-                        <p className="mt-0.5 text-xs text-muted-foreground">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           正在保存账号…
                         </p>
                       ) : null}

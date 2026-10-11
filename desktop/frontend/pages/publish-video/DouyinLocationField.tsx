@@ -37,7 +37,7 @@ export function DouyinLocationField({
       collapsedByDefault
       description="搜索并选择发布位置"
       placeholder="搜索位置"
-      emptySummary="未添加位置"
+      emptySummary="添加位置"
     />
   );
 }

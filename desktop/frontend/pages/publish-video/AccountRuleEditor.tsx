@@ -218,7 +218,7 @@ export function AccountOverrideForm({
 
           <Field>
             <FieldTitle className="font-normal">封面</FieldTitle>
-            <div className="mt-2 flex flex-wrap items-start gap-4">
+            <div className="flex flex-wrap items-start gap-4">
               <div className="flex flex-col gap-2">
                 <ArticleCoverThumb
                   aspect="portrait"
@@ -229,7 +229,7 @@ export function AccountOverrideForm({
                     onEditCover("cover");
                   }}
                 />
-                <span className="text-xs text-muted-foreground">竖版 3:4</span>
+                <span className="text-sm text-muted-foreground">竖版 3:4</span>
               </div>
               {!portraitOnly ? (
                 <div className="flex flex-col gap-2">
@@ -242,18 +242,16 @@ export function AccountOverrideForm({
                       onEditCover("cover_landscape");
                     }}
                   />
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     横版 4:3
                   </span>
                 </div>
               ) : null}
             </div>
             {!accountCoverReady && (portraitOnly || !accountLandscapeReady) ? (
-              <p className="mt-2 text-xs text-muted-foreground">沿用通用封面</p>
+              <p className="text-sm text-muted-foreground">沿用通用封面</p>
             ) : (
-              <p className="mt-2 text-xs text-muted-foreground">
-                已单独设置封面
-              </p>
+              <p className="text-sm text-muted-foreground">已单独设置封面</p>
             )}
           </Field>
 

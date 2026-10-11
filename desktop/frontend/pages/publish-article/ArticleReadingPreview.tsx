@@ -114,12 +114,12 @@ export function ArticleReadingPreview({
             <NativeSelectOption value="mobile">手机宽度</NativeSelectOption>
             <NativeSelectOption value="desktop">桌面宽度</NativeSelectOption>
           </NativeSelect>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             本地预览，实际效果以平台为准
           </span>
         </div>
         {formatted.simplified ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             该平台将简化部分样式，通用稿件保留原格式。
           </p>
         ) : null}

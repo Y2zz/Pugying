@@ -218,7 +218,7 @@ export function ArticleImageCropDialog({
               <EmptyContent>
                 {imageAction?.(saving, true)}
                 {emptyHint ? (
-                  <p className="text-xs text-muted-foreground">{emptyHint}</p>
+                  <p className="text-sm text-muted-foreground">{emptyHint}</p>
                 ) : null}
               </EmptyContent>
             </Empty>

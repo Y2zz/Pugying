@@ -39,9 +39,9 @@ export function VideoInitialUploadSelector({
       onDrop={onDrop}
     >
       <Upload className="size-8 text-muted-foreground" />
-      <div className="mx-auto flex max-w-sm flex-col gap-1.5">
+      <div className="mx-auto flex max-w-sm flex-col gap-2">
         <p className="text-sm font-medium">拖入或选择视频</p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           自动提取封面；视频大小和时长按发布平台校验。
         </p>
       </div>

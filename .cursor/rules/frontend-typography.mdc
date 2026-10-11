@@ -11,11 +11,12 @@ alwaysApply: false
 1. **不覆盖 `html` 根字号**，沿用浏览器默认 **16px**（`1rem = 16px`）
 2. **不重映射** Tailwind 的 `--text-sm` / `--text-xs`；保持 shadcn / Tailwind 默认阶梯
 3. shadcn 控件大量写死 **`text-sm`（≈14px）**；页面正文继承 **`text-base`（≈16px）**
+4. **字号越往下越要克制**：默认能继承就不写；能用 `text-sm` 就不要降到 `text-xs`
 
 | 类名 | 默认尺寸 | 典型用途 |
 |------|----------|----------|
-| `text-xs` | 12px | 时间戳、Badge、极次要 hint |
-| `text-sm` | 14px | Button、Input、Card、Table、侧栏（shadcn 默认） |
+| `text-xs` | 12px | **仅**时间戳、Badge、角标、极次要元数据（见下节） |
+| `text-sm` | 14px | Button、Input、Card、Table、侧栏、字段说明（shadcn 默认） |
 | `text-base` | 16px | 正文、页面说明（继承 body） |
 | `text-2xl` | 24px | 页标题 `h1` |
 
@@ -25,14 +26,68 @@ alwaysApply: false
 |------|------|
 | 页面级说明（Card 外） | **不写**，继承 body `text-base` |
 | 与 shadcn 控件同密度的文案 | `text-sm`（与 Button / Label 对齐） |
-| 次要 / 辅助信息 | `text-xs text-muted-foreground` |
+| `FieldDescription` / 表单辅助说明 | **沿用组件默认 `text-sm`**，不要再叠 `text-xs` |
 | 页面标题 `h1` | `font-heading text-2xl tracking-tight` |
 | Input / Textarea | 保持组件自带 `text-base md:text-sm`（防 iOS 缩放） |
+
+## `text-xs`：先问场景，禁止顺手加上
+
+12px 可读性弱，**默认不要用**。落笔前确认满足其一，否则用 `text-sm` 或继承：
+
+| 可以用 `text-xs` | 不要用 `text-xs` |
+|------------------|------------------|
+| Badge、计数角标、列表行内时间戳 | 字段说明、`FieldDescription`、空状态主文案 |
+| 图表轴标、密集表格次要列 | 表单 label、按钮旁说明、引导句 |
+| 明确「第三级」元数据且同屏已有 sm/base | 仅为了「看起来紧凑」或「习惯性 muted hint」 |
+
+```tsx
+// ❌ 习惯性把说明压成 xs（FieldDescription 已是 text-sm）
+<FieldDescription className="text-xs">从列表中选择发布城市</FieldDescription>
+
+// ✅ 用组件默认字号
+<FieldDescription>从列表中选择发布城市</FieldDescription>
+
+// ❌ 把本该可读的辅助说明写成 xs
+<p className="text-xs text-muted-foreground">暂时无法加载，请稍后重试</p>
+
+// ✅ 与表单控件同级用 sm
+<p className="text-sm text-muted-foreground">暂时无法加载，请稍后重试</p>
+
+// ✅ 真正的极次要元数据
+<span className="text-xs text-muted-foreground">3 分钟前</span>
+```
+
+## 调整字号时：不是只改 class
+
+把文案从 `text-xs` 升到 `text-sm`（或其它阶梯变化）时，**禁止只改字号类交差**。字号变大后行高、换行、与邻接控件的视觉权重都会变，必须连同布局一起看：
+
+| 要复核的 | 说明 |
+|----------|------|
+| `gap` / `space-y` / `mt` / `mb` | 说明与控件、两行 hint 之间是否过挤或过空 |
+| 容器 `p` / `py` / 固定高度 | 行是否顶破、是否出现双行挤压 |
+| `truncate` / `line-clamp` / `leading-*` | 升字号后是否截断异常或行距失调 |
+| 并排对齐 | 与 Button、Badge、图标、字数计数是否仍齐平 |
+| 信息层级 | 升号后会不会压过标题或主文案；若会，改结构/间距，而不是再压回 xs |
+
+```tsx
+// ❌ 只把 xs 改成 sm，原为 xs 留的紧凑边距原样留下
+<p className="mt-0.5 text-sm text-muted-foreground">沿用通用封面</p>
+
+// ✅ 升字号同时理顺间距（例：与控件区用 gap-2，而不是残留的 mt-0.5）
+<div className="flex flex-col gap-2">
+  <CoverSlot />
+  <p className="text-sm text-muted-foreground">沿用通用封面</p>
+</div>
+```
+
+若升号后布局装不下或层级乱掉：先调间距与结构；仍过密再考虑信息是否该折叠/移出，**不要为了塞得下又退回乱用 xs**。
 
 ## 必须遵守
 
 - **禁止** `html { font-size: 14px }` 或 `--text-sm: 1rem` 等破坏 vega 刻度的覆盖
 - **禁止** `text-[Npx]` 固定像素
+- **禁止** 无场景依据地给文案加 `text-xs`（尤其覆盖 shadcn 已设的 `text-sm`）
+- **禁止** 调整字号时只改 `text-*`、不复核布局与边距
 - **不要改** `components/ui/`；业务层用 `className` 调整
 
 ## 反例
@@ -45,5 +100,5 @@ alwaysApply: false
 <p className="text-muted-foreground">团队管理与 Agent 状态</p>
 
 // ✅ 表格行内、侧栏等同密度区域用 text-sm
-<span className="text-sm text-muted-foreground">3 分钟前</span>
+<span className="text-sm text-muted-foreground">上次同步失败</span>
 ```

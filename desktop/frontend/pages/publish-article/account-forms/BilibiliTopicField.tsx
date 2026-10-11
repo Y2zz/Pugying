@@ -37,7 +37,7 @@ export function BilibiliTopicField({
       collapsedByDefault
       description="搜索并选择话题"
       placeholder="搜索话题"
-      emptySummary="未添加话题"
+      emptySummary="添加话题"
     />
   );
 }

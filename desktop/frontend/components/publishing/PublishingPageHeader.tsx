@@ -100,7 +100,7 @@ export function PublishingPageHeader<T extends { ok: boolean }>({
           <span
             role="status"
             className={cn(
-              "text-xs",
+              "text-sm",
               autoSaveFailed ? "text-destructive" : "text-muted-foreground",
             )}
           >
