@@ -1,19 +1,34 @@
-import { BrowserWindow, session } from 'electron';
-import { randomUUID } from 'node:crypto';
-import { injectCookies } from '../auth-browser';
-import { getApiBaseUrl, getLocalApiToken } from '../server-process';
-import type { AgentCookie } from '../protocol';
+import { randomUUID } from "node:crypto";
+import { injectCookies } from "../auth-browser";
+import { createNetworkSession } from "../network-policy";
+import { getApiBaseUrl, getLocalApiToken } from "../server-process";
+import type { AgentCookie } from "../protocol";
 import {
-  parseToutiaoRewardPrivilege,
+  parseToutiaoRewardFromPublishHtml,
   type ToutiaoRewardPrivilege,
-} from '@shared/toutiao-article-privileges';
+} from "@shared/toutiao-article-privileges";
+
+const PUBLISH_HTML_URL =
+  "https://mp.toutiao.com/profile_v4/graphic/publish";
 
 const pending = new Map<string, Promise<ToutiaoRewardPrivilege | null>>();
+/** 成功结果进程内缓存，避免账号设置重挂载重复拉 HTML */
+const cache = new Map<string, ToutiaoRewardPrivilege>();
 
-/** 仅打开空白文章编辑器读取能力，不填写、上传或提交内容。 */
+/** 只读探测赞赏额度；凭证不回传 renderer。force 时绕过缓存。 */
 export function fetchToutiaoRewardPrivilege(
   accountId: string,
+  options?: { force?: boolean },
 ): Promise<ToutiaoRewardPrivilege | null> {
+  if (!options?.force) {
+    const cached = cache.get(accountId);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+  } else {
+    cache.delete(accountId);
+  }
+
   const current = pending.get(accountId);
   if (current) {
     return current;
@@ -27,70 +42,55 @@ export function fetchToutiaoRewardPrivilege(
   return request;
 }
 
-async function readPrivilege(accountId: string): Promise<ToutiaoRewardPrivilege | null> {
+async function readPrivilege(
+  accountId: string,
+): Promise<ToutiaoRewardPrivilege | null> {
   const response = await fetch(
     `${getApiBaseUrl()}/platform-accounts/${encodeURIComponent(accountId)}/credentials`,
     {
-      method: 'POST',
-      headers: { 'X-Pugying-Local-Token': getLocalApiToken() },
+      method: "POST",
+      headers: { "X-Pugying-Local-Token": getLocalApiToken() },
       signal: AbortSignal.timeout(10000),
     },
   );
   if (!response.ok) {
     return null;
   }
-  const account = (await response.json()) as { platform?: string; cookies?: AgentCookie[] };
-  if (account.platform !== 'toutiao' || !account.cookies?.length) {
+  const account = (await response.json()) as {
+    platform?: string;
+    cookies?: AgentCookie[];
+  };
+  if (account.platform !== "toutiao" || !account.cookies?.length) {
     return null;
   }
-  const isolated = session.fromPartition(`toutiao-article-privileges-${randomUUID()}`);
-  let window: BrowserWindow | undefined;
-  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  // 发布页 HTML bootstrap 已含 creator_project_info.praise_count_remained，Cookie 直拉即可
+  const isolated = await createNetworkSession(
+    `toutiao-article-privileges-${randomUUID()}`,
+    { cache: false },
+  );
   try {
     await injectCookies(isolated, account.cookies);
-    window = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        session: isolated,
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true,
-        backgroundThrottling: false,
+    const pageResponse = await isolated.fetch(PUBLISH_HTML_URL, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9",
       },
+      signal: AbortSignal.timeout(15000),
     });
-    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    const probe = async (): Promise<ToutiaoRewardPrivilege | null> => {
-      await window!.loadURL('https://mp.toutiao.com/profile_v4/graphic/publish');
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline && !window!.isDestroyed()) {
-        const result = (await window!.webContents.executeJavaScript(`(() => {
-          if (location.hostname !== 'mp.toutiao.com') { return null; }
-          const label = Array.from(document.querySelectorAll('label')).find((element) =>
-            element.textContent?.trim().startsWith('允许赞赏'));
-          const input = label?.querySelector('input[type="checkbox"]');
-          if (!label || !input) { return null; }
-          return { label: label.textContent, disabled: input.disabled || label.getAttribute('aria-disabled') === 'true' || label.classList.contains('byte-checkbox-disabled') };
-        })()`)) as { label: string; disabled: boolean } | null;
-        if (result) {
-          return parseToutiaoRewardPrivilege(result.label, result.disabled);
-        }
-        await new Promise<void>((resolve) => setTimeout(resolve, 500));
-      }
+    if (!pageResponse.ok) {
       return null;
-    };
-    return await Promise.race([
-      probe(),
-      new Promise<null>((resolve) => {
-        timeout = setTimeout(() => resolve(null), 20000);
-      }),
-    ]);
+    }
+    const html = await pageResponse.text();
+    const privilege = parseToutiaoRewardFromPublishHtml(html);
+    if (privilege) {
+      cache.set(accountId, privilege);
+    }
+    return privilege;
   } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    if (window && !window.isDestroyed()) {
-      window.destroy();
-    }
     await isolated.clearStorageData().catch(() => {});
     await isolated.clearCache().catch(() => {});
     await isolated.closeAllConnections().catch(() => {});

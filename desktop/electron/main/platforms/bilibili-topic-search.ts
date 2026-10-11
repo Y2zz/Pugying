@@ -1,16 +1,17 @@
-import { getApiBaseUrl, getLocalApiToken } from "../server-process";
-import type { AgentCookie } from "../protocol";
 import {
   parseBilibiliTopicSuggestions,
   type PlatformResourceRef,
 } from "@shared/platform-resource";
-import { createArticleApiSession } from "./article-api-session";
-import { assertArticleResponse } from "./article-api";
+import {
+  bilibiliSignedGet,
+  withBilibiliCookieApi,
+} from "./bilibili-cookie-api";
+import { loadAccountCookies } from "./ephemeral-cookie-session";
 
 const KEYWORD_MAX = 40;
 const pending = new Map<string, Promise<PlatformResourceRef[]>>();
 
-/** 按当前 B 站账号搜索发布话题；凭据不回传 renderer。 */
+/** 按当前 B 站账号搜索发布话题；Cookie + WBI，不开隐藏窗。 */
 export function searchBilibiliTopics(
   accountId: string,
   keyword: string,
@@ -37,49 +38,28 @@ async function readTopics(
   accountId: string,
   keyword: string,
 ): Promise<PlatformResourceRef[]> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/platform-accounts/${encodeURIComponent(accountId)}/credentials`,
-    {
-      method: "POST",
-      headers: { "X-Pugying-Local-Token": getLocalApiToken() },
-      signal: AbortSignal.timeout(10000),
-    },
-  );
-  if (!response.ok) {
+  const cookies = await loadAccountCookies(accountId, "bilibili");
+  if (!cookies) {
     return [];
   }
-  const account = (await response.json()) as {
-    platform?: string;
-    cookies?: AgentCookie[];
-  };
-  if (account.platform !== "bilibili" || !account.cookies?.length) {
-    return [];
-  }
-  const api = await createArticleApiSession("bilibili", {
-    payload: {
-      requestId: "topic-search",
-      targetId: "topic-search",
-      platform: "bilibili",
-      accountId,
-      contentType: "article",
-      title: "",
-      coverPath: "",
-      cookies: account.cookies,
-    },
-    signal: { cancelled: false },
-    onProgress: () => {},
-  });
-  try {
-    const params = new URLSearchParams({
-      keywords: keyword,
-      page_size: "20",
-      page_num: "1",
-      offset: "0",
-    });
-    const result = await api.request(`/x/topic/pub/search?${params}`);
-    assertArticleResponse(result, "bilibili");
+  return withBilibiliCookieApi(cookies, async ({ nav, isolated }) => {
+    if (!nav) {
+      return [];
+    }
+    const result = await bilibiliSignedGet(
+      isolated,
+      "/x/topic/pub/search",
+      {
+        keywords: keyword,
+        page_size: "20",
+        page_num: "1",
+        offset: "0",
+      },
+      nav,
+    );
+    if (!result || Number(result.code) !== 0) {
+      return [];
+    }
     return parseBilibiliTopicSuggestions(result);
-  } finally {
-    await api.dispose();
-  }
+  });
 }

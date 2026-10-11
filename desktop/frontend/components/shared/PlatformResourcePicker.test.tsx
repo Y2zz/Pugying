@@ -37,7 +37,25 @@ describe("PlatformResourcePicker", () => {
         collapsedByDefault
       />,
     );
-    expect(screen.getByText("#旅行记")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /合集.*#旅行记/ }),
+    ).toBeTruthy();
+  });
+
+  it("shows an actionable empty summary when collapsed", () => {
+    render(
+      <PlatformResourcePicker
+        label="位置"
+        value={[]}
+        onChange={vi.fn()}
+        search={async () => []}
+        collapsedByDefault
+        emptySummary="添加位置"
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /位置.*添加位置/ }),
+    ).toBeTruthy();
   });
 
   it("loads account list candidates when browseOnEmpty is enabled", async () => {
@@ -50,10 +68,11 @@ describe("PlatformResourcePicker", () => {
         search={search}
         collapsedByDefault
         browseOnEmpty
+        emptySummary="加入合集"
       />,
     );
     const user = userEvent.setup();
-    await user.click(screen.getByText("合集"));
+    await user.click(screen.getByRole("button", { name: /合集.*加入合集/ }));
     await waitFor(() => {
       expect(search).toHaveBeenCalledWith("");
     });

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { Hash, X } from "lucide-react";
+import { ChevronDown, Hash, X } from "lucide-react";
 import type { PlatformResourceRef } from "@shared/platform-resource";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,8 @@ export function PlatformResourcePicker({
   collapsedByDefault = false,
   /** 合集/文集等账号列表：展开后空关键词也拉取候选项 */
   browseOnEmpty = false,
-  emptySummary = "未选择",
+  /** 折叠且未选时的操作文案，须像「添加位置」而非状态说明 */
+  emptySummary = "添加",
 }: {
   label: string;
   value: PlatformResourceRef[];
@@ -157,16 +158,16 @@ export function PlatformResourcePicker({
         }}
       />
       {loading ? (
-        <p className="text-xs text-muted-foreground">正在搜索…</p>
+        <p className="text-sm text-muted-foreground">正在搜索…</p>
       ) : null}
       {searchFailed ? (
-        <p className="text-xs text-muted-foreground">暂时无法搜索，请稍后重试</p>
+        <p className="text-sm text-muted-foreground">暂时无法搜索，请稍后重试</p>
       ) : null}
       {!loading &&
       (query.trim() || browseOnEmpty) &&
       suggestions.length === 0 &&
       !searchFailed ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {browseOnEmpty && !query.trim()
             ? "暂无可选项"
             : "没有匹配的候选项"}
@@ -233,7 +234,7 @@ export function PlatformResourcePicker({
       {error ? (
         <FieldError id={`${id}-error`}>{error}</FieldError>
       ) : description ? (
-        <FieldDescription className="text-xs">{description}</FieldDescription>
+        <FieldDescription>{description}</FieldDescription>
       ) : null}
     </Field>
   );
@@ -242,15 +243,38 @@ export function PlatformResourcePicker({
     return body;
   }
 
+  // 折叠态做成可点按钮：空态用「添加…」，并带箭头，避免被当成只读说明
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="flex flex-col gap-2">
         <CollapsibleTrigger
-          className="flex w-full items-center justify-between gap-2 text-left text-sm"
+          className={cn(
+            "flex w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-left text-sm outline-none",
+            "hover:bg-accent hover:text-accent-foreground",
+            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+            "disabled:pointer-events-none disabled:opacity-50",
+            "data-open:bg-accent/50",
+          )}
           disabled={disabled}
         >
-          <span>{label}</span>
-          <span className="truncate text-muted-foreground">{summary}</span>
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="shrink-0 text-muted-foreground">{label}</span>
+            <span
+              className={cn(
+                "truncate",
+                value.length === 0 ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {summary}
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
         </CollapsibleTrigger>
         <CollapsibleContent>{body}</CollapsibleContent>
       </div>

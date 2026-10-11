@@ -1,16 +1,19 @@
-import { getApiBaseUrl, getLocalApiToken } from "../server-process";
-import type { AgentCookie } from "../protocol";
 import {
   parseDouyinTopicSuggestions,
   type PlatformResourceRef,
 } from "@shared/platform-resource";
-import { createArticleApiSession } from "./article-api-session";
-import { assertArticleResponse } from "./article-api";
+import {
+  cookieSessionJsonGet,
+  loadAccountCookies,
+  withEphemeralCookieSession,
+} from "./ephemeral-cookie-session";
 
 const KEYWORD_MAX = 40;
+const REFERER =
+  "https://creator.douyin.com/creator-micro/content/post/article?enter_from=publish_page&media_type=article&type=new";
 const pending = new Map<string, Promise<PlatformResourceRef[]>>();
 
-/** 按当前抖音账号搜索官方话题候选项；凭据不回传 renderer。 */
+/** 按当前抖音账号搜索官方话题候选项；Cookie 直拉，不开隐藏窗。 */
 export function searchDouyinTopics(
   accountId: string,
   keyword: string,
@@ -37,50 +40,32 @@ async function readTopics(
   accountId: string,
   keyword: string,
 ): Promise<PlatformResourceRef[]> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/platform-accounts/${encodeURIComponent(accountId)}/credentials`,
-    {
-      method: "POST",
-      headers: { "X-Pugying-Local-Token": getLocalApiToken() },
-      signal: AbortSignal.timeout(10000),
+  const cookies = await loadAccountCookies(accountId, "douyin");
+  if (!cookies) {
+    return [];
+  }
+  // challengesug 实测仅需登录 Cookie + Referer，无需 a_bogus / 创作者整页
+  return withEphemeralCookieSession(
+    "douyin-topic-search",
+    cookies,
+    async (isolated) => {
+      const params = new URLSearchParams({
+        keyword,
+        source: "challenge_create",
+        aid: "2906",
+      });
+      const result = await cookieSessionJsonGet(
+        isolated,
+        `https://creator.douyin.com/aweme/v1/search/challengesug/?${params}`,
+        {
+          Referer: REFERER,
+          Origin: "https://creator.douyin.com",
+        },
+      );
+      if (!result || Number(result.status_code) !== 0) {
+        return [];
+      }
+      return parseDouyinTopicSuggestions(result);
     },
   );
-  if (!response.ok) {
-    return [];
-  }
-  const account = (await response.json()) as {
-    platform?: string;
-    cookies?: AgentCookie[];
-  };
-  if (account.platform !== "douyin" || !account.cookies?.length) {
-    return [];
-  }
-  const api = await createArticleApiSession("douyin", {
-    payload: {
-      requestId: "topic-search",
-      targetId: "topic-search",
-      platform: "douyin",
-      accountId,
-      contentType: "article",
-      title: "",
-      coverPath: "",
-      cookies: account.cookies,
-    },
-    signal: { cancelled: false },
-    onProgress: () => {},
-  });
-  try {
-    const params = new URLSearchParams({
-      keyword,
-      source: "challenge_create",
-      aid: "2906",
-    });
-    const result = await api.request(
-      `/aweme/v1/search/challengesug/?${params}`,
-    );
-    assertArticleResponse(result, "douyin");
-    return parseDouyinTopicSuggestions(result);
-  } finally {
-    await api.dispose();
-  }
 }

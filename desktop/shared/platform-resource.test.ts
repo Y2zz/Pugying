@@ -150,6 +150,27 @@ describe("list resource parsers", () => {
       { id: "110100", name: "北京" },
       { id: "330100", name: "杭州" },
     ]);
+    // 本机 Garr.network.get 不经 snake2camels，字段为 snake_case
+    expect(
+      parseToutiaoCityList({
+        code: 0,
+        data: {
+          city_list: [
+            {
+              cities: [
+                { code: "330100", name: "杭州" },
+                { code: "310100", name: "上海" },
+              ],
+            },
+          ],
+          gps_location: { city_code: "110100", city_name: "北京" },
+        },
+      }),
+    ).toEqual([
+      { id: "110100", name: "北京" },
+      { id: "330100", name: "杭州" },
+      { id: "310100", name: "上海" },
+    ]);
   });
 
   it("filters by keyword", () => {

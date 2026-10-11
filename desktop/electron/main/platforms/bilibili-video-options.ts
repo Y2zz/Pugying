@@ -1,17 +1,26 @@
-import { getApiBaseUrl, getLocalApiToken } from "../server-process";
-import type { AgentCookie } from "../protocol";
-import { createArticleApiSession } from "./article-api-session";
 import {
   parseBilibiliVideoOptions,
   type BilibiliVideoOptions,
 } from "@shared/bilibili-video-settings";
+import { articleRecord } from "./article-api";
+import { fetchBilibiliArchivePre } from "./bilibili-cookie-api";
+import {
+  loadAccountCookies,
+  withEphemeralCookieSession,
+} from "./ephemeral-cookie-session";
 
 const pending = new Map<string, Promise<BilibiliVideoOptions | null>>();
+/** 分区/声明近静态，按账号缓存 */
+const cache = new Map<string, BilibiliVideoOptions>();
 
-/** 只读当前账号投稿配置，不上传或创建稿件；凭据不传入 renderer。 */
+/** 只读当前账号投稿配置；Cookie 直拉 member 预检，不开隐藏窗。 */
 export function fetchBilibiliVideoOptions(
   accountId: string,
 ): Promise<BilibiliVideoOptions | null> {
+  const cached = cache.get(accountId);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
   const current = pending.get(accountId);
   if (current) {
     return current;
@@ -25,45 +34,47 @@ export function fetchBilibiliVideoOptions(
   return request;
 }
 
+/**
+ * member `/x/vupre/web/archive/pre` 的 data 常无 `isLogin`（登录态在 myinfo）；
+ * 补齐后供 parseBilibiliVideoOptions / 发布前校验共用。
+ */
+export function normalizeBilibiliArchivePre(
+  result: Record<string, unknown>,
+): Record<string, unknown> | null {
+  // member pre 可能是 { code, data } 或直接 data 对象
+  if (result.code != null && Number(result.code) !== 0) {
+    return null;
+  }
+  const data =
+    result.data !== undefined ? articleRecord(result.data) : articleRecord(result);
+  if (Object.keys(data).length === 0) {
+    return null;
+  }
+  return data.isLogin === undefined ? { ...data, isLogin: true } : data;
+}
+
 async function readOptions(
   accountId: string,
 ): Promise<BilibiliVideoOptions | null> {
-  const response = await fetch(
-    `${getApiBaseUrl()}/platform-accounts/${encodeURIComponent(accountId)}/credentials`,
-    {
-      method: "POST",
-      headers: { "X-Pugying-Local-Token": getLocalApiToken() },
-      signal: AbortSignal.timeout(10000),
+  const cookies = await loadAccountCookies(accountId, "bilibili");
+  if (!cookies) {
+    return null;
+  }
+  return withEphemeralCookieSession(
+    "bilibili-video-options",
+    cookies,
+    async (isolated) => {
+      const result = await fetchBilibiliArchivePre(isolated);
+      if (!result) {
+        return null;
+      }
+      const options = parseBilibiliVideoOptions(
+        normalizeBilibiliArchivePre(result),
+      );
+      if (options) {
+        cache.set(accountId, options);
+      }
+      return options;
     },
   );
-  if (!response.ok) {
-    return null;
-  }
-  const account = (await response.json()) as {
-    platform?: string;
-    cookies?: AgentCookie[];
-  };
-  if (account.platform !== "bilibili" || !account.cookies?.length) {
-    return null;
-  }
-  const api = await createArticleApiSession("bilibili", {
-    payload: {
-      requestId: "video-options",
-      targetId: "video-options",
-      platform: "bilibili",
-      accountId,
-      contentType: "video",
-      title: "",
-      coverPath: "",
-      cookies: account.cookies,
-    },
-    signal: { cancelled: false },
-    onProgress: () => {},
-  });
-  try {
-    const result = await api.request("/x/vupre/web/archive/pre");
-    return result.code === 0 ? parseBilibiliVideoOptions(result.data) : null;
-  } finally {
-    await api.dispose();
-  }
 }

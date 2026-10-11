@@ -242,7 +242,8 @@ export function parseBilibiliTopicSuggestions(
 
 /**
  * 解析头条文章城市列表（`/toutiao/normandy/mp/city_district/`）。
- * 候选项为城市编码 + 名称；发布写入 extra.manual_selected_city。
+ * 本机 session 走 Garr.network.get 原始 JSON（snake_case）；官方页面另有
+ * snake2camels，故两种字段名都认。候选项为城市编码 + 名称。
  */
 export function parseToutiaoCityList(response: unknown): PlatformResourceRef[] {
   if (!response || typeof response !== "object") {
@@ -251,31 +252,44 @@ export function parseToutiaoCityList(response: unknown): PlatformResourceRef[] {
   const data = (response as { data?: unknown }).data;
   const root =
     data && typeof data === "object"
-      ? (data as {
-          cityList?: unknown;
-          gpsLocation?: { cityCode?: unknown; cityName?: unknown };
-        })
-      : (response as {
-          cityList?: unknown;
-          gpsLocation?: { cityCode?: unknown; cityName?: unknown };
-        });
-  const groups = root.cityList;
+      ? (data as Record<string, unknown>)
+      : (response as Record<string, unknown>);
+  // 原始接口 city_list；经 camelCase 转换后为 cityList
+  const groups = root.city_list ?? root.cityList;
   const cities: unknown[] = [];
   if (Array.isArray(groups)) {
     for (const group of groups) {
-      const nested =
-        group && typeof group === "object"
-          ? (group as { cities?: unknown }).cities
-          : undefined;
+      if (!group || typeof group !== "object") {
+        continue;
+      }
+      const nested = (group as { cities?: unknown }).cities;
       if (Array.isArray(nested)) {
         cities.push(...nested);
+        continue;
+      }
+      // 偶发扁平城市项直接挂在分组数组上
+      if (
+        "code" in group ||
+        "city_code" in group ||
+        "name" in group ||
+        "city" in group
+      ) {
+        cities.push(group);
       }
     }
   }
   // GPS 定位城市置顶，便于空关键词浏览时优先同城
-  const gps = root.gpsLocation;
-  if (gps && (gps.cityCode != null || gps.cityName != null)) {
-    cities.unshift({ code: gps.cityCode, name: gps.cityName });
+  const gpsRaw = root.gps_location ?? root.gpsLocation;
+  const gps =
+    gpsRaw && typeof gpsRaw === "object"
+      ? (gpsRaw as Record<string, unknown>)
+      : null;
+  if (gps) {
+    const code = gps.city_code ?? gps.cityCode;
+    const name = gps.city_name ?? gps.cityName;
+    if (code != null || name != null) {
+      cities.unshift({ code, name });
+    }
   }
   return normalizePlatformResourceRefs(
     cities.map((item) => {
@@ -283,7 +297,10 @@ export function parseToutiaoCityList(response: unknown): PlatformResourceRef[] {
         return null;
       }
       const row = item as Record<string, unknown>;
-      return { id: row.code ?? row.city_code ?? row.id, name: row.name ?? row.city };
+      return {
+        id: row.code ?? row.city_code ?? row.cityCode ?? row.id,
+        name: row.name ?? row.city ?? row.city_name ?? row.cityName,
+      };
     }),
     500,
     { allowSpaces: true },

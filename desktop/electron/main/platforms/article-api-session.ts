@@ -55,13 +55,12 @@ const CONFIG = {
     domain: "douyin.com",
     url: "https://creator.douyin.com/creator-micro/content/post/article?enter_from=publish_page&media_type=article&type=new",
     runtime: DOUYIN_ARTICLE_RUNTIME,
+    // 表单侧话题/合集/POI 已改 Cookie（+ 主进程 bdms）；此处仅保留发布补齐话题用的 challengesug
     paths: [
       "/web/api/media/aweme/create_v2/",
       "/web/api/media/user/info/",
       "/web/api/media/item/info/",
       "/aweme/v1/search/challengesug/",
-      "/web/api/mix/list/",
-      "/aweme/v1/life/video_api/search/poi/",
     ],
   },
   toutiao: {
@@ -77,8 +76,6 @@ const CONFIG = {
       "/mp/agw/article/new",
       "/mp/agw/article/publish",
       "/mp/agw/diversity/publish/strategy/v1/check/",
-      // 文章编辑器城市列表（位置选择）
-      "/toutiao/normandy/mp/city_district/",
     ],
   },
   xiaohongshu: {
@@ -93,14 +90,13 @@ const CONFIG = {
     domain: "bilibili.com",
     url: "https://member.bilibili.com/york/read-editor",
     runtime: BILIBILI_ARTICLE_RUNTIME,
+    // 表单侧文集/话题已改 Cookie+WBI；此处仅保留发布与投稿相关路径
     paths: [
       "/x/vupre/web/archive/pre",
       "/x/vu/web/add/v3",
       "/x/web-interface/nav",
       "/x/dynamic/feed/create/opus_init_check",
       "/x/dynamic/feed/create/opus",
-      "/x/article/up/lists",
-      "/x/topic/pub/search",
     ],
   },
 } as const;
@@ -399,16 +395,22 @@ class CookieArticleApiSession implements VideoApiSession {
         sessionDiag(
           `execute VIDEO_UPLOAD_FAILED receipt=${JSON.stringify(response.receipt ?? null)}`,
         );
-        // B 站 preupload 406/601「上传过快」属频控，提示稍后再试而非泛化失败。
+        // B 站 preupload 406/601「上传过快」+ v_voucher 实为短信/Gaia 风控，非单纯频控。
         const receiptText = JSON.stringify(response.receipt ?? "");
-        const rateLimited =
+        const needsVerification =
           this.platform === "bilibili" &&
-          (/上传过快|稍作休息/.test(receiptText) ||
+          (/v_voucher|上传过快|稍作休息/.test(receiptText) ||
             /"code"\s*:\s*601/.test(receiptText) ||
             /"http_status"\s*:\s*406/.test(receiptText));
+        if (needsVerification) {
+          throw new ArticleApiError(
+            "PLATFORM_VERIFICATION_REQUIRED",
+            "平台需要验证，请到创作者中心完成后再发布",
+          );
+        }
         throw new ArticleApiError(
           "VIDEO_UPLOAD_FAILED",
-          rateLimited ? "上传过于频繁，请稍后再试" : "视频上传失败，请稍后重试",
+          "视频上传失败，请稍后重试",
         );
       }
       if (
@@ -519,39 +521,7 @@ class CookieArticleApiSession implements VideoApiSession {
           url.searchParams.size !== 3 ||
           !url.searchParams.get("keyword")?.trim() ||
           url.searchParams.get("source") !== "challenge_create" ||
-          url.searchParams.get("aid") !== "2906")) ||
-      (url.pathname === "/web/api/mix/list/" &&
-        (data !== undefined ||
-          url.searchParams.size !== 6 ||
-          url.searchParams.get("status") !== "0,1,2,3,6" ||
-          url.searchParams.get("count") !== "20" ||
-          url.searchParams.get("cursor") !== "0" ||
-          url.searchParams.get("should_query_new_mix") !== "1" ||
-          url.searchParams.get("device_platform") !== "web" ||
-          url.searchParams.get("aid") !== "1128")) ||
-      (url.pathname === "/x/article/up/lists" &&
-        (data !== undefined ||
-          url.searchParams.size !== 2 ||
-          !/^\d+$/.test(url.searchParams.get("mid") ?? "") ||
-          !["0", "1"].includes(url.searchParams.get("sort") ?? ""))) ||
-      (url.pathname === "/aweme/v1/life/video_api/search/poi/" &&
-        (data !== undefined ||
-          url.searchParams.size !== 3 ||
-          !url.searchParams.get("keyword")?.trim() ||
-          !/^\d+$/.test(url.searchParams.get("count") ?? "") ||
-          Number(url.searchParams.get("count")) < 1 ||
-          Number(url.searchParams.get("count")) > 20 ||
-          url.searchParams.get("aid") !== "1128")) ||
-      (url.pathname === "/x/topic/pub/search" &&
-        (data !== undefined ||
-          url.searchParams.size !== 4 ||
-          !url.searchParams.get("keywords")?.trim() ||
-          url.searchParams.get("page_size") !== "20" ||
-          url.searchParams.get("page_num") !== "1" ||
-          url.searchParams.get("offset") !== "0")) ||
-      // 头条城市列表：官方 getPositionInfo 为无参 GET
-      (url.pathname === "/toutiao/normandy/mp/city_district/" &&
-        (data !== undefined || url.searchParams.size !== 0))
+          url.searchParams.get("aid") !== "2906"))
     ) {
       throw new ArticleApiError("invalid_payload", "发布请求不可用");
     }

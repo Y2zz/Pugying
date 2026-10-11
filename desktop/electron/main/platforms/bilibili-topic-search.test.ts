@@ -1,20 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createArticleApiSession, getApiBaseUrl, getLocalApiToken } = vi.hoisted(
-  () => ({
-    createArticleApiSession: vi.fn(),
-    getApiBaseUrl: vi.fn(() => "http://127.0.0.1:3928"),
-    getLocalApiToken: vi.fn(() => ""),
-  }),
-);
-
-vi.mock("./article-api-session", () => ({
-  createArticleApiSession,
+const fake = vi.hoisted(() => ({
+  loadAccountCookies: vi.fn(),
+  withBilibiliCookieApi: vi.fn(),
+  bilibiliSignedGet: vi.fn(),
 }));
 
-vi.mock("../server-process", () => ({
-  getApiBaseUrl,
-  getLocalApiToken,
+vi.mock("./ephemeral-cookie-session", () => ({
+  loadAccountCookies: fake.loadAccountCookies,
+}));
+
+vi.mock("./bilibili-cookie-api", () => ({
+  withBilibiliCookieApi: fake.withBilibiliCookieApi,
+  bilibiliSignedGet: fake.bilibiliSignedGet,
 }));
 
 import { searchBilibiliTopics } from "./bilibili-topic-search";
@@ -22,39 +20,43 @@ import { searchBilibiliTopics } from "./bilibili-topic-search";
 describe("searchBilibiliTopics", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({
-          platform: "bilibili",
-          cookies: [{ name: "SESSDATA", value: "x" }],
-        }),
-      })),
-    );
   });
 
   it("returns empty for blank keywords", async () => {
     await expect(searchBilibiliTopics("acc", "  ")).resolves.toEqual([]);
-    expect(createArticleApiSession).not.toHaveBeenCalled();
+    expect(fake.loadAccountCookies).not.toHaveBeenCalled();
   });
 
-  it("searches official topic candidates", async () => {
-    const dispose = vi.fn(async () => {});
-    const request = vi.fn(async () => ({
+  it("searches topics with Cookie + WBI", async () => {
+    const nav = { mid: "42", imageKey: "img", subKey: "sub" };
+    const isolated = {};
+    fake.loadAccountCookies.mockResolvedValue([
+      { name: "SESSDATA", value: "x" },
+    ]);
+    fake.withBilibiliCookieApi.mockImplementation(
+      async (
+        _cookies: unknown,
+        run: (ctx: { isolated: unknown; nav: typeof nav }) => Promise<unknown>,
+      ) => run({ isolated, nav }),
+    );
+    fake.bilibiliSignedGet.mockResolvedValue({
       code: 0,
-      data: {
-        topic_items: [{ id: 1101122, name: "2233异世集" }],
-      },
-    }));
-    createArticleApiSession.mockResolvedValue({ request, dispose });
+      data: { topic_items: [{ id: 1101122, name: "2233异世集" }] },
+    });
 
     await expect(searchBilibiliTopics("acc-1", "2233")).resolves.toEqual([
       { id: "1101122", name: "2233异世集" },
     ]);
-    expect(request).toHaveBeenCalledWith(
-      "/x/topic/pub/search?keywords=2233&page_size=20&page_num=1&offset=0",
+    expect(fake.bilibiliSignedGet).toHaveBeenCalledWith(
+      isolated,
+      "/x/topic/pub/search",
+      {
+        keywords: "2233",
+        page_size: "20",
+        page_num: "1",
+        offset: "0",
+      },
+      nav,
     );
-    expect(dispose).toHaveBeenCalledOnce();
   });
 });
