@@ -133,6 +133,10 @@ export interface PlatformPublishProgress {
   platform: string;
   phase: PlatformPublishProgressPhase;
   message?: string;
+  percent?: number;
+  uploadedBytes?: number;
+  totalBytes?: number;
+  speedBps?: number;
 }
 
 export interface PlatformPublishResult {
@@ -157,6 +161,18 @@ export type PugyingDesktopBridge = {
   ) => Promise<import("@shared/distribution").DistributionSubmissionResult>;
   getDistributionConcurrency?: () => Promise<number>;
   setDistributionConcurrency?: (value: number) => Promise<number>;
+  getProxySettings?: () => Promise<
+    import("@shared/proxy-settings").ProxySettings
+  >;
+  setProxySettings?: (
+    value: import("@shared/proxy-settings").ProxySettings,
+  ) => Promise<import("@shared/proxy-settings").ProxySettings>;
+  testProxySettings?: (
+    value: Pick<
+      import("@shared/proxy-settings").ProxySettings,
+      "host" | "port"
+    >,
+  ) => Promise<import("@shared/proxy-settings").ProxyTestResult>;
   available: true;
   getBilibiliVideoOptions?: (
     accountId: string,
@@ -191,6 +207,7 @@ export type PugyingDesktopBridge = {
   onMessage: (callback: (message: unknown) => void) => () => void;
   getToutiaoRewardPrivilege?: (
     accountId: string,
+    options?: { force?: boolean },
   ) => Promise<
     import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
   >;

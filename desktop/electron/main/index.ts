@@ -13,6 +13,7 @@ import {
 import { createTray, destroyTray } from './tray';
 import { recoverInterruptedDistributions, stopDistributions } from './distribution-service';
 import { installChromeLikeUserAgent } from './platforms/chrome-like-user-agent';
+import { installNetworkPolicy } from './network-policy';
 import { registerPublishMediaScheme } from './platforms/publish-media-protocol';
 
 registerPublishMediaScheme();
@@ -59,6 +60,7 @@ function installAppMenu(): void {
 app.whenReady().then(async () => {
   // session.defaultSession 仅 ready 后可用；须在任何窗口创建前安装
   installChromeLikeUserAgent();
+  installNetworkPolicy();
 
   // 桌面一体：业务主窗常驻，Dock/任务切换应可见
   if (process.platform === 'darwin') {

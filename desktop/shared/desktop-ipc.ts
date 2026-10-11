@@ -8,6 +8,12 @@ export const DESKTOP_IPC = {
   submitDistribution: "desktop:submit-distribution",
   getDistributionConcurrency: "desktop:get-distribution-concurrency",
   setDistributionConcurrency: "desktop:set-distribution-concurrency",
+  /** 读取用户代理偏好（host/port + 开关） */
+  getProxySettings: "desktop:get-proxy-settings",
+  /** 保存并立即应用到 Electron Session */
+  setProxySettings: "desktop:set-proxy-settings",
+  /** 用当前填写的地址/端口探测代理连通性（不改已应用配置） */
+  testProxySettings: "desktop:test-proxy-settings",
   /** 读取头条文章编辑器的当前账号赞赏额度 */
   getToutiaoRewardPrivilege: "desktop:get-toutiao-reward-privilege",
   getBilibiliVideoOptions: "desktop:get-bilibili-video-options",

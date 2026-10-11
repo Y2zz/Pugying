@@ -79,11 +79,31 @@ const pugyingDesktop = {
     ipcRenderer.invoke(DESKTOP_IPC.getDistributionConcurrency),
   setDistributionConcurrency: (value: number): Promise<number> =>
     ipcRenderer.invoke(DESKTOP_IPC.setDistributionConcurrency, value),
+  getProxySettings: (): Promise<
+    import("@shared/proxy-settings").ProxySettings
+  > => ipcRenderer.invoke(DESKTOP_IPC.getProxySettings),
+  setProxySettings: (
+    value: import("@shared/proxy-settings").ProxySettings,
+  ): Promise<import("@shared/proxy-settings").ProxySettings> =>
+    ipcRenderer.invoke(DESKTOP_IPC.setProxySettings, value),
+  testProxySettings: (
+    value: Pick<
+      import("@shared/proxy-settings").ProxySettings,
+      "host" | "port"
+    >,
+  ): Promise<import("@shared/proxy-settings").ProxyTestResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.testProxySettings, value),
   getToutiaoRewardPrivilege: (
     accountId: string,
+    options?: { force?: boolean },
   ): Promise<
     import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
-  > => ipcRenderer.invoke(DESKTOP_IPC.getToutiaoRewardPrivilege, accountId),
+  > =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.getToutiaoRewardPrivilege,
+      accountId,
+      options,
+    ),
   postMessage: (message: unknown) => {
     ipcRenderer.send(DESKTOP_IPC.message, message);
   },

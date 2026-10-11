@@ -43,6 +43,11 @@ import {
   submitDistribution,
   updateDistributionConcurrency,
 } from "./distribution-service";
+import {
+  getProxySettings,
+  testProxySettings,
+  updateProxySettings,
+} from "./network-policy";
 
 function focusOrCreateAppWindow(): void {
   const win = getAppWindow();
@@ -150,10 +155,28 @@ export function wireDesktopIpc(): void {
       return updateDistributionConcurrency(value);
     },
   );
+  ipcMain.handle(DESKTOP_IPC.getProxySettings, (event) => {
+    if (event.sender !== getAppWindow()?.webContents) {
+      throw new Error("无法读取代理设置");
+    }
+    return getProxySettings();
+  });
+  ipcMain.handle(DESKTOP_IPC.setProxySettings, (event, value: unknown) => {
+    if (event.sender !== getAppWindow()?.webContents) {
+      throw new Error("无法保存代理设置");
+    }
+    return updateProxySettings(value);
+  });
+  ipcMain.handle(DESKTOP_IPC.testProxySettings, (event, value: unknown) => {
+    if (event.sender !== getAppWindow()?.webContents) {
+      throw new Error("无法测试代理");
+    }
+    return testProxySettings(value);
+  });
 
   ipcMain.handle(
     DESKTOP_IPC.getToutiaoRewardPrivilege,
-    async (event, accountId: unknown) => {
+    async (event, accountId: unknown, options?: unknown) => {
       if (
         event.sender !== getAppWindow()?.webContents ||
         typeof accountId !== "string" ||
@@ -163,7 +186,11 @@ export function wireDesktopIpc(): void {
       ) {
         return null;
       }
-      return fetchToutiaoRewardPrivilege(accountId);
+      const force =
+        options !== null &&
+        typeof options === "object" &&
+        (options as { force?: unknown }).force === true;
+      return fetchToutiaoRewardPrivilege(accountId, force ? { force: true } : undefined);
     },
   );
 
