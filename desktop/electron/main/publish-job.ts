@@ -23,6 +23,22 @@ interface ActivePublish {
 const active = new Map<string, ActivePublish>();
 let concurrency = DEFAULT_DISTRIBUTION_CONCURRENCY;
 
+/**
+ * 并发 start 时复用同一次 dynamic import Promise。
+ * Vitest 对同一模块并发 import() 偶发绕过 vi.mock，导致部分任务打到真实适配器。
+ */
+const adapterImports = new Map<string, Promise<unknown>>();
+
+function loadAdapter<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  const existing = adapterImports.get(key) as Promise<T> | undefined;
+  if (existing) {
+    return existing;
+  }
+  const pending = loader();
+  adapterImports.set(key, pending);
+  return pending;
+}
+
 export function setPublishConcurrency(value: number): void {
   concurrency = value;
 }
@@ -153,7 +169,7 @@ export function startPublishJob(options: {
   const runAdapter =
     contentType === "graphic"
       ? () =>
-          import("./platforms/publish-graphic").then(
+          loadAdapter("graphic", () => import("./platforms/publish-graphic")).then(
             ({ runPlatformGraphicPublish }) =>
               runPlatformGraphicPublish({
                 payload,
@@ -163,66 +179,72 @@ export function startPublishJob(options: {
           )
       : contentType === "article"
         ? () =>
-            import("./platforms/publish-article").then(
-              ({ runPlatformArticlePublish }) =>
-                runPlatformArticlePublish({
-                  payload: articlePayload,
-                  article: prepareArticleDocument(
-                    articleHtml || "",
-                    payload.mediaPaths || [],
-                  ),
-                  onProgress: options.onProgress,
-                  signal,
-                }),
+            loadAdapter("article", () =>
+              import("./platforms/publish-article"),
+            ).then(({ runPlatformArticlePublish }) =>
+              runPlatformArticlePublish({
+                payload: articlePayload,
+                article: prepareArticleDocument(
+                  articleHtml || "",
+                  payload.mediaPaths || [],
+                ),
+                onProgress: options.onProgress,
+                signal,
+              }),
             )
         : payload.platform === "channels"
           ? () =>
-              import("./platforms/publish-channels-video").then(
-                ({ runChannelsVideoPublish }) =>
-                  runChannelsVideoPublish({
+              loadAdapter("channels-video", () =>
+                import("./platforms/publish-channels-video"),
+              ).then(({ runChannelsVideoPublish }) =>
+                runChannelsVideoPublish({
+                  payload,
+                  onProgress: options.onProgress,
+                  signal,
+                }),
+              )
+          : payload.platform === "xiaohongshu"
+            ? () =>
+                loadAdapter("xiaohongshu-video", () =>
+                  import("./platforms/publish-xiaohongshu-video"),
+                ).then(({ runXiaohongshuVideoPublish }) =>
+                  runXiaohongshuVideoPublish({
                     payload,
                     onProgress: options.onProgress,
                     signal,
                   }),
-              )
-          : payload.platform === "xiaohongshu"
-            ? () =>
-                import("./platforms/publish-xiaohongshu-video").then(
-                  ({ runXiaohongshuVideoPublish }) =>
-                    runXiaohongshuVideoPublish({
+                )
+            : payload.platform === "toutiao"
+              ? () =>
+                  loadAdapter("toutiao-video", () =>
+                    import("./platforms/publish-toutiao-video"),
+                  ).then(({ runToutiaoVideoPublish }) =>
+                    runToutiaoVideoPublish({
                       payload,
                       onProgress: options.onProgress,
                       signal,
                     }),
-                )
-            : payload.platform === "toutiao"
-              ? () =>
-                  import("./platforms/publish-toutiao-video").then(
-                    ({ runToutiaoVideoPublish }) =>
-                      runToutiaoVideoPublish({
+                  )
+              : payload.platform === "bilibili"
+                ? () =>
+                    loadAdapter("bilibili-video", () =>
+                      import("./platforms/publish-bilibili-video"),
+                    ).then(({ runBilibiliVideoPublish }) =>
+                      runBilibiliVideoPublish({
                         payload,
                         onProgress: options.onProgress,
                         signal,
                       }),
-                  )
-              : payload.platform === "bilibili"
-                ? () =>
-                    import("./platforms/publish-bilibili-video").then(
-                      ({ runBilibiliVideoPublish }) =>
-                        runBilibiliVideoPublish({
-                          payload,
-                          onProgress: options.onProgress,
-                          signal,
-                        }),
                     )
                 : () =>
-                    import("./platforms/publish-douyin-http").then(
-                      ({ runDouyinHttpPublish }) =>
-                        runDouyinHttpPublish({
-                          payload,
-                          onProgress: options.onProgress,
-                          signal,
-                        }),
+                    loadAdapter("douyin-http", () =>
+                      import("./platforms/publish-douyin-http"),
+                    ).then(({ runDouyinHttpPublish }) =>
+                      runDouyinHttpPublish({
+                        payload,
+                        onProgress: options.onProgress,
+                        signal,
+                      }),
                     );
 
   void runAdapter()
