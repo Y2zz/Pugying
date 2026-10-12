@@ -1405,10 +1405,10 @@ export function EditCoverDialog({
                 <span>{formatVideoTime(duration)}</span>
               </div>
               {sourceHint ? (
-                <p className="mt-1 text-xs text-muted-foreground">{sourceHint}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{sourceHint}</p>
               ) : null}
               {filmTrivial ? (
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-2 text-sm text-muted-foreground">
                   视频过短，胶片仅保留起始帧
                 </p>
               ) : null}
@@ -1422,7 +1422,7 @@ export function EditCoverDialog({
                 当前无视频预览，请上传封面图。
               </div>
               {sourceHint ? (
-                <p className="mt-2 text-xs text-muted-foreground">{sourceHint}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{sourceHint}</p>
               ) : null}
             </div>
           )}
@@ -1430,7 +1430,7 @@ export function EditCoverDialog({
           <Button
             type="button"
             variant="outline"
-            className="flex shrink-0 flex-col gap-0 px-1 text-[10px] leading-tight"
+            className="flex shrink-0 flex-col gap-0.5 px-1 text-xs leading-tight"
             style={{ height: FILMSTRIP_H, width: FILMSTRIP_H }}
             disabled={saving}
             onClick={onUploadClick}

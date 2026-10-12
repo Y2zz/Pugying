@@ -15,6 +15,52 @@ const pugyingDesktop = {
   ): Promise<
     import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
   > => ipcRenderer.invoke(DESKTOP_IPC.getBilibiliVideoOptions, accountId),
+  searchDouyinTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchDouyinTopics, accountId, keyword),
+  searchBilibiliAnthologies: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchBilibiliAnthologies,
+      accountId,
+      keyword,
+    ),
+  searchDouyinCollections: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinCollections,
+      accountId,
+      keyword,
+    ),
+  searchDouyinLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinLocations,
+      accountId,
+      keyword,
+    ),
+  searchBilibiliTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchBilibiliTopics, accountId, keyword),
+  searchToutiaoLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchToutiaoLocations,
+      accountId,
+      keyword,
+    ),
   getDistributionSnapshot: (): Promise<
     import("@shared/distribution").DistributionSnapshot
   > => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),
@@ -33,11 +79,31 @@ const pugyingDesktop = {
     ipcRenderer.invoke(DESKTOP_IPC.getDistributionConcurrency),
   setDistributionConcurrency: (value: number): Promise<number> =>
     ipcRenderer.invoke(DESKTOP_IPC.setDistributionConcurrency, value),
+  getProxySettings: (): Promise<
+    import("@shared/proxy-settings").ProxySettings
+  > => ipcRenderer.invoke(DESKTOP_IPC.getProxySettings),
+  setProxySettings: (
+    value: import("@shared/proxy-settings").ProxySettings,
+  ): Promise<import("@shared/proxy-settings").ProxySettings> =>
+    ipcRenderer.invoke(DESKTOP_IPC.setProxySettings, value),
+  testProxySettings: (
+    value: Pick<
+      import("@shared/proxy-settings").ProxySettings,
+      "host" | "port"
+    >,
+  ): Promise<import("@shared/proxy-settings").ProxyTestResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.testProxySettings, value),
   getToutiaoRewardPrivilege: (
     accountId: string,
+    options?: { force?: boolean },
   ): Promise<
     import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
-  > => ipcRenderer.invoke(DESKTOP_IPC.getToutiaoRewardPrivilege, accountId),
+  > =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.getToutiaoRewardPrivilege,
+      accountId,
+      options,
+    ),
   postMessage: (message: unknown) => {
     ipcRenderer.send(DESKTOP_IPC.message, message);
   },

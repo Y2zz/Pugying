@@ -23,14 +23,12 @@
 
 ## Cookie 接口发布（2026-10-06）
 
-- 桌面 main 为每个账号任务创建独立、非持久化 Chromium 会话，注入绑定账号的 Cookie。隐藏页面承载平台当前的签名与上传 SDK，发布直接调用平台接口，不填表或点击发布；平台要求验证时显示官方验证窗口。任务结束清除 Cookie、存储、缓存并关闭连接。
-- 抖音：正文转换为 Markdown，正文图片引用上传 URI；向 `/web/api/media/aweme/create_v2/` 提交 `media_type=43` 与 `long_article_version=1`。带标题、摘要、封面、自由文本话题、可见范围和定时时间。当前提交校验要求正文至少 100 字，最多 20,000 字。
-- 头条：正文转换为平台 HTML，图片携带上传地址、URI 与尺寸；向 `/mp/agw/article/publish` 提交表单。`save=1` 为发布，传入有序的单图/三图/无封面、广告、首发、赞赏、同步微头条与作品声明。执行前重新读取赞赏额度与发布策略；不满足已选择的权益时停止提交，避免静默改变设置。当前平台仅选一项作品声明，引用平台内容需来源账号，尚无对应资源选择器时提示用户在创作者中心完成。
-- B 站：使用新版 `/x/dynamic/feed/create/opus`，正文为 opus 段落 JSON，包含图片、标题、引用、列表、代码和内联样式。使用当前账号的 `bili_jct`、WBI 参数和官方环境 SDK，提交自定义封面、评论、原创、可见范围与定时时间；不套用旧专栏 draft/submit 接口。
-- 只有平台明确成功且返回有效作品编号才记录成功。平台拒绝、登录失效与验证要求返回可读提示；提交断线、超时或缺失编号记录为“尚未确认发布结果”，先到平台核对，不能自动重复提交。取消已发出的请求会等待回执，确定成功的结果不会被覆盖为取消。
+- **对接要求**（与图文一致）：Cookie HTTP 直调；上传与签名在主进程解决，**禁止**隐藏窗承载页面 SDK。平台要求二次验证时仍显示官方窗口。
+- 抖音文章（2026-10-10）：已改为与图文共用 Cookie 客户端——`auth/v5` → ImageX（AWS4）上传正文图与封面 → 主进程官方 bdms 为 `create_v2` 补 `a_bogus`；正文转 Markdown，`media_type=43`、`long_article_version=1`。带标题、摘要、封面、话题、可见范围和定时。正文至少 100 字、最多 20,000 字。`LIVE_DOUYIN_ARTICLE=1` 实跑见 `output/graphic-publish-test/douyin-article-cookie-live.json`。
+- 头条文章（2026-10-10）：已改为 Cookie 直调——`/spice/image?upload_source=20020003` 上传 → form-urlencoded `/mp/agw/article/publish`（实跑无需 byted_acrawler / 隐藏窗）。赞赏额度从发布页 HTML 的 `praise_count_remained` 解析。`save=1` 为发布；位置仍为 Cookie 直拉城市列表。`LIVE_TOUTIAO_ARTICLE=1` 实跑见 `output/graphic-publish-test/toutiao-article-cookie-live.json`。
+- B 站文章（2026-10-10）：已改为 Cookie 直调——主进程 WBI 签名 + `upload_bfs` + `/x/dynamic/feed/create/opus`（实跑确认 `csrf`/`gaia_source`/`dm_img_switch=0` 即可，无需页面 SecureCollectSDK；探针取得 `dyn_id_str=1257524849050386434`）。遇 `-352` 提示用户到创作者中心验证；日投稿上限返回可读提示。文集列表探测仍为 Cookie。`LIVE_BILIBILI_ARTICLE=1` 可实跑。
+- 只有平台明确成功且返回有效作品编号才记录成功。平台拒绝、登录失效与验证要求返回可读提示；提交断线、超时或缺失编号记录为“尚未确认发布结果”，先到平台核对，不能自动重复提交。
 - 文章、图文和视频始终走真实平台适配器，不再提供模拟成功的环境开关。
-- 抖音使用原生客户端签名与二次验证；B 站明确拒绝且提供验证凭据时运行官方验证 SDK，完成后重新签名、最多重提一次。未知结果不走该重试流程。
-- 抖音初始化会按需加载当前上传模块，并为每次探测使用独立标识；授权失效在原网址显示登录页时，也会提示重新授权。平台脚本协议变化或初始化超时会在提交前停止。
 
 ### 真实提交验收
 

@@ -1,0 +1,10 @@
+{
+  "requestId": "live-bili-article-1791628847907",
+  "targetId": "live-bili-article",
+  "platform": "bilibili",
+  "ok": false,
+  "errorCode": "ARTICLE_PUBLISH_LIMIT_REACHED",
+  "error": "今日投稿次数已用完，请额度恢复后重试",
+  "accountId": "94ca24d7-1167-46fc-a795-f5b686d43a68",
+  "at": "2026-10-10T10:40:48.084Z"
+}

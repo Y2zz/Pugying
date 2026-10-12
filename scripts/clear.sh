@@ -2,12 +2,13 @@
 # 清理项目依赖、构建产物和测试缓存；可从任意目录调用。
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 脚本位于 scripts/，仓库根目录为其上一级
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DRY_RUN=0
 
 usage() {
   cat <<'EOF'
-用法: ./clear.sh [--dry-run]
+用法: ./scripts/clear.sh [--dry-run]
 
 选项:
   --dry-run    仅列出待清理路径，不删除

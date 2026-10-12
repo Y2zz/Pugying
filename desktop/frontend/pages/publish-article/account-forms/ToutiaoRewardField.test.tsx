@@ -71,4 +71,5 @@ it('shows failure without invented quota and allows a retry', async () => {
   );
   await userEvent.setup().click(screen.getByRole('button', { name: '刷新' }));
   await screen.findByRole('checkbox', { name: '允许赞赏（今日还有2次机会）' });
+  expect(read).toHaveBeenLastCalledWith('a', { force: true });
 });

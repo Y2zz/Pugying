@@ -43,7 +43,7 @@ function setup(overrides: Partial<PlatformPublishStartPayload> = {}) {
     ),
     dispose: vi.fn(async () => {}),
   };
-  const createSession = vi.fn(async () => api);
+  const createSession = vi.fn(async (_options) => api);
   const input = {
     payload,
     signal: { cancelled: false },
@@ -56,7 +56,10 @@ function setup(overrides: Partial<PlatformPublishStartPayload> = {}) {
 it('uploads the video and both covers, submits official fields and only succeeds with an exact platform receipt', async () => {
   const { api, input } = setup();
   const result = await runDouyinHttpPublish(input);
-  expect(api.uploadVideo).toHaveBeenCalledWith('/video.mp4');
+  expect(api.uploadVideo).toHaveBeenCalledWith(
+    '/video.mp4',
+    expect.objectContaining({ onProgress: expect.any(Function) }),
+  );
   expect(api.uploadImage.mock.calls.map(([path]) => path)).toEqual([
     '/portrait.jpg',
     '/landscape.jpg',
@@ -112,6 +115,40 @@ it('uploads the video and both covers, submits official fields and only succeeds
     platformUrl: 'https://www.douyin.com/video/7693773543242304768',
   });
   expect(api.dispose).toHaveBeenCalledOnce();
+});
+
+it('attaches the selected Douyin collection as mix on create_v2', async () => {
+  const { api, input } = setup({
+    collectionRef: { id: '7693814736445508899', name: '日常合集' },
+    topicRefs: [{ id: '1234', name: '日常' }],
+  });
+  expect((await runDouyinHttpPublish(input)).ok).toBe(true);
+  expect(api.request).toHaveBeenLastCalledWith(
+    '/web/api/media/aweme/create_v2/',
+    expect.objectContaining({
+      item: expect.objectContaining({
+        mix: { mix_id: '7693814736445508899', mix_order: 0 },
+      }),
+    }),
+  );
+});
+
+it('attaches the selected Douyin location as poi on create_v2', async () => {
+  const { api, input } = setup({
+    locationRef: { id: '6601', name: '上海外滩' },
+  });
+  expect((await runDouyinHttpPublish(input)).ok).toBe(true);
+  expect(api.request).toHaveBeenLastCalledWith(
+    '/web/api/media/aweme/create_v2/',
+    expect.objectContaining({
+      item: expect.objectContaining({
+        common: expect.objectContaining({
+          poi_id: '6601',
+          poi_name: '上海外滩',
+        }),
+      }),
+    }),
+  );
 });
 
 it('uses the uploaded first frame when covers are absent and maps friends/schedule/download settings', async () => {

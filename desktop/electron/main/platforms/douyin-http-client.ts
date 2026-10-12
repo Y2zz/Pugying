@@ -1,5 +1,5 @@
-import { net } from 'electron';
 import type { AgentCookie } from '../protocol';
+import { platformOutboundFetch } from '../network-policy';
 
 export type DouyinHttpErrorCode =
   | 'AUTH_EXPIRED'
@@ -41,10 +41,11 @@ const electronNetTransport: DouyinHttpTransport = {
     }, options.timeoutMs);
 
     try {
-      const response = await net.fetch(options.url, {
+      const response = await platformOutboundFetch(options.url, {
         method: options.method,
         headers: options.headers,
-        body: options.body,
+        // Uint8Array<ArrayBufferLike> 与 DOM BodyInit 的 BufferSource 泛型不完全兼容
+        body: options.body as BodyInit | undefined,
         signal: controller.signal,
       });
       const headers: Record<string, string> = {};
@@ -131,7 +132,8 @@ export class DouyinHttpClient {
       );
     }
 
-    if (response.status === 401 || response.status === 403) {
+    // 仅 401 视为登录失效；403 不能当掉登录（提交作品风控也会 403）
+    if (response.status === 401) {
       throw new DouyinHttpError(
         'AUTH_EXPIRED',
         '抖音登录已失效，请重新授权媒体账号',

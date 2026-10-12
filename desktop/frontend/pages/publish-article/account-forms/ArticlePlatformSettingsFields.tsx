@@ -199,7 +199,7 @@ export function ArticlePlatformSettingsFields({
           <FieldGroup className="gap-3">
             {booleanField("exclusive", "头条首发")}
             {value.exclusive ? (
-              <FieldDescription className="text-xs">
+              <FieldDescription>
                 首发要求 72 小时内仅在头条发布，请确认其他平台的发布时间。
               </FieldDescription>
             ) : null}

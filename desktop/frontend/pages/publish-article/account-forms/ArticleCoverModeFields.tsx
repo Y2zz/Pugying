@@ -85,7 +85,7 @@ export function ToutiaoArticleCoverField({
                     );
                   }}
                 />
-                <span className="text-xs text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {own
                     ? "单独设置"
                     : coverSlotReady(slot)
@@ -174,14 +174,12 @@ export function BilibiliArticleCoverField({
             patch={patch}
             isRequired={() => true}
           />
-          <FieldDescription className="text-xs">
+          <FieldDescription>
             JPG、PNG，建议不低于 600 × 336 像素
           </FieldDescription>
         </>
       ) : (
-        <FieldDescription className="text-xs">
-          封面由正文开头文字生成
-        </FieldDescription>
+        <FieldDescription>封面由正文开头文字生成</FieldDescription>
       )}
     </FieldGroup>
   );

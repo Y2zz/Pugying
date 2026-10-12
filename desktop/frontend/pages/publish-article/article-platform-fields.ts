@@ -73,7 +73,8 @@ export const ARTICLE_PLATFORM_FIELDS: {
     bodyPlainMax: 100_000,
     cover: { mode: 'landscape_4_3', required: false, allowFromFirstImage: true },
     secondaryCover: null,
-    tags: { enabled: false, maxCount: 0 },
+    // 专栏话题为官方单选资源，保存 topicRefs（最多 1 条）
+    tags: { enabled: true, maxCount: 1 },
     visibility: ['public', 'private'],
     schedule: { enabled: true, minHours: 2, maxDays: 7 },
     location: { enabled: false },

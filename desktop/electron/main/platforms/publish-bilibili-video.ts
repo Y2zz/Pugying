@@ -7,7 +7,6 @@ import type {
 } from "../publish-protocol";
 import {
   ArticleApiError,
-  articleRecord,
   assertArticleActive,
 } from "./article-api";
 import type { CookiePublishSessionOptions } from "./article-api-session";
@@ -17,6 +16,11 @@ import {
   buildBilibiliVideoSubmission,
   parseBilibiliVideoReceipt,
 } from "./bilibili-video-contract";
+import { normalizeBilibiliArchivePre } from "./bilibili-video-options";
+import {
+  throttleVideoUploadProgress,
+  videoUploadProgressFields,
+} from "./upload-progress";
 
 const SUBMIT_DIAG = join(tmpdir(), "pugying-xhs-upload-diag.log");
 
@@ -88,15 +92,20 @@ export async function runBilibiliVideoPublish(
       throw new ArticleApiError("invalid_payload", "请重新选择创作声明");
     }
     emit("opening_creator", "连接发布平台");
+    // 默认 Cookie + UPOS stdSlice；可注入会话以单测（无隐藏窗）。
     const factory =
       options.createSession ??
-      (await import("./article-api-session")).createArticleApiSession;
+      (async () => {
+        const { BilibiliVideoClient } = await import("./bilibili-video-client");
+        return new BilibiliVideoClient(options.payload.cookies);
+      });
     api = await factory("bilibili", options);
     const config = await api.request("/x/vupre/web/archive/pre");
-    if (config.code !== 0 || articleRecord(config.data).isLogin !== true) {
+    const preData = normalizeBilibiliArchivePre(config);
+    if (!preData) {
       throw new ArticleApiError("AUTH_EXPIRED", "账号登录已失效，请重新授权");
     }
-    const current = parseBilibiliVideoOptions(config.data);
+    const current = parseBilibiliVideoOptions(preData);
     if (
       !current?.partitions.some((item) => item.id === settings.partitionId) ||
       (settings.creationStatementId !== undefined &&
@@ -110,7 +119,12 @@ export async function runBilibiliVideoPublish(
       );
     }
     emit("uploading", "上传视频与封面");
-    const video = await api.uploadVideo(paths[0]);
+    const video = await api.uploadVideo(paths[0], {
+      onProgress: throttleVideoUploadProgress((progress) => {
+        assertArticleActive(signal);
+        onProgress({ ...base, ...videoUploadProgressFields(progress) });
+      }),
+    });
     const cover = await api.uploadImage(coverPath);
     const data = buildBilibiliVideoSubmission({
       ...input,

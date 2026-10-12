@@ -263,6 +263,8 @@ class FakeWebRequest {
 class FakeSession {
   cookies = new FakeCookies();
   webRequest = new FakeWebRequest();
+  /** Last config passed to setProxy — mock-only, for assertions. */
+  lastProxyConfig: unknown = null;
   /** Default mirrors Electron's bundled Chromium + Electron tag for UA tests. */
   private userAgent =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) pugying-desktop/0.0.2 Chrome/152.0.7977.130 Electron/44.5.1 Safari/537.36';
@@ -275,12 +277,25 @@ class FakeSession {
     this.userAgent = userAgent;
   }
 
+  setProxy(config: unknown): Promise<void> {
+    this.lastProxyConfig = config;
+    return Promise.resolve();
+  }
+
+  setPermissionRequestHandler(
+    _handler: ((...args: unknown[]) => void) | null,
+  ): void {}
+
   clearCache(): Promise<void> {
     return Promise.resolve();
   }
 
   clearStorageData(_options?: unknown): Promise<void> {
     this.cookies.store = [];
+    return Promise.resolve();
+  }
+
+  closeAllConnections(): Promise<void> {
     return Promise.resolve();
   }
 
@@ -349,6 +364,16 @@ export const app = {
     list.push(listener);
     appListeners.set(event, list);
     return app;
+  },
+  /** Test helper: fire registered app listeners. */
+  emit(event: string, ...args: unknown[]): void {
+    for (const listener of appListeners.get(event) ?? []) {
+      listener(...args);
+    }
+  },
+  /** Test helper: drop all app listeners between cases. */
+  clearListeners(): void {
+    appListeners.clear();
   },
   quit(): void {},
 };
@@ -425,25 +450,53 @@ export class Notification {
 
 class FakeNativeImage {
   private empty: boolean;
+  private width: number;
+  private height: number;
 
-  constructor(empty: boolean) {
+  constructor(empty: boolean, width = 0, height = 0) {
     this.empty = empty;
+    this.width = width;
+    this.height = height;
   }
 
   isEmpty(): boolean {
     return this.empty;
   }
 
+  getSize(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
+
   resize(_options: { width?: number; height?: number }): FakeNativeImage {
-    return new FakeNativeImage(this.empty);
+    return new FakeNativeImage(this.empty, this.width, this.height);
   }
 
   setTemplateImage(_flag: boolean): void {}
 }
 
+function pngSizeFromBuffer(buf: Buffer): { width: number; height: number } | null {
+  if (
+    buf.length >= 24 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  return null;
+}
+
 export const nativeImage = {
   createFromPath(_path: string): FakeNativeImage {
-    return new FakeNativeImage(false);
+    return new FakeNativeImage(false, 1, 1);
+  },
+  createFromBuffer(buf: Buffer): FakeNativeImage {
+    const size = pngSizeFromBuffer(buf);
+    if (size && size.width > 0 && size.height > 0) {
+      return new FakeNativeImage(false, size.width, size.height);
+    }
+    return new FakeNativeImage(true);
   },
   createEmpty(): FakeNativeImage {
     return new FakeNativeImage(true);

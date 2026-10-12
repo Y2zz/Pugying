@@ -194,7 +194,7 @@ export async function startLocalServer(): Promise<string> {
     return apiBaseUrl;
   }
 
-  // 开发：由 start.sh / 手动起 Nest watch 时，客户端只探活、不重复拉起
+  // 开发：由 scripts/start.sh / 手动起 Nest watch 时，客户端只探活、不重复拉起
   if (process.env.PUGYING_EXTERNAL_SERVER === '1') {
     const external =
       process.env.PUGYING_API_BASE_URL?.trim() ||

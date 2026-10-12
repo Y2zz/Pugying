@@ -90,6 +90,18 @@ it("does not resubmit when the platform receipt is missing", async () => {
   expect(request).toHaveBeenCalledOnce();
 });
 
+it("accepts Cookie success receipts that omit code", async () => {
+  const { options, request } = fixture();
+  request.mockResolvedValueOnce({
+    success: true,
+    data: { id: "6aca22f3000000001203530a" },
+  });
+  expect(await runXiaohongshuVideoPublish(options)).toMatchObject({
+    ok: true,
+    platformPostId: "6aca22f3000000001203530a",
+  });
+});
+
 it("rejects incompatible visibility before uploading", async () => {
   const { options, uploadVideo } = fixture();
   expect(

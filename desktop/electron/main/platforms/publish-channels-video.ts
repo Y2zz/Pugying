@@ -13,6 +13,10 @@ import {
   ChannelsGraphicClient,
   type ChannelsHttpTransport,
 } from './channels-graphic-client';
+import {
+  throttleVideoUploadProgress,
+  videoUploadProgressFields,
+} from './upload-progress';
 
 const MAX_DESC = 1000;
 const SHORT_TITLE_MIN = 6;
@@ -115,7 +119,12 @@ export async function runChannelsVideoPublish(
     emit('uploading', '上传视频');
     const uploadStarted = Math.floor(Date.now() / 1000);
     const uploadT0 = Date.now();
-    const video = await client.uploadVideo(videoPath);
+    const video = await client.uploadVideo(videoPath, {
+      onProgress: throttleVideoUploadProgress((progress) => {
+        assertArticleActive(signal);
+        onProgress({ ...base, ...videoUploadProgressFields(progress) });
+      }),
+    });
     assertArticleActive(signal);
     emit('uploading', '上传封面');
     const cover = await client.uploadImage(coverPath);

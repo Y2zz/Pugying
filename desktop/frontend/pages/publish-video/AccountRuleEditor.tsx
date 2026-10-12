@@ -4,6 +4,7 @@ import {
   DOUYIN_AUTHOR_DECLARATIONS,
   composeDouyinGraphicDescription,
 } from "@shared/douyin-graphic-settings";
+import { topicNames } from "@shared/platform-resource";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import {
   Field,
@@ -16,6 +17,9 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { ArticleRadioField } from "../publish-article/account-forms/ArticleRadioField";
+import { DouyinTopicField } from "../publish-article/account-forms/DouyinTopicField";
+import { DouyinCollectionField } from "./DouyinCollectionField";
+import { DouyinLocationField } from "./DouyinLocationField";
 import { formatLocalDateTime, getDateTimeWindow } from "@/lib/date-time";
 import type { PlatformAccountItem } from "@/lib/api";
 import { CharCountInput, CharCountTextarea } from "./CharCountFields";
@@ -26,7 +30,7 @@ import {
   BODY_MAX,
   TITLE_MAX,
   VISIBILITY_OPTIONS,
-  parseTags,
+  draftTagNames,
   localInputToIso,
   validateSchedule,
   type CoverKind,
@@ -154,7 +158,7 @@ export function AccountOverrideForm({
     : resolvedTitle.length > titleMax
       ? `标题最多 ${titleMax} 字`
       : "";
-  const tags = parseTags(draft.tagsText);
+  const tags = draftTagNames(draft);
   const bodyError =
     (bilibili
       ? (draft.body.trim() || commonBody).length
@@ -214,7 +218,7 @@ export function AccountOverrideForm({
 
           <Field>
             <FieldTitle className="font-normal">封面</FieldTitle>
-            <div className="mt-2 flex flex-wrap items-start gap-4">
+            <div className="flex flex-wrap items-start gap-4">
               <div className="flex flex-col gap-2">
                 <ArticleCoverThumb
                   aspect="portrait"
@@ -225,7 +229,7 @@ export function AccountOverrideForm({
                     onEditCover("cover");
                   }}
                 />
-                <span className="text-xs text-muted-foreground">竖版 3:4</span>
+                <span className="text-sm text-muted-foreground">竖版 3:4</span>
               </div>
               {!portraitOnly ? (
                 <div className="flex flex-col gap-2">
@@ -238,18 +242,16 @@ export function AccountOverrideForm({
                       onEditCover("cover_landscape");
                     }}
                   />
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     横版 4:3
                   </span>
                 </div>
               ) : null}
             </div>
             {!accountCoverReady && (portraitOnly || !accountLandscapeReady) ? (
-              <p className="mt-2 text-xs text-muted-foreground">沿用通用封面</p>
+              <p className="text-sm text-muted-foreground">沿用通用封面</p>
             ) : (
-              <p className="mt-2 text-xs text-muted-foreground">
-                已单独设置封面
-              </p>
+              <p className="text-sm text-muted-foreground">已单独设置封面</p>
             )}
           </Field>
 
@@ -273,7 +275,38 @@ export function AccountOverrideForm({
               }}
             />
           </Field>
-          {((!xiaohongshu && !toutiao) || tags.length > 0) && (
+          {account.platform === "douyin" ? (
+            <>
+              <DouyinTopicField
+                accountId={account.id}
+                value={draft.topicRefs}
+                maxCount={5}
+                disabled={disabled}
+                onChange={(topicRefs) => {
+                  patch({
+                    topicRefs,
+                    tagsText: topicNames(topicRefs).join(" "),
+                  });
+                }}
+              />
+              <DouyinCollectionField
+                accountId={account.id}
+                value={draft.collectionRefs}
+                disabled={disabled}
+                onChange={(collectionRefs) => {
+                  patch({ collectionRefs });
+                }}
+              />
+              <DouyinLocationField
+                accountId={account.id}
+                value={draft.locationRefs}
+                disabled={disabled}
+                onChange={(locationRefs) => {
+                  patch({ locationRefs });
+                }}
+              />
+            </>
+          ) : ((!xiaohongshu && !toutiao) || tags.length > 0) && (
             <Field>
               <FieldLabel
                 className="font-normal"
@@ -286,7 +319,10 @@ export function AccountOverrideForm({
                 value={tags}
                 disabled={disabled}
                 onChange={(next) => {
-                  patch({ tagsText: next.join(" ") });
+                  patch({
+                    tagsText: next.join(" "),
+                    topicRefs: [],
+                  });
                 }}
               />
             </Field>

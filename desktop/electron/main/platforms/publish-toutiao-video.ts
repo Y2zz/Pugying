@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import type {
+  PlatformPublishProgressPayload,
   PlatformPublishResultPayload,
   PlatformPublishStartPayload,
 } from "../publish-protocol";
@@ -9,20 +10,25 @@ import {
   articleRecord,
   assertArticleActive,
 } from "./article-api";
-import type { CookiePublishSessionOptions } from "./article-api-session";
 import type { VideoApiSession } from "./video-api";
+import {
+  throttleVideoUploadProgress,
+  videoUploadProgressFields,
+} from "./upload-progress";
 
-interface Options extends CookiePublishSessionOptions {
+export interface ToutiaoVideoPublishOptions {
   payload: PlatformPublishStartPayload;
+  onProgress: (progress: PlatformPublishProgressPayload) => void;
+  signal: { cancelled: boolean };
+  /** 可注入会话以单测；生产默认 Cookie + VAS object 上传（无隐藏窗）。 */
   createSession?: (
-    platform: "toutiao",
-    options: CookiePublishSessionOptions,
-  ) => Promise<VideoApiSession>;
+    options: ToutiaoVideoPublishOptions,
+  ) => Promise<VideoApiSession> | VideoApiSession;
 }
 
-/** 当前西瓜视频投稿契约；上传成功不替代投稿回执。 */
+/** Cookie 直调 VAS object 上传与 PublishVideo；主进程完成，无隐藏窗。 */
 export async function runToutiaoVideoPublish(
-  options: Options,
+  options: ToutiaoVideoPublishOptions,
 ): Promise<PlatformPublishResultPayload> {
   const { payload, signal, onProgress } = options;
   const base = {
@@ -83,8 +89,13 @@ export async function runToutiaoVideoPublish(
     emit("opening_creator", "连接发布平台");
     const factory =
       options.createSession ??
-      (await import("./article-api-session")).createArticleApiSession;
-    api = await factory("toutiao", options);
+      (async () => {
+        const { createToutiaoVideoClient } = await import(
+          "./toutiao-video-client"
+        );
+        return createToutiaoVideoClient(options.payload.cookies);
+      });
+    api = await factory(options);
     const auth = await api.request("/xigua/api/upload/GetPublishAuth");
     if (auth.status === -12) {
       throw new ArticleApiError("AUTH_EXPIRED", "账号登录已失效，请重新授权");
@@ -103,7 +114,12 @@ export async function runToutiaoVideoPublish(
       );
     }
     emit("uploading", "上传视频");
-    const video = await api.uploadVideo(paths[0]);
+    const video = await api.uploadVideo(paths[0], {
+      onProgress: throttleVideoUploadProgress((progress) => {
+        assertArticleActive(signal);
+        onProgress({ ...base, ...videoUploadProgressFields(progress) });
+      }),
+    });
     const config = articleRecord(authData.authorConfig);
     const portrait = video.width < video.height;
     const min = config[portrait ? "TtVideoTitleLenMin" : "XgVideoTitleLenMin"];
@@ -131,21 +147,11 @@ export async function runToutiaoVideoPublish(
       : undefined;
     const upload = (video as { uploadResult?: Record<string, unknown> })
       .uploadResult;
+    // object 上传只带 Uri；VOD Provider 会导致 PublishVideo 21028
     const provider =
       (video as { provider?: unknown }).provider ??
       upload?.Provider ??
       upload?.provider;
-    try {
-      const { appendFileSync } = await import("node:fs");
-      const { tmpdir } = await import("node:os");
-      const { join } = await import("node:path");
-      appendFileSync(
-        join(tmpdir(), "pugying-toutiao-video-diag.log"),
-        `${new Date().toISOString()} upload keys=${upload ? Object.keys(upload).join(",") : ""} provider=${String(provider ?? "")} uri=${String(upload?.Uri ?? "").slice(0, 80)} mid=${String(upload?.Mid ?? "")} meta=${JSON.stringify(upload?.VideoMeta ?? null).slice(0, 400)} vid=${String(video.vid).slice(0, 48)}\n`,
-      );
-    } catch {
-      /* 诊断落盘失败不影响发布 */
-    }
     const data = {
       ItemId: "",
       Title: title,
@@ -200,17 +206,6 @@ export async function runToutiaoVideoPublish(
       throw new ArticleApiError("AUTH_EXPIRED", "账号登录已失效，请重新授权");
     }
     if (response.status !== 0 || receipt.Code !== 0) {
-      try {
-        const { appendFileSync } = await import("node:fs");
-        const { tmpdir } = await import("node:os");
-        const { join } = await import("node:path");
-        appendFileSync(
-          join(tmpdir(), "pugying-toutiao-video-diag.log"),
-          `${new Date().toISOString()} publish status=${String(response?.status)} code=${String(receipt?.Code)} msg=${String(receipt?.Message ?? receipt?.Msg ?? response?.message ?? "").slice(0, 200)} keys=${Object.keys(receipt || {}).join(",")} duration=${String(video.duration)} vid=${String(video.vid).slice(0, 40)}\n`,
-        );
-      } catch {
-        /* 诊断落盘失败不影响错误本身 */
-      }
       const known =
         (typeof response.status === "number" && response.status !== 0) ||
         (typeof receipt.Code === "number" && receipt.Code !== 0);

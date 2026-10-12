@@ -50,24 +50,15 @@ export function NavPublish() {
               <DropdownMenuGroup>
                 <DropdownMenuItem render={<Link to="/publish/article" />}>
                   <FileText />
-                  <div className="grid leading-tight">
-                    <span>发布文章</span>
-                    <span className="text-xs text-muted-foreground">富文本，图嵌在正文里</span>
-                  </div>
+                  发布文章
                 </DropdownMenuItem>
                 <DropdownMenuItem render={<Link to="/publish/graphic" />}>
                   <Images />
-                  <div className="grid leading-tight">
-                    <span>发布图文</span>
-                    <span className="text-xs text-muted-foreground">多图轮播 + 文案</span>
-                  </div>
+                  发布图文
                 </DropdownMenuItem>
                 <DropdownMenuItem render={<Link to="/publish/video" />}>
                   <Clapperboard />
-                  <div className="grid leading-tight">
-                    <span>发布视频</span>
-                    <span className="text-xs text-muted-foreground">上传视频内容</span>
-                  </div>
+                  发布视频
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>

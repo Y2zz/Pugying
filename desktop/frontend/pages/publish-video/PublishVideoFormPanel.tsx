@@ -176,7 +176,10 @@ export function PublishVideoFormPanel({
           disabled={formDisabled}
         />
       </section>
-      <div ref={coverSectionRef} className="order-2 min-w-0">
+      <div
+        ref={coverSectionRef}
+        className="order-2 flex min-w-0 flex-col gap-2"
+      >
         <ArticleCoverCard
           needs={
             portraitCoverOnly
@@ -217,7 +220,7 @@ export function PublishVideoFormPanel({
           onUseFirstImage={() => {}}
         />
         {coverHint ? (
-          <p className="mt-2 text-xs text-muted-foreground">{coverHint}</p>
+          <p className="text-sm text-muted-foreground">{coverHint}</p>
         ) : null}
       </div>
 

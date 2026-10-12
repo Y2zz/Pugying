@@ -114,6 +114,10 @@ export interface PlatformPublishStartInput {
   title: string;
   body?: string;
   tags?: string[];
+  topicRefs?: import("@shared/platform-resource").PlatformResourceRef[];
+  anthologyRef?: import("@shared/platform-resource").PlatformResourceRef;
+  collectionRef?: import("@shared/platform-resource").PlatformResourceRef;
+  locationRef?: import("@shared/platform-resource").PlatformResourceRef;
   articleSettings?: import("@shared/article-settings").ArticleAccountSettings;
   bilibiliVideoSettings?: import("@shared/bilibili-video-settings").BilibiliVideoSettings;
   authorDeclaration?: import("@shared/douyin-graphic-settings").DouyinAuthorDeclaration;
@@ -129,6 +133,10 @@ export interface PlatformPublishProgress {
   platform: string;
   phase: PlatformPublishProgressPhase;
   message?: string;
+  percent?: number;
+  uploadedBytes?: number;
+  totalBytes?: number;
+  speedBps?: number;
 }
 
 export interface PlatformPublishResult {
@@ -153,16 +161,53 @@ export type PugyingDesktopBridge = {
   ) => Promise<import("@shared/distribution").DistributionSubmissionResult>;
   getDistributionConcurrency?: () => Promise<number>;
   setDistributionConcurrency?: (value: number) => Promise<number>;
+  getProxySettings?: () => Promise<
+    import("@shared/proxy-settings").ProxySettings
+  >;
+  setProxySettings?: (
+    value: import("@shared/proxy-settings").ProxySettings,
+  ) => Promise<import("@shared/proxy-settings").ProxySettings>;
+  testProxySettings?: (
+    value: Pick<
+      import("@shared/proxy-settings").ProxySettings,
+      "host" | "port"
+    >,
+  ) => Promise<import("@shared/proxy-settings").ProxyTestResult>;
   available: true;
   getBilibiliVideoOptions?: (
     accountId: string,
   ) => Promise<
     import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
   >;
+  searchDouyinTopics?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchBilibiliAnthologies?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchDouyinCollections?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchDouyinLocations?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchBilibiliTopics?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
+  searchToutiaoLocations?: (
+    accountId: string,
+    keyword: string,
+  ) => Promise<import("@shared/platform-resource").PlatformResourceRef[]>;
   postMessage: (message: unknown) => void;
   onMessage: (callback: (message: unknown) => void) => () => void;
   getToutiaoRewardPrivilege?: (
     accountId: string,
+    options?: { force?: boolean },
   ) => Promise<
     import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
   >;
@@ -544,6 +589,10 @@ class AgentClient {
           title: input.title,
           body: input.body,
           tags: input.tags,
+          topicRefs: input.topicRefs,
+          anthologyRef: input.anthologyRef,
+          collectionRef: input.collectionRef,
+          locationRef: input.locationRef,
           authorDeclaration: input.authorDeclaration,
           articleSettings: input.articleSettings,
           bilibiliVideoSettings: input.bilibiliVideoSettings,

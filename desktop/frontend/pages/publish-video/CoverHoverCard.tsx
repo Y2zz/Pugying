@@ -27,7 +27,7 @@ export function CoverHoverCard({
   return (
     <div className={cn('flex w-fit max-w-full flex-col gap-2', disabled ? 'opacity-60' : null)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
         {ready ? (
           <Badge variant="secondary" className="font-normal">
             已就绪
@@ -63,7 +63,7 @@ export function CoverHoverCard({
         ) : (
           <div
             className={cn(
-              'flex items-center justify-center bg-muted/60 text-xs text-muted-foreground',
+              'flex items-center justify-center bg-muted/60 text-sm text-muted-foreground',
               previewClassName,
             )}
             style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}

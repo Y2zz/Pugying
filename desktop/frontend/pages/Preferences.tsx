@@ -9,6 +9,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useUiDensity } from '@/hooks/use-ui-density';
 import type { UiDensity } from '@/lib/ui-density';
 import { DistributionPreference } from '@/components/publishing/DistributionPreference';
+import { ProxyPreference } from '@/components/publishing/ProxyPreference';
 
 type ThemeChoice = 'light' | 'dark' | 'system';
 
@@ -80,6 +81,15 @@ export default function Preferences() {
             <FieldGroup>
               <DistributionPreference />
             </FieldGroup>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">网络</h2>
+        <Card>
+          <CardContent>
+            <ProxyPreference />
           </CardContent>
         </Card>
       </section>

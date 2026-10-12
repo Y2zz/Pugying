@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Pugying 本地开发一键启动（单机一体：本机 Server + Desktop）
 # 用法：
-#   ./start.sh              # 启动 server (watch) + desktop (electron-vite)
-#   ./start.sh --help
+#   ./scripts/start.sh              # 启动 server (watch) + desktop (electron-vite)
+#   ./scripts/start.sh --help
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 脚本位于 scripts/，仓库根目录为其上一级
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 SERVER_PORT="${SERVER_PORT:-3928}"
@@ -28,7 +29,7 @@ usage() {
 Pugying 本地开发一键启动（单机一体）
 
 用法:
-  ./start.sh [选项]
+  ./scripts/start.sh [选项]
 
 选项:
   -h, --help        显示帮助

@@ -55,6 +55,7 @@ const CONFIG = {
     domain: "douyin.com",
     url: "https://creator.douyin.com/creator-micro/content/post/article?enter_from=publish_page&media_type=article&type=new",
     runtime: DOUYIN_ARTICLE_RUNTIME,
+    // 表单侧话题/合集/POI 已改 Cookie（+ 主进程 bdms）；此处仅保留发布补齐话题用的 challengesug
     paths: [
       "/web/api/media/aweme/create_v2/",
       "/web/api/media/user/info/",
@@ -89,6 +90,7 @@ const CONFIG = {
     domain: "bilibili.com",
     url: "https://member.bilibili.com/york/read-editor",
     runtime: BILIBILI_ARTICLE_RUNTIME,
+    // 表单侧文集/话题已改 Cookie+WBI；此处仅保留发布与投稿相关路径
     paths: [
       "/x/vupre/web/archive/pre",
       "/x/vu/web/add/v3",
@@ -393,16 +395,22 @@ class CookieArticleApiSession implements VideoApiSession {
         sessionDiag(
           `execute VIDEO_UPLOAD_FAILED receipt=${JSON.stringify(response.receipt ?? null)}`,
         );
-        // B 站 preupload 406/601「上传过快」属频控，提示稍后再试而非泛化失败。
+        // B 站 preupload 406/601「上传过快」+ v_voucher 实为短信/Gaia 风控，非单纯频控。
         const receiptText = JSON.stringify(response.receipt ?? "");
-        const rateLimited =
+        const needsVerification =
           this.platform === "bilibili" &&
-          (/上传过快|稍作休息/.test(receiptText) ||
+          (/v_voucher|上传过快|稍作休息/.test(receiptText) ||
             /"code"\s*:\s*601/.test(receiptText) ||
             /"http_status"\s*:\s*406/.test(receiptText));
+        if (needsVerification) {
+          throw new ArticleApiError(
+            "PLATFORM_VERIFICATION_REQUIRED",
+            "平台需要验证，请到创作者中心完成后再发布",
+          );
+        }
         throw new ArticleApiError(
           "VIDEO_UPLOAD_FAILED",
-          rateLimited ? "上传过于频繁，请稍后再试" : "视频上传失败，请稍后重试",
+          "视频上传失败，请稍后重试",
         );
       }
       if (

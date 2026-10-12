@@ -82,7 +82,7 @@ export function ArticleCoverCard({
                 请设置{COVER_ASPECT_LABEL[need.aspect]}封面
               </p>
             ) : null}
-            <div className="flex flex-col gap-0.5 text-xs">
+            <div className="flex flex-col gap-1 text-sm">
               <span className="font-medium">
                 {COVER_ASPECT_LABEL[need.aspect]}
                 {hasAccounts ? (

@@ -7,10 +7,18 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { net, nativeImage } from 'electron';
+import { nativeImage } from 'electron';
 import type { AgentCookie } from '../protocol';
+import { platformOutboundFetch } from '../network-policy';
+import {
+  clampUploadConcurrency,
+  DEFAULT_UPLOAD_CONCURRENCY,
+  mapPool,
+} from './chunk-pool';
 import { buildCookieHeader } from './douyin-http-client';
 import { ArticleApiError } from './article-api';
+import { createUploadMeter } from './upload-progress';
+import type { VideoUploadOptions } from './video-api';
 
 const ASSISTANT_ORIGIN = 'https://channels.weixin.qq.com';
 const APPLY_UPLOAD_URL = 'https://finderassistancea.video.qq.com/applyuploaddfs';
@@ -235,10 +243,11 @@ const defaultTransport: ChannelsHttpTransport = {
       controller.abort();
     }, options.timeoutMs);
     try {
-      const response = await net.fetch(options.url, {
+      const response = await platformOutboundFetch(options.url, {
         method: options.method,
         headers: options.headers,
-        body: options.body,
+        // Uint8Array<ArrayBufferLike> 与 DOM BodyInit 的 BufferSource 泛型不完全兼容
+        body: options.body as BodyInit | undefined,
         signal: controller.signal,
       });
       return {
@@ -384,7 +393,10 @@ export class ChannelsGraphicClient {
     };
   }
 
-  async uploadVideo(path: string): Promise<ChannelsUploadedVideo> {
+  async uploadVideo(
+    path: string,
+    options?: VideoUploadOptions,
+  ): Promise<ChannelsUploadedVideo> {
     const info = await stat(path);
     if (!info.isFile() || info.size <= 0) {
       throw new ArticleApiError('MEDIA_MISSING', '找不到视频，请重新选择');
@@ -423,6 +435,7 @@ export class ChannelsGraphicClient {
       info.size,
       this.videoFileType,
       '视频上传未成功，请稍后重试',
+      options?.onProgress,
     );
     return {
       url,
@@ -840,13 +853,16 @@ export class ChannelsGraphicClient {
       fileType,
       failMessage,
     );
-    const partInfo: Array<{ PartNumber: number; ETag: string }> = [];
     const hash = createHash('md5');
-    for (let index = 0; index < ends.length; index += 1) {
+    hash.update(bytes);
+    const concurrency = clampUploadConcurrency(
+      DEFAULT_UPLOAD_CONCURRENCY,
+      DEFAULT_UPLOAD_CONCURRENCY,
+    );
+    const partInfo = await mapPool(ends.length, concurrency, async (index) => {
       const start = index === 0 ? 0 : ends[index - 1];
       const end = ends[index];
       const chunk = bytes.subarray(start, end);
-      hash.update(chunk);
       const etag = await this.uploadPart(
         fileKey,
         taskId,
@@ -857,8 +873,8 @@ export class ChannelsGraphicClient {
         fileType,
         failMessage,
       );
-      partInfo.push({ PartNumber: index + 1, ETag: etag });
-    }
+      return { PartNumber: index + 1, ETag: etag };
+    });
     const url = await this.completeUpload(
       fileKey,
       taskId,
@@ -871,12 +887,13 @@ export class ChannelsGraphicClient {
     return { url, md5sum: hash.digest('hex') };
   }
 
-  /** 按路径分片上传大文件，边读边算 md5，避免整段进内存。 */
+  /** 按路径分片上传大文件；并发 PUT，md5 另开串行读一遍（避免 FileHandle 并发）。 */
   private async uploadFilePath(
     path: string,
     fileSize: number,
     fileType: number,
     failMessage: string,
+    onProgress?: VideoUploadOptions['onProgress'],
   ): Promise<{ url: string; md5sum: string }> {
     const taskId = randomUUID();
     const fileKey = basename(path) || `file-${taskId}`;
@@ -893,31 +910,51 @@ export class ChannelsGraphicClient {
       failMessage,
     );
     const { open } = await import('node:fs/promises');
-    const handle = await open(path, 'r');
-    const partInfo: Array<{ PartNumber: number; ETag: string }> = [];
     const hash = createHash('md5');
-    try {
-      for (let index = 0; index < ends.length; index += 1) {
-        const start = index === 0 ? 0 : ends[index - 1];
-        const end = ends[index];
-        const chunk = Buffer.alloc(end - start);
-        await handle.read(chunk, 0, chunk.length, start);
-        hash.update(chunk);
-        const etag = await this.uploadPart(
-          fileKey,
-          taskId,
-          fileSize,
-          uploadId,
-          index + 1,
-          chunk,
-          fileType,
-          failMessage,
-        );
-        partInfo.push({ PartNumber: index + 1, ETag: etag });
+    {
+      const handle = await open(path, 'r');
+      try {
+        for (let index = 0; index < ends.length; index += 1) {
+          const start = index === 0 ? 0 : ends[index - 1];
+          const end = ends[index];
+          const chunk = Buffer.alloc(end - start);
+          await handle.read(chunk, 0, chunk.length, start);
+          hash.update(chunk);
+        }
+      } finally {
+        await handle.close();
       }
-    } finally {
-      await handle.close();
     }
+    const concurrency = clampUploadConcurrency(
+      DEFAULT_UPLOAD_CONCURRENCY,
+      DEFAULT_UPLOAD_CONCURRENCY,
+    );
+    const meter = createUploadMeter(fileSize, onProgress);
+    meter.start();
+    const partInfo = await mapPool(ends.length, concurrency, async (index) => {
+      const start = index === 0 ? 0 : ends[index - 1];
+      const end = ends[index];
+      const chunk = Buffer.alloc(end - start);
+      const handle = await open(path, 'r');
+      try {
+        await handle.read(chunk, 0, chunk.length, start);
+      } finally {
+        await handle.close();
+      }
+      const etag = await this.uploadPart(
+        fileKey,
+        taskId,
+        fileSize,
+        uploadId,
+        index + 1,
+        chunk,
+        fileType,
+        failMessage,
+      );
+      meter.add(chunk.length);
+      return { PartNumber: index + 1, ETag: etag };
+    });
+    meter.finish();
     const url = await this.completeUpload(
       fileKey,
       taskId,

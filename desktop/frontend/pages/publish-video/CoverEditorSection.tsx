@@ -78,11 +78,11 @@ export function CoverEditorSection({
 
   if (plain) {
     return (
-      <div ref={coverSectionRef} className="flex flex-col gap-1.5">
+      <div ref={coverSectionRef} className="flex flex-col gap-2">
         <div className="text-sm font-medium">封面</div>
         {slots}
         {coverHint ? (
-          <p className="text-xs text-muted-foreground">{coverHint}</p>
+          <p className="text-sm text-muted-foreground">{coverHint}</p>
         ) : null}
       </div>
     );
@@ -98,7 +98,7 @@ export function CoverEditorSection({
           </FieldDescription>
         )}
         {slots}
-        <p className="mt-2 text-xs text-muted-foreground">{coverHint}</p>
+        <p className="text-sm text-muted-foreground">{coverHint}</p>
       </Field>
     </div>
   );

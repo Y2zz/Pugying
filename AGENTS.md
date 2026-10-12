@@ -51,7 +51,7 @@ Pugying（蒲公英）是一套**个人单机桌面**自媒体内容发布系统
 - **代码格式化**: Prettier
 - **代码检查**: ESLint
 - **CSS**: Tailwind CSS v4 + shadcn/ui（底层组件库为 Base UI，非 Radix UI）
-- **字号**：对齐 **shadcn vega**——浏览器默认 **1rem = 16px**，不重映射 Tailwind 刻度；控件多为 `text-sm`（≈14px），正文继承 `text-base`。禁止业务层 `text-[Npx]`。详见 `.cursor/rules/frontend-typography.mdc`。
+- **字号**：对齐 **shadcn vega**——浏览器默认 **1rem = 16px**，不重映射 Tailwind 刻度；控件多为 `text-sm`（≈14px），正文继承 `text-base`。禁止业务层 `text-[Npx]`。**`text-xs` 须按场景慎用**（仅 Badge / 时间戳 / 极次要元数据），勿给 `FieldDescription` 等说明文案顺手降到 xs。**调整字号时须连同布局与边距一并复核**，禁止只改 `text-*`。详见 `.cursor/rules/frontend-typography.mdc`。
 - **用户可见文案**：界面 / Toast / 引导 / 错误提示须**克制**，不暴露实现细节（错误码、HTTP/DOM、抓包等），通俗易懂、能一句则一句。详见 `.cursor/rules/user-facing-copy.mdc`。
 
 ## 编码规范
@@ -173,6 +173,7 @@ Pugying/
 │   ├── shared/               # IPC 信道约定
 │   ├── scripts/pack-server.mjs
 │   └── package.json          # pugying-desktop
+├── scripts/                  # 开发脚本（start / install / clear 等）
 ├── docs/
 │   ├── media-storage.md
 │   └── publish-article.md   # 图文发布核心业务
@@ -181,7 +182,7 @@ Pugying/
 
 ## 架构说明
 
-- **产品形态（单机一体）**: 用户只安装 **一个桌面应用**。Electron 发行版内附 Nest 产物；启动时由 main 嵌入本机 Server；数据落在 `app.getPath('userData')`。开发可用 `./start.sh`（外部 Server watch + Desktop）。
+- **产品形态（单机一体）**: 用户只安装 **一个桌面应用**。Electron 发行版内附 Nest 产物；启动时由 main 嵌入本机 Server；数据落在 `app.getPath('userData')`。开发可用 `./scripts/start.sh`（外部 Server watch + Desktop）。
 - **数据归属**: 本机数据库中的内容、媒体和平台账号均直接归属当前操作系统用户，没有用户、团队、成员或角色模型。
 - **实体主键**: 全部使用 **UUID**。
 - **软删除**: 实体继承 `SoftDeleteAuditedEntity`；仓储使用 softRemove。
@@ -191,6 +192,7 @@ Pugying/
 - **API 文档**: Swagger UI 在 `/api`（默认 `http://127.0.0.1:3928/api`）。
 - **路径别名**: Server 使用 `@pugying/*`；Desktop 业务 UI `@/` → `desktop/frontend`，授权窗 UI `@auth/` → `desktop/auth`。
 - **桌面 Desktop**: 业务主窗经 **preload IPC（`pugyingDesktop`）** 调本机发布能力；授权窗 UI 经 `chromeShell` / `chrome:*` 隔离。平台授权使用 ephemeral session partition，禁止 `defaultSession`。权威状态在本机 Server。
+- **对接平台**: 发布、表单资源探测、权限拉取等对接平台能力时，**必须** ephemeral Cookie 会话 + `session.fetch`（或等价 Cookie HTTP）直调已核实接口；**禁止**用隐藏 `BrowserWindow`（含 `show: false` / offscreen / 「轻壳」）承载签名或上传 SDK 来完成对接。平台请求签名（如 WBI、`a_bogus`、上传凭证）须在主进程 **自行解决**（对齐官方算法或 Cookie 会话内已核实的签名步骤，参考 `bilibili-wbi.ts`），失效时停用该能力并提示用户，**禁止伪造未核实算法，也禁止退回隐藏窗**。授权登录与平台要求验证时仍用可见官方窗口。
 - **媒体账号 / 内容发布**: 视频与图片存本机绝对路径（`mediaPaths`）；封面以 BLOB 落库；发布由桌面 UI 经 IPC 调 `platform.publish.*`，Agent 直读本机文件。
 
 ## 支撑服务
@@ -203,7 +205,7 @@ Pugying/
 
 | 任务 | 命令 |
 |------|------|
-| 启动 Server + Desktop | `./start.sh` |
+| 启动 Server + Desktop | `./scripts/start.sh` |
 
 ### Server
 
@@ -242,7 +244,7 @@ Pugying/
 | `PORT` | `3928` | Server 监听端口 |
 | `HOST` | `127.0.0.1` | Server 绑定地址 |
 | `PUGYING_DATABASE_PATH` | （cwd `pugying.db` / 桌面 userData） | SQLite 路径 |
-| `PLATFORM_CREDENTIAL_SECRET` | （桌面端自动生成；`./start.sh` 有开发缺省） | 平台 Cookie 加密密钥；开发态外部 Server 必须注入，否则无法解密已绑定账号 |
+| `PLATFORM_CREDENTIAL_SECRET` | （桌面端自动生成；`./scripts/start.sh` 有开发缺省） | 平台 Cookie 加密密钥；开发态外部 Server 必须注入，否则无法解密已绑定账号 |
 | `PUGYING_EXTERNAL_SERVER` | — | 开发时 Desktop 不嵌入 Server，只连接外部 Server |
 | `PUGYING_API_BASE_URL` | — | 配合 EXTERNAL 指定 API 基址 |
 | `PUGYING_FORCE_PLATFORM` | — | 开发态模拟窗口铬（`darwin` / `win32` / `linux`）；仅未打包生效 |
@@ -252,6 +254,6 @@ Pugying/
 开发工具链与 GitHub Actions 对齐：Node.js **24.21.0**、npm **12.2.0**。若 `node -v` 不是 `v24.21.0`，先执行 `export PATH="/usr/local/bin:$PATH"`（环境 PATH 前面可能还有另一份 Node）。
 
 - 依赖是两套锁文件，分别在 `server/` 与 `desktop/` 执行 `npm ci`。`better-sqlite3` 使用本机预编译或编译，镜像里已有 `build-essential` 与 `python3`。
-- 环境启动只拉起 Nest，监听 `http://127.0.0.1:3928`（Swagger `/api`，探活 `/api-json`）。数据库放在 `~/.pugying/pugying.db`，避免写进仓库。`PLATFORM_CREDENTIAL_SECRET` 缺省与 `./start.sh` 相同（`pugying-dev-secret-change-me`）。未设置 `PUGYING_LOCAL_API_TOKEN` 时接口不校验本机令牌。
+- 环境启动只拉起 Nest，监听 `http://127.0.0.1:3928`（Swagger `/api`，探活 `/api-json`）。数据库放在 `~/.pugying/pugying.db`，避免写进仓库。`PLATFORM_CREDENTIAL_SECRET` 缺省与 `./scripts/start.sh` 相同（`pugying-dev-secret-change-me`）。未设置 `PUGYING_LOCAL_API_TOKEN` 时接口不校验本机令牌。
 - 桌面窗口需要图形会话，不要放进开机启动。验证 UI 时另起：`cd desktop && PUGYING_EXTERNAL_SERVER=1 PUGYING_API_BASE_URL=http://127.0.0.1:3928 npm run dev`。这样 Electron 只连接已有 Server，不会再嵌一份。`npm run dev` 会清除 `ELECTRON_RUN_AS_NODE`。日志里的 D-Bus 连接失败不影响窗口。
 - 检查与 CI 相同。Server：ESLint、`npm test`、`npm run test:e2e`、`npm run build`。Desktop：`npm run typecheck`、`npm test`、`npm run build`。

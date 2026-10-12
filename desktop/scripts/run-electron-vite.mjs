@@ -6,8 +6,11 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { ensureElectronInstalled } from './ensure-electron.mjs';
 
 delete process.env.ELECTRON_RUN_AS_NODE;
+
+ensureElectronInstalled();
 
 const require = createRequire(import.meta.url);
 const pkgRoot = path.dirname(require.resolve('electron-vite/package.json'));

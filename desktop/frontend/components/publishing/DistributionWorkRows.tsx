@@ -170,12 +170,12 @@ export function DistributionWorkRows({
                   {label}
                 </Badge>
                 {message !== label ? (
-                  <p className="break-words text-xs text-muted-foreground">
+                  <p className="break-words text-sm text-muted-foreground">
                     {message}
                   </p>
                 ) : null}
                 {canRetry && hasActiveWork ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     其余账号仍在分发，完成后可重试
                   </p>
                 ) : null}

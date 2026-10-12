@@ -67,6 +67,10 @@ export interface PublishDispatch {
   title: string;
   body?: string;
   tags?: string[];
+  topicRefs?: import('../../domain/platform-resource').PlatformResourceRef[];
+  anthologyRef?: import('../../domain/platform-resource').PlatformResourceRef;
+  collectionRef?: import('../../domain/platform-resource').PlatformResourceRef;
+  locationRef?: import('../../domain/platform-resource').PlatformResourceRef;
   articleSettings?: import('../../domain/article-settings').ArticleAccountSettings;
   bilibiliVideoSettings?: import('../../domain/bilibili-video-settings').BilibiliVideoSettings;
   authorDeclaration?: import('../../domain/author-declaration').AuthorDeclaration;
@@ -420,6 +424,16 @@ export class ContentPublishService {
         ? formatArticleBodyForPlatform(overrides.body?.trim() || content.body || '', target.platform)
         : overrides.body?.trim() || content.body || undefined,
       tags: overrides.tags ?? content.tags,
+      topicRefs: overrides.topicRefs,
+      anthologyRef: isArticle ? overrides.anthologyRef : undefined,
+      collectionRef:
+        !isArticle && !isGraphic ? overrides.collectionRef : undefined,
+      // 抖音视频 POI / 头条文章城市；其余形态不下发
+      locationRef:
+        (!isArticle && !isGraphic && target.platform === 'douyin') ||
+        (isArticle && target.platform === 'toutiao')
+          ? overrides.locationRef
+          : undefined,
       articleSettings: isArticle ? overrides.articleSettings : undefined,
       bilibiliVideoSettings: !isArticle && !isGraphic && target.platform === 'bilibili' ? overrides.bilibiliVideoSettings : undefined,
       authorDeclaration: isGraphic || !isArticle ? (overrides.authorDeclaration ?? 'none') : undefined,

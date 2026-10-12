@@ -23,3 +23,13 @@
 - 调试过程另有两篇私密测试笔记。《绿意不用很多》已按平台回执同步本机成功状态，见 [xiaohongshu-test.json](xiaohongshu-test.json)；《窗边的这一点绿》平台管理页确认仅自己可见，但提交时 SDK 的成功码 `N/A` 尚未兼容，未取得作品 ID，本机保留结果待确认，不重发。后续适配器已兼容「成功标志 + 有效作品 ID」组合。
 
 本轮验证通过：桌面类型检查、构建，服务端 115 项单元测试、1 项 E2E、ESLint 与构建。桌面全量测试 608 项通过、8 项跳过，覆盖声明编码与 HTTP 拒绝分类。
+
+## Cookie 直调（2026-10-09）
+
+- 小红书 Midnight：`LIVE_XHS_GRAPHIC=1` 经创作者 permit → ROS PUT → 主进程 `x-s`/`x-t` 发帖，私密笔记 ID 见 [xiaohongshu-cookie-live.json](xiaohongshu-cookie-live.json) 与 [xiaohongshu-cookie-live-publish.json](xiaohongshu-cookie-live-publish.json)。图文发布路径已离开隔离会话页面 SDK。
+
+## 文章 Cookie 直调（2026-10-10）
+
+- 抖音 Midnight：`LIVE_DOUYIN_ARTICLE=1` → [douyin-article-cookie-live.json](douyin-article-cookie-live.json)（`7694986787751496979`）
+- 头条 洲谋天下：`LIVE_TOUTIAO_ARTICLE=1` → [toutiao-article-cookie-live.json](toutiao-article-cookie-live.json)（`7694986467478831642`）
+- B 站 Arma666：探针发帖 `dyn_id_str=1257524849050386434`；当日额度用尽后 `LIVE_BILIBILI_ARTICLE=1` 正确返回投稿上限。三平台文章生产路径均已离开隐藏窗。

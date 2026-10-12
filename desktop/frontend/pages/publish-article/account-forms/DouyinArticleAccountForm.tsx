@@ -1,10 +1,11 @@
+import { topicNames } from '@shared/platform-resource';
 import { ArticlePlatformSettingsFields } from './ArticlePlatformSettingsFields';
+import { DouyinTopicField } from './DouyinTopicField';
 import { getArticlePlatformFields } from '../article-platform-fields';
 import {
   ArticleAccountFormLayout,
   ArticleCoverOverrideField,
   ArticleScheduleField,
-  ArticleTagsField,
   ArticleTitleOverrideField,
   ArticleVisibilityField,
   draftPatcher,
@@ -60,12 +61,16 @@ export function DouyinArticleAccountForm({
       }
       publish={
         <>
-          <ArticleTagsField
-            tagsText={draft.tagsText}
+          <DouyinTopicField
+            accountId={account.id}
+            value={draft.topicRefs}
             maxCount={spec.tags.maxCount}
             disabled={disabled}
-            onChange={(tagsText) => {
-              patch({ tagsText });
+            onChange={(topicRefs) => {
+              patch({
+                topicRefs,
+                tagsText: topicNames(topicRefs).join(' '),
+              });
             }}
           />
           <ArticleVisibilityField

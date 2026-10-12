@@ -281,7 +281,7 @@ export function AddAccountsDialog({
           <div className="flex flex-col gap-1">
             <p className="text-sm text-muted-foreground" aria-live="polite">已选 {draftCount} 个账号</p>
             {platformAccounts.some((account) => !isAccountSelectable(account)) ? (
-              <Link to="/platform-accounts" className="text-xs text-muted-foreground underline underline-offset-4">
+              <Link to="/platform-accounts" className="text-sm text-muted-foreground underline underline-offset-4">
                 去媒体账号重新授权
               </Link>
             ) : null}

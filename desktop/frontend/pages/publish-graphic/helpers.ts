@@ -8,6 +8,10 @@ import {
   isDouyinAuthorDeclaration,
 } from '@shared/douyin-graphic-settings';
 import {
+  normalizePlatformResourceRefs,
+  topicNames,
+} from '@shared/platform-resource';
+import {
   effectiveCover,
   coverSlotReady,
   emptyArticleDraft,
@@ -44,13 +48,14 @@ export function getGraphicAccountDraftIssues(
   if (countArticleAccountTitleCharacters(draft.title) > spec.titleMax) {
     issues.push('标题超长');
   }
-  if (
-    spec.tags.enabled &&
-    parseTags(draft.tagsText).length > spec.tags.maxCount
-  ) {
+  const draftTags =
+    draft.topicRefs.length > 0
+      ? topicNames(draft.topicRefs)
+      : parseTags(draft.tagsText);
+  if (spec.tags.enabled && draftTags.length > spec.tags.maxCount) {
     issues.push('话题过多');
   }
-  if (!spec.tags.enabled && parseTags(draft.tagsText).length > 0) {
+  if (!spec.tags.enabled && draftTags.length > 0) {
     issues.push('话题需移入文案');
   }
   if (
@@ -72,9 +77,8 @@ export function getGraphicAccountDraftIssues(
   }
   if (platform === 'channels') {
     const title = draft.title.trim() || commonTitle.trim();
-    const tags = parseTags(draft.tagsText);
     const parts = [title, commonBody.trim()].filter(Boolean).join('\n');
-    const topicSuffix = tags.map((tag) => `#${tag}`).join(' ');
+    const topicSuffix = draftTags.map((tag) => `#${tag}`).join(' ');
     const description = [parts, topicSuffix]
       .filter(Boolean)
       .join(parts && topicSuffix ? ' ' : '');
@@ -84,8 +88,8 @@ export function getGraphicAccountDraftIssues(
   }
   if (platform === 'douyin') {
     if (
-      composeDouyinGraphicDescription(commonBody, parseTags(draft.tagsText))
-        .length > spec.bodyPlainMax
+      composeDouyinGraphicDescription(commonBody, draftTags).length >
+      spec.bodyPlainMax
     ) {
       issues.push('作品描述与话题合计超长');
     }
@@ -128,9 +132,15 @@ export function graphicDraftToOverrides(
   if (draft.title.trim()) {
     result.title = normalizeArticleTitle(draft.title);
   }
-  const tags = parseTags(draft.tagsText);
-  if (spec.tags.enabled && tags.length > 0) {
-    result.tags = tags;
+  const topicRefs = normalizePlatformResourceRefs(draft.topicRefs);
+  if (spec.tags.enabled && topicRefs.length > 0) {
+    result.topicRefs = topicRefs;
+    result.tags = topicNames(topicRefs);
+  } else {
+    const tags = parseTags(draft.tagsText);
+    if (spec.tags.enabled && tags.length > 0) {
+      result.tags = tags;
+    }
   }
   const iso = localInputToIso(draft.scheduledLocal);
   if (spec.schedule?.enabled && iso) {

@@ -1,4 +1,8 @@
-import { distributionElapsed, distributionTime } from "./distribution-view";
+import {
+  distributionElapsed,
+  distributionTaskStatus,
+  distributionTime,
+} from "./distribution-view";
 import type {
   DistributionLiveTask,
   DistributionTaskRow,
@@ -28,6 +32,27 @@ it("uses the current attempt when the saved row still contains the previous resu
     ),
   ).toBe("30 秒");
 });
+it("shows upload percent and speed while a live task is uploading", () => {
+  const row = {
+    publishStatus: "running",
+  } as DistributionTaskRow;
+  expect(
+    distributionTaskStatus(row, {
+      state: "running",
+      phase: "uploading",
+      uploadPercent: 42,
+      uploadSpeedBps: 2.5 * 1024 * 1024,
+    } as DistributionLiveTask),
+  ).toBe("上传到平台 42% · 2.5 MB/s");
+  expect(
+    distributionTaskStatus(row, {
+      state: "running",
+      phase: "uploading",
+      uploadPercent: 8,
+    } as DistributionLiveTask),
+  ).toBe("上传到平台 8%");
+});
+
 it("keeps yesterday and older completion dates distinguishable", () => {
   const now = new Date(2026, 9, 7, 1, 0).getTime();
   expect(

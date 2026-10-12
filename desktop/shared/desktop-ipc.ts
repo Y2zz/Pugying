@@ -8,9 +8,27 @@ export const DESKTOP_IPC = {
   submitDistribution: "desktop:submit-distribution",
   getDistributionConcurrency: "desktop:get-distribution-concurrency",
   setDistributionConcurrency: "desktop:set-distribution-concurrency",
+  /** 读取用户代理偏好（host/port + 开关） */
+  getProxySettings: "desktop:get-proxy-settings",
+  /** 保存并立即应用到 Electron Session */
+  setProxySettings: "desktop:set-proxy-settings",
+  /** 用当前填写的地址/端口探测代理连通性（不改已应用配置） */
+  testProxySettings: "desktop:test-proxy-settings",
   /** 读取头条文章编辑器的当前账号赞赏额度 */
   getToutiaoRewardPrivilege: "desktop:get-toutiao-reward-privilege",
   getBilibiliVideoOptions: "desktop:get-bilibili-video-options",
+  /** 按账号搜索抖音官方话题候选项 */
+  searchDouyinTopics: "desktop:search-douyin-topics",
+  /** 按账号读取/筛选 B 站文集候选项 */
+  searchBilibiliAnthologies: "desktop:search-bilibili-anthologies",
+  /** 按账号读取/筛选抖音合集候选项 */
+  searchDouyinCollections: "desktop:search-douyin-collections",
+  /** 按账号搜索抖音发布位置（POI） */
+  searchDouyinLocations: "desktop:search-douyin-locations",
+  /** 按账号搜索 B 站发布话题候选项 */
+  searchBilibiliTopics: "desktop:search-bilibili-topics",
+  /** 按账号读取/筛选头条文章城市位置候选项 */
+  searchToutiaoLocations: "desktop:search-toutiao-locations",
   /** renderer → main */
   message: "desktop:message",
   /** main → renderer（hello / progress / result / closed） */

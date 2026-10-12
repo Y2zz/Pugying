@@ -1,4 +1,5 @@
 import { articleSettingsForPlatform } from '../../../shared/article-settings';
+import { normalizeBoundPlatformResourceRef } from '../../../shared/platform-resource';
 import { renderArticleForPlatform } from '../article-publish-format';
 import {
   ArticleApiError,
@@ -27,8 +28,22 @@ const DECLARATIONS = {
 const field = (object: Record<string, unknown>, snake: string, camel: string) =>
   object[snake] ?? object[camel];
 
+/** Cookie 直调 spice 上传与 form publish；默认不再开隐藏窗。 */
 export function runToutiaoArticlePublish(options: ArticlePublishOptions) {
-  return runArticleApiPublish('toutiao', options, async (api, emit) => {
+  return runArticleApiPublish(
+    'toutiao',
+    {
+      ...options,
+      createSession:
+        options.createSession ??
+        (async () => {
+          const { ToutiaoArticleClient } = await import(
+            './toutiao-article-client'
+          );
+          return new ToutiaoArticleClient(options.payload.cookies);
+        }),
+    },
+    async (api, emit) => {
     const { payload, article, signal } = options;
     const settings = articleSettingsForPlatform(
       payload.articleSettings,
@@ -177,6 +192,14 @@ export function runToutiaoArticlePublish(options: ArticlePublishOptions) {
         time_format: '',
         position: {},
       };
+    }
+    // 官方文章表单 position → extra.manual_selected_city（城市名 + 城市编码）
+    const location = normalizeBoundPlatformResourceRef(payload.locationRef);
+    if (location) {
+      extra.manual_selected_city = JSON.stringify({
+        city: location.name,
+        city_code: location.id,
+      });
     }
     const timerTime = timing
       ? new Intl.DateTimeFormat('sv-SE', {

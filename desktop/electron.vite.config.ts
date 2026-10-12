@@ -42,6 +42,8 @@ export default defineConfig({
   main: {
     ...shared,
     build: {
+      // jsdom 必须落在 dependencies 并由 externalizeDeps 外置：
+      // 打进 bundle 时，开发态 Vite 会对未安装的可选 peer `canvas` 直接 throw。
       rollupOptions: {
         input: {
           index: path.resolve(__dirname, 'electron/main/index.ts'),
