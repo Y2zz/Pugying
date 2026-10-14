@@ -1,0 +1,152 @@
+import type { AgentCookie } from '../protocol';
+import { platformOutboundFetch } from '../network-policy';
+
+export type DouyinHttpErrorCode =
+  | 'AUTH_EXPIRED'
+  | 'HTTP_TIMEOUT'
+  | 'HTTP_REQUEST_FAILED';
+
+export class DouyinHttpError extends Error {
+  constructor(
+    readonly code: DouyinHttpErrorCode,
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'DouyinHttpError';
+  }
+}
+
+export interface DouyinHttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: Uint8Array;
+}
+
+export interface DouyinHttpTransport {
+  request(options: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    body?: Uint8Array;
+    timeoutMs: number;
+  }): Promise<DouyinHttpResponse>;
+}
+
+const electronNetTransport: DouyinHttpTransport = {
+  async request(options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, options.timeoutMs);
+
+    try {
+      const response = await platformOutboundFetch(options.url, {
+        method: options.method,
+        headers: options.headers,
+        // Uint8Array<ArrayBufferLike> 与 DOM BodyInit 的 BufferSource 泛型不完全兼容
+        body: options.body as BodyInit | undefined,
+        signal: controller.signal,
+      });
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      return {
+        status: response.status,
+        headers,
+        body: new Uint8Array(await response.arrayBuffer()),
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+};
+
+/**
+ * 仅把当前发布任务携带的已授权 Cookie 转为请求头，不持久化，也不交给后端。
+ * 跳过含控制字符的异常项，避免 Cookie 数据污染 HTTP 头。
+ */
+export function buildCookieHeader(cookies: AgentCookie[]): string {
+  return cookies
+    .filter(
+      (cookie) =>
+        /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(cookie.name) &&
+        cookie.value.length > 0 &&
+        !/[\u0000-\u001f\u007f;]/.test(cookie.value),
+    )
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .join('; ');
+}
+
+/**
+ * 通用 HTTP 客户端：Cookie 会话、超时与错误分类；
+ * URL 与载荷由调用方提供，不内置端点或签名。
+ */
+export class DouyinHttpClient {
+  private readonly cookieHeader: string;
+
+  constructor(
+    cookies: AgentCookie[],
+    private readonly transport: DouyinHttpTransport = electronNetTransport,
+    private readonly timeoutMs = 30_000,
+  ) {
+    this.cookieHeader = buildCookieHeader(cookies);
+  }
+
+  async request(options: {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: Uint8Array;
+  }): Promise<DouyinHttpResponse> {
+    if (!this.cookieHeader) {
+      throw new DouyinHttpError(
+        'AUTH_EXPIRED',
+        '未找到可用的抖音登录 Cookie，请重新授权媒体账号',
+      );
+    }
+
+    let response: DouyinHttpResponse;
+    try {
+      response = await this.transport.request({
+        url: options.url,
+        method: options.method ?? 'GET',
+        headers: {
+          ...options.headers,
+          Cookie: this.cookieHeader,
+        },
+        body: options.body,
+        timeoutMs: this.timeoutMs,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || /aborted|timeout/i.test(error.message))
+      ) {
+        throw new DouyinHttpError('HTTP_TIMEOUT', '抖音后台 HTTP 请求超时');
+      }
+      throw new DouyinHttpError(
+        'HTTP_REQUEST_FAILED',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    // 仅 401 视为登录失效；403 不能当掉登录（提交作品风控也会 403）
+    if (response.status === 401) {
+      throw new DouyinHttpError(
+        'AUTH_EXPIRED',
+        '抖音登录已失效，请重新授权媒体账号',
+        response.status,
+      );
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw new DouyinHttpError(
+        'HTTP_REQUEST_FAILED',
+        `抖音后台 HTTP 请求失败（${response.status}）`,
+        response.status,
+      );
+    }
+    return response;
+  }
+}

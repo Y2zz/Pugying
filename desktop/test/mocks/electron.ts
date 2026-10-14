@@ -1,0 +1,533 @@
+/**
+ * Minimal Electron stand-in for unit tests (wired up via the `electron`
+ * alias in vitest.config.ts). Mirrors the export structure of the real
+ * `electron` module, but only the API surface the agent's main process
+ * actually touches: app paths/dock, BrowserWindow, WebContentsView, Tray,
+ * Menu, ipcMain/ipcRenderer, session partitions, Notification, clipboard,
+ * shell, nativeImage and contextBridge.
+ *
+ * Everything is inert: no windows, no network, no OS integration. Methods
+ * record just enough state (`sent` messages, `_partitions`) for tests to
+ * observe behaviour without a running Electron instance.
+ */
+import { EventEmitter } from 'events';
+import os from 'os';
+import path from 'path';
+
+export interface FakeSentMessage {
+  channel: string;
+  payload: unknown;
+}
+
+class FakeNavigationHistory {
+  canGoBack(): boolean {
+    return false;
+  }
+
+  canGoForward(): boolean {
+    return false;
+  }
+}
+
+class FakeWebContents extends EventEmitter {
+  /** Messages delivered via `send`, for test assertions. */
+  sent: FakeSentMessage[] = [];
+  navigationHistory = new FakeNavigationHistory();
+  private destroyed = false;
+  private url = '';
+  private title = '';
+  private zoomFactor = 1;
+
+  send(channel: string, payload?: unknown): void {
+    this.sent.push({ channel, payload });
+  }
+
+  loadURL(url: string): Promise<void> {
+    this.url = url;
+    return Promise.resolve();
+  }
+
+  loadFile(_filePath: string, _options?: unknown): Promise<void> {
+    return Promise.resolve();
+  }
+
+  getURL(): string {
+    return this.url;
+  }
+
+  getTitle(): string {
+    return this.title;
+  }
+
+  canGoBack(): boolean {
+    return false;
+  }
+
+  canGoForward(): boolean {
+    return false;
+  }
+
+  goBack(): void {}
+
+  goForward(): void {}
+
+  reload(): void {}
+
+  reloadIgnoringCache(): void {}
+
+  getZoomFactor(): number {
+    return this.zoomFactor;
+  }
+
+  setZoomFactor(factor: number): void {
+    this.zoomFactor = factor;
+  }
+
+  focus(): void {}
+
+  setWindowOpenHandler(_handler: unknown): void {}
+
+  setUserAgent(_userAgent: string): void {}
+
+  executeJavaScript(_script: string, _userGesture?: boolean): Promise<unknown> {
+    return Promise.resolve(undefined);
+  }
+
+  openDevTools(_options?: unknown): void {}
+
+  isDestroyed(): boolean {
+    return this.destroyed;
+  }
+
+  close(): void {
+    this.destroyed = true;
+  }
+}
+
+export class WebContentsView {
+  webContents = new FakeWebContents();
+  private visible = true;
+  private bounds = { x: 0, y: 0, width: 0, height: 0 };
+
+  constructor(_options?: unknown) {}
+
+  setBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+    this.bounds = bounds;
+  }
+
+  getBounds(): { x: number; y: number; width: number; height: number } {
+    return this.bounds;
+  }
+
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+  }
+
+  getVisible(): boolean {
+    return this.visible;
+  }
+
+  setBackgroundColor(_color: string): void {}
+}
+
+class FakeContentView {
+  children: unknown[] = [];
+
+  addChildView(view: unknown): void {
+    if (!this.children.includes(view)) {
+      this.children.push(view);
+    }
+  }
+
+  removeChildView(view: unknown): void {
+    this.children = this.children.filter((child) => child !== view);
+  }
+}
+
+export class BrowserWindow extends EventEmitter {
+  webContents = new FakeWebContents();
+  contentView = new FakeContentView();
+  private destroyed = false;
+  private minimized = false;
+  private maximized = false;
+  private title: string;
+
+  constructor(options?: { title?: string }) {
+    super();
+    this.title = options?.title ?? '';
+  }
+
+  getTitle(): string {
+    return this.title;
+  }
+
+  getContentSize(): [number, number] {
+    return [1200, 860];
+  }
+
+  isDestroyed(): boolean {
+    return this.destroyed;
+  }
+
+  isMinimized(): boolean {
+    return this.minimized;
+  }
+
+  isMaximized(): boolean {
+    return this.maximized;
+  }
+
+  minimize(): void {
+    this.minimized = true;
+  }
+
+  maximize(): void {
+    this.maximized = true;
+    this.emit('maximize');
+  }
+
+  unmaximize(): void {
+    this.maximized = false;
+    this.emit('unmaximize');
+  }
+
+  restore(): void {
+    this.minimized = false;
+    if (this.maximized) {
+      this.unmaximize();
+    }
+  }
+
+  show(): void {}
+
+  focus(): void {}
+
+  close(): void {
+    this.emit('close');
+    this.destroyed = true;
+    this.emit('closed');
+  }
+
+  destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
+    this.destroyed = true;
+    this.emit('closed');
+  }
+}
+
+interface FakeCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  expirationDate?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: string;
+}
+
+class FakeCookies {
+  store: FakeCookie[] = [];
+
+  get(_filter: unknown): Promise<FakeCookie[]> {
+    return Promise.resolve([...this.store]);
+  }
+
+  set(details: FakeCookie & { url?: string }): Promise<void> {
+    this.store.push({
+      name: details.name,
+      value: details.value,
+      domain: details.domain,
+      path: details.path,
+      expirationDate: details.expirationDate,
+      httpOnly: details.httpOnly,
+      secure: details.secure,
+      sameSite: details.sameSite,
+    });
+    return Promise.resolve();
+  }
+
+  remove(_url: string, _name: string): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+class FakeWebRequest {
+  onCompleted(_filter: unknown, _listener: unknown): void {}
+
+  onBeforeSendHeaders(_filter: unknown, _listener: unknown): void {}
+}
+
+class FakeSession {
+  cookies = new FakeCookies();
+  webRequest = new FakeWebRequest();
+  /** Last config passed to setProxy — mock-only, for assertions. */
+  lastProxyConfig: unknown = null;
+  /** Default mirrors Electron's bundled Chromium + Electron tag for UA tests. */
+  private userAgent =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) pugying-desktop/0.0.2 Chrome/152.0.7977.130 Electron/44.5.1 Safari/537.36';
+
+  getUserAgent(): string {
+    return this.userAgent;
+  }
+
+  setUserAgent(userAgent: string, _acceptLanguages?: string): void {
+    this.userAgent = userAgent;
+  }
+
+  setProxy(config: unknown): Promise<void> {
+    this.lastProxyConfig = config;
+    return Promise.resolve();
+  }
+
+  setPermissionRequestHandler(
+    _handler: ((...args: unknown[]) => void) | null,
+  ): void {}
+
+  clearCache(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  clearStorageData(_options?: unknown): Promise<void> {
+    this.cookies.store = [];
+    return Promise.resolve();
+  }
+
+  closeAllConnections(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  fetch(_url: string, _init?: unknown): Promise<{
+    ok: boolean;
+    status: number;
+    json: () => Promise<unknown>;
+  }> {
+    return Promise.resolve({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({}),
+    });
+  }
+}
+
+const sessionsByPartition = new Map<string, FakeSession>();
+
+export const session = {
+  defaultSession: new FakeSession(),
+  /** Partition names requested so far — mock-only, for assertions. */
+  _partitions: [] as string[],
+  fromPartition(partition: string, _options?: unknown): FakeSession {
+    this._partitions.push(partition);
+    let existing = sessionsByPartition.get(partition);
+    if (!existing) {
+      existing = new FakeSession();
+      sessionsByPartition.set(partition, existing);
+    }
+    return existing;
+  },
+};
+
+type AppListener = (...args: unknown[]) => void;
+const appListeners = new Map<string, AppListener[]>();
+
+export const app = {
+  isPackaged: false,
+  /** Mirrors Electron default; installChromeLikeUserAgent overwrites this. */
+  userAgentFallback:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) pugying-desktop/0.0.2 Chrome/152.0.7977.130 Electron/44.5.1 Safari/537.36',
+  dock: {
+    show(): Promise<void> {
+      return Promise.resolve();
+    },
+    hide(): void {},
+  },
+  /** Matches the name/version Electron embeds in the default UA above. */
+  getName(): string {
+    return 'pugying-desktop';
+  },
+  getVersion(): string {
+    return '0.0.2';
+  },
+  getAppPath(): string {
+    return path.join(__dirname, '../..');
+  },
+  getPath(name: string): string {
+    return path.join(os.tmpdir(), 'pugying-desktop-test', name);
+  },
+  whenReady(): Promise<void> {
+    return Promise.resolve();
+  },
+  on(event: string, listener: AppListener): typeof app {
+    const list = appListeners.get(event) ?? [];
+    list.push(listener);
+    appListeners.set(event, list);
+    return app;
+  },
+  /** Test helper: fire registered app listeners. */
+  emit(event: string, ...args: unknown[]): void {
+    for (const listener of appListeners.get(event) ?? []) {
+      listener(...args);
+    }
+  },
+  /** Test helper: drop all app listeners between cases. */
+  clearListeners(): void {
+    appListeners.clear();
+  },
+  quit(): void {},
+};
+
+const ipcHandlers = new Map<string, unknown>();
+
+export const ipcMain = {
+  handle(channel: string, listener: unknown): void {
+    ipcHandlers.set(channel, listener);
+  },
+  removeHandler(channel: string): void {
+    ipcHandlers.delete(channel);
+  },
+  on(_channel: string, _listener: unknown): typeof ipcMain {
+    return ipcMain;
+  },
+};
+
+export const ipcRenderer = {
+  invoke(_channel: string, ..._args: unknown[]): Promise<unknown> {
+    return Promise.resolve(undefined);
+  },
+  on(_channel: string, _listener: unknown): typeof ipcRenderer {
+    return ipcRenderer;
+  },
+  removeListener(_channel: string, _listener: unknown): typeof ipcRenderer {
+    return ipcRenderer;
+  },
+  send(_channel: string, ..._args: unknown[]): void {},
+};
+
+export const contextBridge = {
+  exposeInMainWorld(_key: string, _api: unknown): void {},
+};
+
+export class Tray extends EventEmitter {
+  private destroyed = false;
+
+  constructor(_image?: unknown) {
+    super();
+  }
+
+  setContextMenu(_menu: unknown): void {}
+
+  setToolTip(_tooltip: string): void {}
+
+  popUpContextMenu(): void {}
+
+  isDestroyed(): boolean {
+    return this.destroyed;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
+}
+
+export const Menu = {
+  buildFromTemplate(template: unknown[]): { items: unknown[] } {
+    return { items: template };
+  },
+  setApplicationMenu(_menu: unknown): void {},
+};
+
+export class Notification {
+  constructor(_options?: { title?: string; body?: string }) {}
+
+  static isSupported(): boolean {
+    return false;
+  }
+
+  show(): void {}
+}
+
+class FakeNativeImage {
+  private empty: boolean;
+  private width: number;
+  private height: number;
+
+  constructor(empty: boolean, width = 0, height = 0) {
+    this.empty = empty;
+    this.width = width;
+    this.height = height;
+  }
+
+  isEmpty(): boolean {
+    return this.empty;
+  }
+
+  getSize(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
+
+  resize(_options: { width?: number; height?: number }): FakeNativeImage {
+    return new FakeNativeImage(this.empty, this.width, this.height);
+  }
+
+  setTemplateImage(_flag: boolean): void {}
+}
+
+function pngSizeFromBuffer(buf: Buffer): { width: number; height: number } | null {
+  if (
+    buf.length >= 24 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  return null;
+}
+
+export const nativeImage = {
+  createFromPath(_path: string): FakeNativeImage {
+    return new FakeNativeImage(false, 1, 1);
+  },
+  createFromBuffer(buf: Buffer): FakeNativeImage {
+    const size = pngSizeFromBuffer(buf);
+    if (size && size.width > 0 && size.height > 0) {
+      return new FakeNativeImage(false, size.width, size.height);
+    }
+    return new FakeNativeImage(true);
+  },
+  createEmpty(): FakeNativeImage {
+    return new FakeNativeImage(true);
+  },
+};
+
+export const clipboard = {
+  writeText(_text: string): void {},
+  readText(): string {
+    return '';
+  },
+};
+
+export const shell = {
+  openExternal(_url: string): Promise<void> {
+    return Promise.resolve();
+  },
+};
+
+export default {
+  app,
+  BrowserWindow,
+  WebContentsView,
+  Tray,
+  Menu,
+  Notification,
+  nativeImage,
+  clipboard,
+  shell,
+  ipcMain,
+  ipcRenderer,
+  contextBridge,
+  session,
+};

@@ -1,0 +1,33 @@
+# OS
+.DS_Store
+
+# Local-only
+.claude/settings.local.json
+.reasonix
+server/.seed_probe
+.cursor/
+.agents/
+.tmp-shot/
+
+# Local publish/live-test artifacts (fixtures, receipts, cookies)
+/output/
+
+# 本机开发笔记与规格（不纳入版本库）
+/docs/
+/AGENTS.md
+/DEPLOY.md
+
+# Deploy / 本机密钥（.env.example 可提交）
+.env
+.env.local
+.env.*.local
+server/pugying.db
+server/*.db
+server/data/
+
+/test-reports/
+desktop/tsconfig.web.tsbuildinfo
+desktop/tsconfig.node.tsbuildinfo
+
+# 不提交锁文件：依赖以 package.json 精确版本为准；CI 使用 npm install
+**/package-lock.json

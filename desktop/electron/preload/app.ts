@@ -1,0 +1,186 @@
+/**
+ * 业务主窗 preload：仅暴露 pugyingDesktop，绝不挂 chromeShell。
+ */
+import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { DESKTOP_IPC } from "@shared/desktop-ipc";
+import type {
+  DesktopWindowChromeInfo,
+  TitleBarOverlayTheme,
+} from "@shared/window-chrome";
+
+const pugyingDesktop = {
+  available: true as const,
+  getBilibiliVideoOptions: (
+    accountId: string,
+  ): Promise<
+    import("@shared/bilibili-video-settings").BilibiliVideoOptions | null
+  > => ipcRenderer.invoke(DESKTOP_IPC.getBilibiliVideoOptions, accountId),
+  searchDouyinTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchDouyinTopics, accountId, keyword),
+  searchBilibiliAnthologies: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchBilibiliAnthologies,
+      accountId,
+      keyword,
+    ),
+  searchDouyinCollections: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinCollections,
+      accountId,
+      keyword,
+    ),
+  searchDouyinLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchDouyinLocations,
+      accountId,
+      keyword,
+    ),
+  searchBilibiliTopics: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.searchBilibiliTopics, accountId, keyword),
+  searchToutiaoLocations: (
+    accountId: string,
+    keyword: string,
+  ): Promise<import("@shared/platform-resource").PlatformResourceRef[]> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.searchToutiaoLocations,
+      accountId,
+      keyword,
+    ),
+  getDistributionSnapshot: (): Promise<
+    import("@shared/distribution").DistributionSnapshot
+  > => ipcRenderer.invoke(DESKTOP_IPC.getDistributionSnapshot),
+  onDistributionChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(DESKTOP_IPC.distributionChanged, handler);
+    return () => {
+      ipcRenderer.removeListener(DESKTOP_IPC.distributionChanged, handler);
+    };
+  },
+  submitDistribution: (
+    input: import("@shared/distribution").DistributionSubmission,
+  ): Promise<import("@shared/distribution").DistributionSubmissionResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.submitDistribution, input),
+  cancelDistribution: (
+    input: import("@shared/distribution").DistributionTargetRef,
+  ): Promise<import("@shared/distribution").DistributionActionResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.cancelDistribution, input),
+  retryDistributions: (
+    inputs: import("@shared/distribution").DistributionTargetRef[],
+  ): Promise<import("@shared/distribution").DistributionBatchResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.retryDistributions, inputs),
+  checkAccountSessions: (
+    ids: string[],
+    options?: { force?: boolean },
+  ): Promise<import("@shared/account-session").AccountSessionHealth[]> =>
+    ipcRenderer.invoke(DESKTOP_IPC.checkAccountSessions, ids, options),
+  getDistributionConcurrency: (): Promise<number> =>
+    ipcRenderer.invoke(DESKTOP_IPC.getDistributionConcurrency),
+  setDistributionConcurrency: (value: number): Promise<number> =>
+    ipcRenderer.invoke(DESKTOP_IPC.setDistributionConcurrency, value),
+  getProxySettings: (): Promise<
+    import("@shared/proxy-settings").ProxySettings
+  > => ipcRenderer.invoke(DESKTOP_IPC.getProxySettings),
+  setProxySettings: (
+    value: import("@shared/proxy-settings").ProxySettings,
+  ): Promise<import("@shared/proxy-settings").ProxySettings> =>
+    ipcRenderer.invoke(DESKTOP_IPC.setProxySettings, value),
+  testProxySettings: (
+    value: Pick<
+      import("@shared/proxy-settings").ProxySettings,
+      "host" | "port"
+    >,
+  ): Promise<import("@shared/proxy-settings").ProxyTestResult> =>
+    ipcRenderer.invoke(DESKTOP_IPC.testProxySettings, value),
+  getToutiaoRewardPrivilege: (
+    accountId: string,
+    options?: { force?: boolean },
+  ): Promise<
+    import("@shared/toutiao-article-privileges").ToutiaoRewardPrivilege | null
+  > =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.getToutiaoRewardPrivilege,
+      accountId,
+      options,
+    ),
+  postMessage: (message: unknown) => {
+    ipcRenderer.send(DESKTOP_IPC.message, message);
+  },
+  onMessage: (callback: (message: unknown) => void) => {
+    const handler = (_event: unknown, message: unknown) => {
+      callback(message);
+    };
+    ipcRenderer.on(DESKTOP_IPC.push, handler);
+    return () => {
+      ipcRenderer.removeListener(DESKTOP_IPC.push, handler);
+    };
+  },
+  getApiBaseUrl: (): Promise<string> =>
+    ipcRenderer.invoke(DESKTOP_IPC.getApiBaseUrl) as Promise<string>,
+  getLocalApiToken: (): Promise<string> =>
+    ipcRenderer.invoke(DESKTOP_IPC.getLocalApiToken) as Promise<string>,
+  getWindowChrome: (): Promise<DesktopWindowChromeInfo> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.getWindowChrome,
+    ) as Promise<DesktopWindowChromeInfo>,
+  setTitleBarOverlay: (theme: TitleBarOverlayTheme): Promise<boolean> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.setTitleBarOverlay,
+      theme,
+    ) as Promise<boolean>,
+  showAppWindow: (): Promise<void> =>
+    ipcRenderer.invoke(DESKTOP_IPC.appShow) as Promise<void>,
+  quitApp: (): Promise<void> =>
+    ipcRenderer.invoke(DESKTOP_IPC.appQuit) as Promise<void>,
+  showAbout: (): Promise<void> =>
+    ipcRenderer.invoke(DESKTOP_IPC.appAbout) as Promise<void>,
+  toggleDevTools: (): Promise<boolean> =>
+    ipcRenderer.invoke(DESKTOP_IPC.toggleDevTools) as Promise<boolean>,
+  checkLocalPathReadable: (absPath: string): Promise<boolean> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.checkLocalPathReadable,
+      absPath,
+    ) as Promise<boolean>,
+  readLocalImageDataUrl: (absPath: string): Promise<string | null> =>
+    ipcRenderer.invoke(DESKTOP_IPC.readLocalImageDataUrl, absPath) as Promise<
+      string | null
+    >,
+  saveArticleImage: (
+    dataUrl: string,
+    sourcePath: string,
+  ): Promise<string | null> =>
+    ipcRenderer.invoke(
+      DESKTOP_IPC.saveArticleImage,
+      dataUrl,
+      sourcePath,
+    ) as Promise<string | null>,
+  /**
+   * Electron 32+ 移除了 File.path；选片与拖拽均须经 webUtils 取绝对路径。
+   * 须在 preload 内调用，并把 File 从 renderer 传入。
+   */
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)?.trim() || "";
+    } catch {
+      return "";
+    }
+  },
+};
+
+export type PugyingDesktopBridge = typeof pugyingDesktop;
+
+contextBridge.exposeInMainWorld("pugyingDesktop", pugyingDesktop);

@@ -1,0 +1,62 @@
+/**
+ * 业务主窗 IPC 信道（与授权壳 chrome:* 完全隔离）。
+ * 传输层仍复用 AgentEnvelope，便于 agent-client 与 WS 协议对齐。
+ */
+export const DESKTOP_IPC = {
+  getDistributionSnapshot: "desktop:get-distribution-snapshot",
+  distributionChanged: "desktop:distribution-changed",
+  submitDistribution: "desktop:submit-distribution",
+  cancelDistribution: "desktop:cancel-distribution",
+  retryDistributions: "desktop:retry-distributions",
+  /** 只读检测账号登录状态（10 分钟节流） */
+  checkAccountSessions: "desktop:check-account-sessions",
+  getDistributionConcurrency: "desktop:get-distribution-concurrency",
+  setDistributionConcurrency: "desktop:set-distribution-concurrency",
+  /** 读取用户代理偏好（host/port + 开关） */
+  getProxySettings: "desktop:get-proxy-settings",
+  /** 保存并立即应用到 Electron Session */
+  setProxySettings: "desktop:set-proxy-settings",
+  /** 用当前填写的地址/端口探测代理连通性（不改已应用配置） */
+  testProxySettings: "desktop:test-proxy-settings",
+  /** 读取头条文章编辑器的当前账号赞赏额度 */
+  getToutiaoRewardPrivilege: "desktop:get-toutiao-reward-privilege",
+  getBilibiliVideoOptions: "desktop:get-bilibili-video-options",
+  /** 按账号搜索抖音官方话题候选项 */
+  searchDouyinTopics: "desktop:search-douyin-topics",
+  /** 按账号读取/筛选 B 站文集候选项 */
+  searchBilibiliAnthologies: "desktop:search-bilibili-anthologies",
+  /** 按账号读取/筛选抖音合集候选项 */
+  searchDouyinCollections: "desktop:search-douyin-collections",
+  /** 按账号搜索抖音发布位置（POI） */
+  searchDouyinLocations: "desktop:search-douyin-locations",
+  /** 按账号搜索 B 站发布话题候选项 */
+  searchBilibiliTopics: "desktop:search-bilibili-topics",
+  /** 按账号读取/筛选头条文章城市位置候选项 */
+  searchToutiaoLocations: "desktop:search-toutiao-locations",
+  /** renderer → main */
+  message: "desktop:message",
+  /** main → renderer（hello / progress / result / closed） */
+  push: "desktop:push",
+  /** 本机 Nest API 基址 */
+  getApiBaseUrl: "desktop:get-api-base-url",
+  /** 本次桌面进程的本机 API 通道令牌 */
+  getLocalApiToken: "desktop:get-local-api-token",
+  /** 主窗标题栏铬信息（高度 / 控件形态） */
+  getWindowChrome: "desktop:get-window-chrome",
+  /** Windows：同步 titleBarOverlay 颜色 */
+  setTitleBarOverlay: "desktop:set-title-bar-overlay",
+  /** 顶栏菜单：显示/聚焦主窗口 */
+  appShow: "desktop:app-show",
+  /** 顶栏菜单：退出应用（走 before-quit 清理） */
+  appQuit: "desktop:app-quit",
+  /** 顶栏菜单：关于对话框 */
+  appAbout: "desktop:app-about",
+  /** 顶栏菜单：切换业务主窗 DevTools（仅未打包） */
+  toggleDevTools: "desktop:toggle-devtools",
+  /** 本机绝对路径是否可读（草稿打开 / 选片后校验） */
+  checkLocalPathReadable: "desktop:check-local-path-readable",
+  /** 读取本机图片供编辑器预览，不将本机文件 URL 暴露给 renderer */
+  readLocalImageDataUrl: "desktop:read-local-image-data-url",
+  /** 编辑后的正文图片另存为本机文件 */
+  saveArticleImage: "desktop:save-article-image",
+} as const;
